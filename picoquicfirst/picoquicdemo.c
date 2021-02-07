@@ -828,7 +828,7 @@ int main(int argc, char** argv)
     WSADATA wsaData = { 0 };
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
-    picoquic_config_init(&config);
+    memset(&config, 0, sizeof(picoquic_quic_config_t));
     memcpy(option_string, "u:f:1", 5);
     ret = picoquic_config_option_letters(option_string + 5, sizeof(option_string) - 5, NULL);
 
