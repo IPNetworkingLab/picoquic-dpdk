@@ -29,27 +29,34 @@
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
 #define MAX_PKT_BURST 32
+#define MEMPOOL_CACHE_SIZE 256
 
 static int
 lcore_hello(__rte_unused void *arg)
 {
+
 	int sent;
 	unsigned lcore_id;
 	lcore_id = rte_lcore_id();
-	struct rte_eth_dev_tx_buffer *buffer;
+	struct rte_eth_dev_rx_buffer *buffer;
 	struct rte_mbuf *m;
 	struct rte_eth_txconf txq_conf;
+    struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
+
+    rte_mempool mb_pool = rte_pktmbuf_pool_create("mbuf_pool", 15,
+		MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+		rte_socket_id());
+
 	int err = rte_eth_dev_configure(0,1,1,1,&txq_conf);
-	ret = rte_eth_tx_queue_setup(0, 0, 1, rte_eth_dev_socket_id(0), NULL);
+    if(ret != 0){
+		printf("error\n");
+	}
+	ret = rte_eth_rx_queue_setup(0,0,1,rte_eth_dev_socket_id(0),NULL,mb_pool)
 	if(ret != 0){
 		printf("error\n");
 	}
-	char msg[5] = 'test';
-	memcpy(m,msg,5);
+    nb_rx = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
 	rte_eth_tx_buffer_init(buffer, MAX_PKT_BURST);
-	sent = rte_eth_tx_buffer(0, 0, buffer, m);
-	sent = rte_eth_tx_buffer_flush(0, 0, buffer);
-	printf("hello from core %u\n", lcore_id);
 	return 0;
 }
 
