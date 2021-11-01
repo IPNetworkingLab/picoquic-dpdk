@@ -29,8 +29,8 @@
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
 
-
 #define MAX_PKT_BURST 32
+#define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
 
@@ -45,42 +45,38 @@ static struct rte_eth_conf port_conf = {
 		.mq_mode = ETH_MQ_TX_NONE,
 	},
 };
+
 static int
 lcore_hello(__rte_unused void *arg)
 {
-	
-	int sent;
-	int ret;
-	int err;
-	unsigned lcore_id;
-	struct rte_eth_dev_tx_buffer *buffer;
-	struct rte_mbuf *m;
-	struct rte_eth_txconf txq_conf;
-	struct rte_eth_conf eth_conf;
-	struct lcore_queue_conf *qconf;
+	struct rte_eth_dev_tx_buffer buffer;
+	struct rte_mbuf m;
 	struct rte_eth_conf local_port_conf = port_conf;
-
-	lcore_id = rte_lcore_id();
-	err = rte_eth_dev_configure(0,1,1,&local_port_conf);
-	printf("err number : %d\n",err);
-	ret = rte_eth_tx_queue_setup(0, 0, nb_txd, rte_eth_dev_socket_id(0), NULL);
-	if(ret != 0){
-		printf("error\n");
+	int ret;
+	int err = rte_eth_dev_configure(0,1,1,&local_port_conf);
+	if(err != 0){
+		printf("error in dev_configure\n");
 	}
-	char msg[5] = "test";
-	memcpy(m,msg,5);
-	rte_eth_tx_buffer_init(buffer, MAX_PKT_BURST);
-	sent = rte_eth_tx_buffer(1, 0, buffer, m);
-	sent = rte_eth_tx_buffer_flush(1, 0, buffer);
-	printf("hello from core %u\n", lcore_id);
+	err = rte_eth_tx_queue_setup(0,0,nb_txd, rte_eth_dev_socket_id(0),
+				NULL);
+	err = rte_eth_tx_buffer_init(&buffer, MAX_PKT_BURST);
+	if(err != 0){
+		printf("error in buffer_init\n");
+	}
+	memcpy(&m,"he",3);
+	ret = rte_eth_tx_buffer(0,0,&buffer,&m);
+	printf("first send : %u\n",ret);
+	ret = rte_eth_tx_buffer_flush(0,0,&buffer);
+	printf("second send : %u\n",ret);
 	return 0;
 }
 
 int main(int argc, char **argv)
-{  
-	printf("hello\n");  
-	unsigned lcore_id;
+{
+
 	int ret;
+	unsigned lcore_id;
+	lcore_id = rte_lcore_id();
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");

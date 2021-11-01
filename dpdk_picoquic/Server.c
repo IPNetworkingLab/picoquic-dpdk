@@ -35,34 +35,35 @@ static int
 lcore_hello(__rte_unused void *arg)
 {
 
-	int sent;
+	int err;
 	unsigned lcore_id;
 	lcore_id = rte_lcore_id();
 	struct rte_eth_dev_rx_buffer *buffer;
 	struct rte_mbuf *m;
-	struct rte_eth_txconf txq_conf;
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
-
-    rte_mempool mb_pool = rte_pktmbuf_pool_create("mbuf_pool", 15,
+	const struct rte_eth_conf eth_conf;
+	unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
+    struct rte_mempool *mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
 		rte_socket_id());
 
-	int err = rte_eth_dev_configure(0,1,1,1,&txq_conf);
-    if(ret != 0){
+	err = rte_eth_dev_configure(0,1,1,&eth_conf);
+    if(err != 0){
 		printf("error\n");
 	}
-	ret = rte_eth_rx_queue_setup(0,0,1,rte_eth_dev_socket_id(0),NULL,mb_pool)
-	if(ret != 0){
+	err = rte_eth_rx_queue_setup(0,0,1,rte_eth_dev_socket_id(0),NULL,mb_pool);
+	if(err != 0){
 		printf("error\n");
 	}
     nb_rx = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
-	rte_eth_tx_buffer_init(buffer, MAX_PKT_BURST);
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
 	int ret;
+	unsigned lcore_id;
+	lcore_id = rte_lcore_id();
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
