@@ -28,34 +28,60 @@
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
+#include <unistd.h>
+
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
+#define RTE_TEST_RX_DESC_DEFAULT 1024
+#define RTE_TEST_TX_DESC_DEFAULT 1024
 
+static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
+static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
+
+static struct rte_eth_conf port_conf = {
+	.rxmode = {
+		.split_hdr_size = 0,
+	},
+	.txmode = {
+		.mq_mode = ETH_MQ_TX_NONE,
+	},
+};
 static int
 lcore_hello(__rte_unused void *arg)
 {
 
 	int err;
-	unsigned lcore_id;
-	lcore_id = rte_lcore_id();
-	struct rte_eth_dev_rx_buffer *buffer;
+	struct rte_eth_conf local_port_conf = port_conf;
+	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	struct rte_mbuf *m;
-    struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
-	const struct rte_eth_conf eth_conf;
 	unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
-    struct rte_mempool *mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
-		MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-		rte_socket_id());
+	struct rte_mempool *mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
+														  MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+														  rte_socket_id());
+	if(mb_pool == NULL){
+		printf("fail to init mb_pool\n");
+	}
 
-	err = rte_eth_dev_configure(0,1,1,&eth_conf);
-    if(err != 0){
-		printf("error\n");
+	err = rte_eth_dev_configure(0, 1, 1, &local_port_conf);
+	if (err != 0)
+	{
+		printf("error dev_configure\n");
 	}
-	err = rte_eth_rx_queue_setup(0,0,1,rte_eth_dev_socket_id(0),NULL,mb_pool);
-	if(err != 0){
-		printf("error\n");
+	err = rte_eth_rx_queue_setup(0, 0, nb_rxd, rte_eth_dev_socket_id(0), NULL, mb_pool);
+	if (err != 0)
+	{
+		printf("error_queue_setup\n");
 	}
-    nb_rx = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
+	printf("loop start\n");
+	while (true)
+	{
+		sleep(1);
+		err = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
+		for (int j = 0; j < err; j++) {
+			m = pkts_burst[j];
+			printf("hello  : %s\n", &m);
+		}
+	}
 	return 0;
 }
 

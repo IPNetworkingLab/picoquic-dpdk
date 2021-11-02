@@ -49,25 +49,79 @@ static struct rte_eth_conf port_conf = {
 static int
 lcore_hello(__rte_unused void *arg)
 {
-	struct rte_eth_dev_tx_buffer buffer;
-	struct rte_mbuf m;
+	struct rte_eth_dev_tx_buffer *tx_buffer;
+	struct rte_mbuf *m;
 	struct rte_eth_conf local_port_conf = port_conf;
-	int ret;
-	int err = rte_eth_dev_configure(0,1,1,&local_port_conf);
-	if(err != 0){
+	struct rte_ether_hdr *eth;
+	void *tmp;
+	unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
+	struct rte_mempool *mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
+														  MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+														  rte_socket_id());
+
+	tx_buffer = rte_zmalloc_socket("tx_buffer",
+								   RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
+								   rte_eth_dev_socket_id(0));
+	if (tx_buffer == NULL)
+	{
+		printf("fail to init buffer\n");
+		return 0;
+	}
+
+	if (mb_pool == NULL)
+	{
+		printf("fail to init mb_pool\n");
+		return 0;
+	}
+	
+	int ret = rte_eth_dev_configure(0, 1, 1, &local_port_conf);
+	if (ret != 0)
+	{
 		printf("error in dev_configure\n");
+		return 0;
 	}
-	err = rte_eth_tx_queue_setup(0,0,nb_txd, rte_eth_dev_socket_id(0),
-				NULL);
-	err = rte_eth_tx_buffer_init(&buffer, MAX_PKT_BURST);
-	if(err != 0){
+	ret = rte_eth_tx_queue_setup(0, 0, nb_txd, rte_eth_dev_socket_id(0),
+								 NULL);
+	if (ret != 0)
+	{
+		printf("failed to init queue\n");
+		return 0;
+	}
+	ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST);
+	if (ret != 0)
+	{
 		printf("error in buffer_init\n");
+		return 0;
 	}
-	memcpy(&m,"he",3);
-	ret = rte_eth_tx_buffer(0,0,&buffer,&m);
-	printf("first send : %u\n",ret);
-	ret = rte_eth_tx_buffer_flush(0,0,&buffer);
-	printf("second send : %u\n",ret);
+
+	// ret = rte_eth_tx_buffer_set_err_callback(tx_buffer,
+	// 			rte_eth_tx_buffer_count_callback,
+	// 			5);
+	if (ret < 0)
+	{
+		printf("failed to init callback\n");
+		return 0;
+	}
+	while (true)
+	{
+		m = rte_pktmbuf_alloc(mb_pool);
+		if (m == NULL)
+		{
+			printf("fail to init pktmbuf\n");
+			return 0;
+		}
+		// eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+		// tmp = &eth->d_addr.addr_bytes[0];
+		// *((uint64_t *)tmp) = 0;
+
+
+		ret = rte_eth_tx_buffer(0, 0, tx_buffer, m);
+
+		if (ret != 0)
+		{
+			printf("send : %d\n", ret);
+		}
+	}
 	return 0;
 }
 
@@ -82,14 +136,13 @@ int main(int argc, char **argv)
 		rte_panic("Cannot init EAL\n");
 
 	/* call lcore_hello() on every worker lcore */
-	RTE_LCORE_FOREACH_WORKER(lcore_id)
-	{
-		rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
-	}
+	// RTE_LCORE_FOREACH_WORKER(lcore_id)
+	// {
+	// 	rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+	// }
 
 	/* call it on main lcore too */
 	lcore_hello(NULL);
-
 	rte_eal_mp_wait_lcore();
 
 	/* clean up the EAL */
