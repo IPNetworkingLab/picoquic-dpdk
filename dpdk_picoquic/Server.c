@@ -50,36 +50,78 @@ static int
 lcore_hello(__rte_unused void *arg)
 {
 
-	int err;
+	int ret;
+	uint16_t portid = 0;
 	struct rte_eth_conf local_port_conf = port_conf;
+	struct rte_eth_rxconf rxq_conf;
+	struct rte_eth_dev_info dev_info;
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	struct rte_mbuf *m;
+	struct rte_ether_hdr *eth;
 	unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
 	struct rte_mempool *mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
 														  MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
 														  rte_socket_id());
-	if(mb_pool == NULL){
+	if (mb_pool == NULL)
+	{
 		printf("fail to init mb_pool\n");
 	}
 
-	err = rte_eth_dev_configure(0, 1, 1, &local_port_conf);
-	if (err != 0)
+	ret = rte_eth_dev_info_get(0, &dev_info);
+	if (ret != 0)
+		rte_exit(EXIT_FAILURE,
+				 "Error during getting device (port %u) info: %s\n",
+				 0, strerror(-ret));
+
+	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+		local_port_conf.txmode.offloads |=
+			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+	ret = rte_eth_dev_configure(0, 1, 1, &local_port_conf);
+	if (ret != 0)
 	{
 		printf("error dev_configure\n");
 	}
-	err = rte_eth_rx_queue_setup(0, 0, nb_rxd, rte_eth_dev_socket_id(0), NULL, mb_pool);
-	if (err != 0)
+
+	ret = rte_eth_dev_adjust_nb_rx_tx_desc(0, &nb_rxd,
+										   &nb_txd);
+	if (ret < 0)
+		rte_exit(EXIT_FAILURE,
+				 "Cannot adjust number of descriptors: err=%d, port=%u\n",
+				 ret, 0);
+	//init rx queue
+	rxq_conf = dev_info.default_rxconf;
+	rxq_conf.offloads = local_port_conf.rxmode.offloads;
+	ret = rte_eth_rx_queue_setup(0, 0, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pool);
+	if (ret != 0)
 	{
-		printf("error_queue_setup\n");
+		printf("failed to init rx_queue\n");
 	}
+	ret = rte_eth_tx_queue_setup(0, 0, nb_txd, rte_eth_dev_socket_id(0),
+								 NULL);
+	if (ret != 0)
+	{
+		printf("failed to init tx_queue\n");
+		return 0;
+	}
+	printf("before start \n");
+	ret = rte_eth_dev_start(0);
+	if (ret < 0)
+		rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n",
+				 ret, 0);
+	ret = rte_eth_promiscuous_enable(portid);
+		if (ret != 0)
+			rte_exit(EXIT_FAILURE,
+				 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
+				 rte_strerror(-ret), portid);
 	printf("loop start\n");
 	while (true)
 	{
-		sleep(1);
-		err = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
-		for (int j = 0; j < err; j++) {
+		ret = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
+		for (int j = 0; j < ret; j++)
+		{
 			m = pkts_burst[j];
-			printf("hello  : %s\n", &m);
+			eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+			printf("eth_type  : %u\n", ntohs(eth->ether_type));
 		}
 	}
 	return 0;
