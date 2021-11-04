@@ -34,6 +34,9 @@
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
 
+struct rte_mempool *mb_pool;
+
+
 static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 static struct rte_ether_addr eth_addr;
@@ -59,10 +62,8 @@ lcore_hello(__rte_unused void *arg)
 	struct rte_eth_conf local_port_conf = port_conf;
 	struct rte_ether_hdr *eth;
 	void *tmp;
-	unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
-	struct rte_mempool *mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
-														  MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-														  rte_socket_id());
+	
+	
 
 	tx_buffer = rte_zmalloc_socket("tx_buffer",
 								   RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
@@ -100,8 +101,10 @@ lcore_hello(__rte_unused void *arg)
 		rte_exit(EXIT_FAILURE,
 				 "Cannot adjust number of descriptors: err=%d, port=%u\n",
 				 ret, portid);
+
 	ret = rte_eth_macaddr_get(portid, &eth_addr);
 
+	//init tx queue
 	txq_conf = dev_info.default_txconf;
 	txq_conf.offloads = local_port_conf.txmode.offloads;
 	ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
@@ -126,40 +129,42 @@ lcore_hello(__rte_unused void *arg)
 	{
 		printf("failed to init rx_queue\n");
 	}
-	// ret = rte_eth_tx_buffer_set_err_callback(tx_buffer,
-	// 			rte_eth_tx_buffer_count_callback,
-	// 			5);
-	// if (ret < 0)
-	// {
-	// 	printf("failed to init callback\n");
-	// 	return 0;
-	// }
 
-	m = rte_pktmbuf_alloc(mb_pool);
-	if (m == NULL)
-	{
-		printf("fail to init pktmbuf\n");
-		return 0;
-	}
-	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	eth->ether_type = htons(2048);
-	rte_ether_addr_copy(&eth_addr, &eth->s_addr);
-	tmp = &eth->d_addr.addr_bytes[0];
-	*((uint64_t *)tmp) = 0;
+	//changing mac addr and ether type
+	// eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	// eth->ether_type = htons(2048);
+	// rte_ether_addr_copy(&eth_addr, &eth->s_addr);
+	// tmp = &eth->d_addr.addr_bytes[0];
+	// *((uint64_t *)tmp) = 0;
+
 	printf("before start \n");
 	ret = rte_eth_dev_start(0);
+	if (ret != 0)
+	{
+		printf("failed to start device\n");
+	}
 	ret = rte_eth_promiscuous_enable(portid);
 	if (ret != 0)
 		rte_exit(EXIT_FAILURE,
 				 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
 				 rte_strerror(-ret), portid);
-	printf("loop start\n");
-	printf("after start\n");
+
 	while (true)
 	{
-
+		size_t pkt_size;
+		m = rte_pktmbuf_alloc(mb_pool);
+		if (m == NULL)
+		{
+			printf("fail to init pktmbuf\n");
+			return 0;
+		}
+		pkt_size = sizeof(struct rte_ether_hdr);
+		m -> data_len = pkt_size;
+		m-> pkt_len = pkt_size;
+		
+		printf("size : %d\n", m->data_len);
 		ret = rte_eth_tx_buffer(0, 0, tx_buffer, m);
-		// ret = rte_eth_tx_burst(0, 0, &m, 1);
+		// ret = rte_eth_tx_burst(0, 0, &m,1);
 
 		if (ret != 0)
 		{
@@ -178,7 +183,11 @@ int main(int argc, char **argv)
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
-
+		
+	unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
+	mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
+														  MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+														  rte_socket_id());
 	/* call lcore_hello() on every worker lcore */
 	// RTE_LCORE_FOREACH_WORKER(lcore_id)
 	// {

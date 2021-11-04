@@ -104,13 +104,15 @@ lcore_hello(__rte_unused void *arg)
 		return 0;
 	}
 	printf("before start \n");
+
+	
 	ret = rte_eth_dev_start(0);
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n",
 				 ret, 0);
 	ret = rte_eth_promiscuous_enable(portid);
-		if (ret != 0)
-			rte_exit(EXIT_FAILURE,
+	if (ret != 0)
+		rte_exit(EXIT_FAILURE,
 				 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
 				 rte_strerror(-ret), portid);
 	printf("loop start\n");
