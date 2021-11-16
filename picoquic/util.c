@@ -40,6 +40,29 @@
 #include <string.h>
 #include "picoquic_utils.h"
 
+//dpdk
+#include <rte_common.h>
+#include <rte_log.h>
+#include <rte_malloc.h>
+#include <rte_memory.h>
+#include <rte_memcpy.h>
+#include <rte_eal.h>
+#include <rte_launch.h>
+#include <rte_atomic.h>
+#include <rte_cycles.h>
+#include <rte_prefetch.h>
+#include <rte_lcore.h>
+#include <rte_per_lcore.h>
+#include <rte_branch_prediction.h>
+#include <rte_interrupts.h>
+#include <rte_random.h>
+#include <rte_debug.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <rte_string_fns.h>
+#include <rte_udp.h>
 /* clang-format on */
 
 char* picoquic_string_create(const char* original, size_t len)
@@ -1163,3 +1186,109 @@ double picoquic_test_gauss_random(uint64_t* random_context)
 
     return dx;
 }
+
+///====================DPDK=======================
+copy_buf_to_pkt(void* buf, unsigned len, struct rte_mbuf *pkt, unsigned offset)
+{
+	if (offset + len <= pkt->data_len) {
+		rte_memcpy(rte_pktmbuf_mtod_offset(pkt, char *, offset),
+			buf, (size_t) len);
+		return;
+	}
+	copy_buf_to_pkt_segs(buf, len, pkt, offset);
+}
+setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
+			 struct rte_udp_hdr *udp_hdr,
+			 uint16_t pkt_data_len)
+{
+	uint16_t *ptr16;
+	uint32_t ip_cksum;
+	uint16_t pkt_len;
+
+	/*
+	 * Initialize UDP header.
+	 */
+	pkt_len = (uint16_t) (pkt_data_len + sizeof(struct rte_udp_hdr));
+	udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
+	udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
+	udp_hdr->dgram_len      = RTE_CPU_TO_BE_16(pkt_len);
+	udp_hdr->dgram_cksum    = 0; /* No UDP checksum. */
+
+	/*
+	 * Initialize IP header.
+	 */
+	pkt_len = (uint16_t) (pkt_len + sizeof(struct rte_ipv4_hdr));
+	ip_hdr->version_ihl   = RTE_IPV4_VHL_DEF;
+	ip_hdr->type_of_service   = 0;
+	ip_hdr->fragment_offset = 0;
+	ip_hdr->time_to_live   = IP_DEFTTL;
+	ip_hdr->next_proto_id = IPPROTO_UDP;
+	ip_hdr->packet_id = 0;
+	ip_hdr->total_length   = RTE_CPU_TO_BE_16(pkt_len);
+	ip_hdr->src_addr = rte_cpu_to_be_32(tx_ip_src_addr);
+	ip_hdr->dst_addr = rte_cpu_to_be_32(tx_ip_dst_addr);
+
+	/*
+	 * Compute IP header checksum.
+	 */
+	ptr16 = (unaligned_uint16_t*) ip_hdr;
+	ip_cksum = 0;
+	ip_cksum += ptr16[0]; ip_cksum += ptr16[1];
+	ip_cksum += ptr16[2]; ip_cksum += ptr16[3];
+	ip_cksum += ptr16[4];
+	ip_cksum += ptr16[6]; ip_cksum += ptr16[7];
+	ip_cksum += ptr16[8]; ip_cksum += ptr16[9];
+
+	/*
+	 * Reduce 32 bit checksum to 16 bits and complement it.
+	 */
+	ip_cksum = ((ip_cksum & 0xFFFF0000) >> 16) +
+		(ip_cksum & 0x0000FFFF);
+	if (ip_cksum > 65535)
+		ip_cksum -= 65535;
+	ip_cksum = (~ip_cksum) & 0x0000FFFF;
+	if (ip_cksum == 0)
+		ip_cksum = 0xFFFF;
+	ip_hdr->hdr_checksum = (uint16_t) ip_cksum;
+}
+
+
+
+static void
+copy_buf_to_pkt_segs(void* buf, unsigned len, struct rte_mbuf *pkt,
+		     unsigned offset)
+{
+	struct rte_mbuf *seg;
+	void *seg_buf;
+	unsigned copy_len;
+
+	seg = pkt;
+	while (offset >= seg->data_len) {
+		offset -= seg->data_len;
+		seg = seg->next;
+	}
+	copy_len = seg->data_len - offset;
+	seg_buf = rte_pktmbuf_mtod_offset(seg, char *, offset);
+	while (len > copy_len) {
+		rte_memcpy(seg_buf, buf, (size_t) copy_len);
+		len -= copy_len;
+		buf = ((char*) buf + copy_len);
+		seg = seg->next;
+		seg_buf = rte_pktmbuf_mtod(seg, char *);
+		copy_len = seg->data_len;
+	}
+	rte_memcpy(seg_buf, buf, (size_t) len);
+}
+
+static inline void
+copy_buf_to_pkt(void* buf, unsigned len, struct rte_mbuf *pkt, unsigned offset)
+{
+	if (offset + len <= pkt->data_len) {
+		rte_memcpy(rte_pktmbuf_mtod_offset(pkt, char *, offset),
+			buf, (size_t) len);
+		return;
+	}
+	copy_buf_to_pkt_segs(buf, len, pkt, offset);
+}
+
+

@@ -456,43 +456,18 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                 uint16_t len;
                 for (i = 0; i < pkts_recv; i++)
                 {
-                    /* update len on each iteration to 0 */
-                    len = 0;
-
-                    /* access payload of rcv'd pkt at ethernet header */
-                    eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct ether_hdr *);
-
-                    if (rte_cpu_to_be_16(ETHER_TYPE_VLAN) == eth_hdr->ether_type)
-                    {
-                        len = sizeof(struct ether_hdr);
-                        vh = (struct vlan_hdr *)(eth_hdr + 1);
-
-                        proto = vh->eth_proto;
-                        if (rte_cpu_to_be_16(ETHER_TYPE_VLAN) == *proto)
-                        {
-                            len += sizeof(struct vlan_hdr);
-                            proto = vh->eth_proto;
-                        }
-
-                        /* free up non ipv4 packets */
-                        if (rte_cpu_to_be_16(ETHER_TYPE_IPv4) != *proto)
-                            rte_pktmbuf_free(pkt);
-                    }
-
                     /* access IP header of rcv'd pkt */
-                    ip_hdr = (struct ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + len);
+                    ip_hdr = (struct ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct ether_hdr));
 
                     struct udp_hdr *udp = (struct udp_hdr *)((unsigned char *)ip_hdr +
                                                              sizeof(struct ipv4_hdr));
                     unsigned char *paylaod = (unsigned char *)(udp + 1);
                     int length = udp->dgram_len;
+                    (void)picoquic_incoming_packet_ex(quic, payload,
+                                                      (size_t)length, (struct sockaddr *)&addr_from,
+                                                      (struct sockaddr *)&addr_to, if_index_to, received_ecn,
+                                                      &last_cnx, current_time);
                 }
-
-
-                (void)picoquic_incoming_packet_ex(quic, eth,
-                                                  (size_t)bytes_recv, (struct sockaddr *)&addr_from,
-                                                  (struct sockaddr *)&addr_to, if_index_to, received_ecn,
-                                                  &last_cnx, current_time);
 
                 if (loop_callback != NULL)
                 {
@@ -535,188 +510,181 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                                 break;
                             }
                         }
+                        int offset = 0;
+                        struct rte_ipv4_hdr ip_hdr;
+                        struct rte_udp_hdr udp_hdr;
+                        struct rte_ether_hdr eth_hdr;
+                        struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
+                        setup_pkt_udp_ip_headers(&ip_hdr, &udp_hdr, send_length);
 
-                        if (send_socket == INVALID_SOCKET)
-                        {
-                            sock_ret = -1;
-                            sock_err = -1;
-                        }
-                        else
-                        {
-                            if (testing_migration)
-                            {
-                                /* This code path is only used in the migration tests */
-                                uint16_t send_port = (local_addr.ss_family == AF_INET) ? ((struct sockaddr_in *)&local_addr)->sin_port : ((struct sockaddr_in6 *)&local_addr)->sin6_port;
+                        copy_buf_to_pkt(&p_hdr, sizeof(eth_hdr), m, offset);
+                        offset += sizeof(rte_eth_hdr);
+                        copy_buf_to_pkt(&ip_hdr, sizeof(rte_ipv4_hdr), m, offset);
+                        offset += sizeof(rte_ipv4_hdr);
+                        copy_buf_to_pkt(&udp_hdr, sizeof(rte_udp_hdr), m, offset);
+                        offset += sizeof(rte_udp_hdr);
+                        copy_buf_to_pkt(send_buffer, send_buffer_size, m, offset);
+                        //inchallah ca marche
+                        ret = rte_eth_tx_burst(0, 0, &m, 1);
 
-                                if (send_port == next_port)
-                                {
-                                    send_socket = s_socket[nb_sockets - 1];
-                                }
-                            }
+                        //     if (sock_ret <= 0)
+                        //     {
+                        //         if (last_cnx == NULL)
+                        //         {
+                        //             picoquic_log_context_free_app_message(quic, &log_cid, "Could not send message to AF_to=%d, AF_from=%d, if=%d, ret=%d, err=%d",
+                        //                                                   peer_addr.ss_family, local_addr.ss_family, if_index, sock_ret, sock_err);
+                        //         }
+                        //         else
+                        //         {
+                        //             picoquic_log_app_message(last_cnx, "Could not send message to AF_to=%d, AF_from=%d, if=%d, ret=%d, err=%d",
+                        //                                      peer_addr.ss_family, local_addr.ss_family, if_index, sock_ret, sock_err);
 
-                            sock_ret = picoquic_sendmsg(send_socket,
-                                                        (struct sockaddr *)&peer_addr, (struct sockaddr *)&local_addr, if_index,
-                                                        (const char *)send_buffer, (int)send_length, (int)send_msg_size, &sock_err);
-                        }
+                        //             if (picoquic_socket_error_implies_unreachable(sock_err))
+                        //             {
+                        //                 picoquic_notify_destination_unreachable(last_cnx, current_time,
+                        //                                                         (struct sockaddr *)&peer_addr, (struct sockaddr *)&local_addr, if_index,
+                        //                                                         sock_err);
+                        //             }
+                        //             else if (sock_err == EIO)
+                        //             {
+                        //                 size_t packet_index = 0;
+                        //                 size_t packet_size = send_msg_size;
 
-                        if (sock_ret <= 0)
-                        {
-                            if (last_cnx == NULL)
-                            {
-                                picoquic_log_context_free_app_message(quic, &log_cid, "Could not send message to AF_to=%d, AF_from=%d, if=%d, ret=%d, err=%d",
-                                                                      peer_addr.ss_family, local_addr.ss_family, if_index, sock_ret, sock_err);
-                            }
-                            else
-                            {
-                                picoquic_log_app_message(last_cnx, "Could not send message to AF_to=%d, AF_from=%d, if=%d, ret=%d, err=%d",
-                                                         peer_addr.ss_family, local_addr.ss_family, if_index, sock_ret, sock_err);
-
-                                if (picoquic_socket_error_implies_unreachable(sock_err))
-                                {
-                                    picoquic_notify_destination_unreachable(last_cnx, current_time,
-                                                                            (struct sockaddr *)&peer_addr, (struct sockaddr *)&local_addr, if_index,
-                                                                            sock_err);
-                                }
-                                else if (sock_err == EIO)
-                                {
-                                    size_t packet_index = 0;
-                                    size_t packet_size = send_msg_size;
-
-                                    while (packet_index < send_length)
-                                    {
-                                        if (packet_index + packet_size > send_length)
-                                        {
-                                            packet_size = send_length - packet_index;
-                                        }
-                                        sock_ret = picoquic_sendmsg(send_socket,
-                                                                    (struct sockaddr *)&peer_addr, (struct sockaddr *)&local_addr, if_index,
-                                                                    (const char *)(send_buffer + packet_index), (int)packet_size, 0, &sock_err);
-                                        if (sock_ret > 0)
-                                        {
-                                            packet_index += packet_size;
-                                        }
-                                        else
-                                        {
-                                            picoquic_log_app_message(last_cnx, "Retry with packet size=%zu fails at index %zu, ret=%d, err=%d.",
-                                                                     packet_size, packet_index, sock_ret, sock_err);
-                                            break;
-                                        }
-                                    }
-                                    if (sock_ret > 0)
-                                    {
-                                        picoquic_log_app_message(last_cnx, "Retry of %zu bytes by chunks of %zu bytes succeeds.",
-                                                                 send_length, send_msg_size);
-                                    }
-                                }
-                            }
-                        }
+                        //                 while (packet_index < send_length)
+                        //                 {
+                        //                     if (packet_index + packet_size > send_length)
+                        //                     {
+                        //                         packet_size = send_length - packet_index;
+                        //                     }
+                        //                     sock_ret = picoquic_sendmsg(send_socket,
+                        //                                                 (struct sockaddr *)&peer_addr, (struct sockaddr *)&local_addr, if_index,
+                        //                                                 (const char *)(send_buffer + packet_index), (int)packet_size, 0, &sock_err);
+                        //                     if (sock_ret > 0)
+                        //                     {
+                        //                         packet_index += packet_size;
+                        //                     }
+                        //                     else
+                        //                     {
+                        //                         picoquic_log_app_message(last_cnx, "Retry with packet size=%zu fails at index %zu, ret=%d, err=%d.",
+                        //                                                  packet_size, packet_index, sock_ret, sock_err);
+                        //                         break;
+                        //                     }
+                        //                 }
+                        //                 if (sock_ret > 0)
+                        //                 {
+                        //                     picoquic_log_app_message(last_cnx, "Retry of %zu bytes by chunks of %zu bytes succeeds.",
+                        //                                              send_length, send_msg_size);
+                        //                 }
+                        //             }
+                        //         }
+                        //     }
+                        // }
+                        // else
+                        // {
+                        //     break;
+                        // }
                     }
-                    else
+
+                    if (ret == 0 && loop_callback != NULL)
                     {
-                        break;
+                        ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
                     }
-                }
-
-                if (ret == 0 && loop_callback != NULL)
-                {
-                    ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
                 }
             }
+
+            // if (ret == PICOQUIC_NO_ERROR_SIMULATE_NAT || ret == PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
+            // {
+            //     /* Two pseudo error codes used for testing migration!
+            //      * What follows is really test code, which we write here because it has to handle
+            //      * the sockets, which interferes a lot with the handling of the packet loop.
+            //      */
+            //     SOCKET_TYPE s_mig = INVALID_SOCKET;
+            //     int s_mig_af;
+            //     int sock_ret;
+            //     int testing_nat = (ret == PICOQUIC_NO_ERROR_SIMULATE_NAT);
+
+            //     sock_ret = picoquic_packet_loop_open_sockets(0, sock_af[0], &s_mig, &s_mig_af,
+            //                                                  &next_port, socket_buffer_size, 1);
+            //     if (sock_ret != 1 || s_mig == INVALID_SOCKET)
+            //     {
+            //         if (last_cnx != NULL)
+            //         {
+            //             picoquic_log_app_message(last_cnx, "Could not create socket for migration test, port=%d, af=%d, err=%d",
+            //                                      next_port, sock_af[0], sock_ret);
+            //         }
+            //     }
+            //     else if (testing_nat)
+            //     {
+            //         if (s_socket[0] != INVALID_SOCKET)
+            //         {
+            //             SOCKET_CLOSE(s_socket[0]);
+            //         }
+            //         s_socket[0] = s_mig;
+            //         sock_ports[0] = next_port;
+            //         ret = 0;
+
+            //         if (loop_callback != NULL)
+            //         {
+            //             struct sockaddr_storage l_addr;
+            //             if (picoquic_store_loopback_addr(&l_addr, sock_af[0], sock_ports[0]) == 0)
+            //             {
+            //                 ret = loop_callback(quic, picoquic_packet_loop_port_update, loop_callback_ctx, &l_addr);
+            //             }
+            //         }
+            //     }
+            //     else
+            //     {
+            //         /* Testing organized migration */
+            //         if (nb_sockets < PICOQUIC_PACKET_LOOP_SOCKETS_MAX && last_cnx != NULL)
+            //         {
+            //             struct sockaddr_storage local_address;
+            //             picoquic_store_addr(&local_address, (struct sockaddr *)&last_cnx->path[0]->local_addr);
+            //             if (local_address.ss_family == AF_INET6)
+            //             {
+            //                 ((struct sockaddr_in6 *)&local_address)->sin6_port = next_port;
+            //             }
+            //             else if (local_address.ss_family == AF_INET)
+            //             {
+            //                 ((struct sockaddr_in *)&local_address)->sin_port = next_port;
+            //             }
+            //             s_socket[nb_sockets] = s_mig;
+            //             sock_ports[nb_sockets] = next_port;
+            //             nb_sockets++;
+            //             testing_migration = 1;
+            //             ret = picoquic_probe_new_path(last_cnx, (struct sockaddr *)&last_cnx->path[0]->peer_addr,
+            //                                           (struct sockaddr *)&local_address, current_time);
+            //         }
+            //         else
+            //         {
+            //             SOCKET_CLOSE(s_mig);
+            //         }
+            //     }
+            // }
         }
 
-        if (ret == PICOQUIC_NO_ERROR_SIMULATE_NAT || ret == PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
+        if (ret == PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP)
         {
-            /* Two pseudo error codes used for testing migration!
-             * What follows is really test code, which we write here because it has to handle
-             * the sockets, which interferes a lot with the handling of the packet loop.
-             */
-            SOCKET_TYPE s_mig = INVALID_SOCKET;
-            int s_mig_af;
-            int sock_ret;
-            int testing_nat = (ret == PICOQUIC_NO_ERROR_SIMULATE_NAT);
-
-            sock_ret = picoquic_packet_loop_open_sockets(0, sock_af[0], &s_mig, &s_mig_af,
-                                                         &next_port, socket_buffer_size, 1);
-            if (sock_ret != 1 || s_mig == INVALID_SOCKET)
-            {
-                if (last_cnx != NULL)
-                {
-                    picoquic_log_app_message(last_cnx, "Could not create socket for migration test, port=%d, af=%d, err=%d",
-                                             next_port, sock_af[0], sock_ret);
-                }
-            }
-            else if (testing_nat)
-            {
-                if (s_socket[0] != INVALID_SOCKET)
-                {
-                    SOCKET_CLOSE(s_socket[0]);
-                }
-                s_socket[0] = s_mig;
-                sock_ports[0] = next_port;
-                ret = 0;
-
-                if (loop_callback != NULL)
-                {
-                    struct sockaddr_storage l_addr;
-                    if (picoquic_store_loopback_addr(&l_addr, sock_af[0], sock_ports[0]) == 0)
-                    {
-                        ret = loop_callback(quic, picoquic_packet_loop_port_update, loop_callback_ctx, &l_addr);
-                    }
-                }
-            }
-            else
-            {
-                /* Testing organized migration */
-                if (nb_sockets < PICOQUIC_PACKET_LOOP_SOCKETS_MAX && last_cnx != NULL)
-                {
-                    struct sockaddr_storage local_address;
-                    picoquic_store_addr(&local_address, (struct sockaddr *)&last_cnx->path[0]->local_addr);
-                    if (local_address.ss_family == AF_INET6)
-                    {
-                        ((struct sockaddr_in6 *)&local_address)->sin6_port = next_port;
-                    }
-                    else if (local_address.ss_family == AF_INET)
-                    {
-                        ((struct sockaddr_in *)&local_address)->sin_port = next_port;
-                    }
-                    s_socket[nb_sockets] = s_mig;
-                    sock_ports[nb_sockets] = next_port;
-                    nb_sockets++;
-                    testing_migration = 1;
-                    ret = picoquic_probe_new_path(last_cnx, (struct sockaddr *)&last_cnx->path[0]->peer_addr,
-                                                  (struct sockaddr *)&local_address, current_time);
-                }
-                else
-                {
-                    SOCKET_CLOSE(s_mig);
-                }
-            }
+            /* Normal termination requested by the application, returns no error */
+            ret = 0;
         }
-    }
 
-    if (ret == PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP)
-    {
-        /* Normal termination requested by the application, returns no error */
-        ret = 0;
-    }
-
-    /* Close the sockets */
-    for (int i = 0; i < nb_sockets; i++)
-    {
-        if (s_socket[i] != INVALID_SOCKET)
+        /* Close the sockets */
+        for (int i = 0; i < nb_sockets; i++)
         {
-            SOCKET_CLOSE(s_socket[i]);
-            s_socket[i] = INVALID_SOCKET;
+            if (s_socket[i] != INVALID_SOCKET)
+            {
+                SOCKET_CLOSE(s_socket[i]);
+                s_socket[i] = INVALID_SOCKET;
+            }
         }
-    }
 
-    if (send_buffer != NULL)
-    {
-        free(send_buffer);
-    }
+        if (send_buffer != NULL)
+        {
+            free(send_buffer);
+        }
 
-    return ret;
-}
+        return ret;
+    }
 
 #else
 

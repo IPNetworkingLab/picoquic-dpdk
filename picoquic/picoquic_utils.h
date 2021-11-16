@@ -22,6 +22,7 @@
 #ifndef PICOQUIC_UTILS_H
 #define PICOQUIC_UTILS_H
 
+#include <pthread.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include "picoquic.h"
@@ -312,3 +313,10 @@ extern char const* picoquic_solution_dir;
 }
 #endif
 #endif
+
+//DPDK 
+static void
+setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
+			 struct rte_udp_hdr *udp_hdr,
+			 uint16_t pkt_data_len);
+copy_buf_to_pkt(void* buf, unsigned len, struct rte_mbuf *pkt, unsigned offset);
