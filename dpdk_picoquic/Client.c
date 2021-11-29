@@ -7,6 +7,25 @@
 #include <stdint.h>
 #include <errno.h>
 #include <sys/queue.h>
+#include <netinet/if_ether.h>
+
+#include <stdint.h>
+#include <sys/queue.h>
+#include <sys/socket.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <assert.h>
+#include <errno.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <inttypes.h>
+#include <getopt.h>
+#include <termios.h>
+#include <unistd.h>
+#include <pthread.h>
+
+
 #include <rte_common.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
@@ -28,6 +47,11 @@
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_arp.h>
+#include <rte_spinlock.h>
+#include <rte_devargs.h>
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -145,7 +169,9 @@ lcore_hello(__rte_unused void *arg)
 	// 	rte_exit(EXIT_FAILURE,
 	// 			 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
 	// 			 rte_strerror(-ret), portid);
-
+	char buf[5] = "hello";
+	char buf2[5] = "yo";
+	rte_memcpy(buf,buf2,5);
 	while (true)
 	{
 		size_t pkt_size;
@@ -156,6 +182,8 @@ lcore_hello(__rte_unused void *arg)
 			printf("fail to init pktmbuf\n");
 			return 0;
 		}
+		
+		printf("size : %lu\n",sizeof(struct rte_ether_hdr));
 		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 		// eth->ether_type = htons(2048);
 		rte_ether_addr_copy(&eth_addr, &eth->s_addr);
@@ -180,8 +208,6 @@ int main(int argc, char **argv)
 {
 
 	int ret;
-	unsigned lcore_id;
-	lcore_id = rte_lcore_id();
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");

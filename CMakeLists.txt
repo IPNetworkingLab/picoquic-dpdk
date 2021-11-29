@@ -8,7 +8,12 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSan) for debugging" OF
 
 set(CMAKE_C_STANDARD 11)
 
-set(CMAKE_C_FLAGS "-std=c99 -Wall -O3 -fno-exceptions -frename-registers -fno-signed-zeros -fno-trapping-math ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(CMAKE_C_FLAGS "-std=gnu99 -Wall -O3 -fno-exceptions -fno-signed-zeros -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+else()
+    set(CMAKE_C_FLAGS "-std=gnu99 -Wall -O3 -fno-exceptions -fno-signed-zeros -frename-registers -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+endif()
 
 if(DISABLE_DEBUG_PRINTF)
     set(CMAKE_C_FLAGS "-DDISABLE_DEBUG_PRINTF ${CMAKE_C_FLAGS}")
@@ -181,7 +186,15 @@ add_library(picoquic-core ${PICOQUIC_CORE_HEADERS}
     ${PICOQUIC_LIBRARY_FILES}
 )
 
-target_link_libraries(picoquic-core
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBDPDK REQUIRED IMPORTED_TARGET libdpdk)
+
+target_link_libraries(picoquic-core PUBLIC
+    PkgConfig::LIBDPDK
+)
+
+target_link_libraries(picoquic-core PUBLIC
     ${PTLS_LIBRARIES}
     ${OPENSSL_LIBRARIES}
 )
@@ -267,6 +280,29 @@ add_executable(picoquic_sample
     sample/sample.c
     sample/sample_client.c
     sample/sample_server.c
+)
+add_executable(picoquic_dpdk_client
+    dpdk_picoquic/client_quic.c   
+)
+add_executable(picoquic_dpdk_server
+    dpdk_picoquic/server_quic.c 
+)
+
+target_link_libraries(picoquic_dpdk_client
+    picoquic-log
+    picoquic-core
+    ${PTLS_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    ${CMAKE_DL_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+target_link_libraries(picoquic_dpdk_server
+    picoquic-log
+    picoquic-core
+    ${PTLS_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    ${CMAKE_DL_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
 )
 
 target_link_libraries(picoquic_sample

@@ -121,6 +121,40 @@
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
 #include <rte_udp.h>
+#include <rte_ip.h>
+
+#include <rte_common.h>
+#include <rte_byteorder.h>
+#include <rte_log.h>
+#include <rte_memory.h>
+#include <rte_memcpy.h>
+#include <rte_memzone.h>
+#include <rte_eal.h>
+#include <rte_per_lcore.h>
+#include <rte_launch.h>
+#include <rte_atomic.h>
+#include <rte_cycles.h>
+#include <rte_prefetch.h>
+#include <rte_lcore.h>
+#include <rte_per_lcore.h>
+#include <rte_branch_prediction.h>
+#include <rte_interrupts.h>
+#include <rte_pci.h>
+#include <rte_random.h>
+#include <rte_debug.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+#include <rte_ring.h>
+#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
+#include <rte_string_fns.h>
+#include <rte_timer.h>
+#include <rte_power.h>
+#include <rte_eal.h>
+#include <rte_spinlock.h>
 
 //DPDK
 #define _DPDK
@@ -136,7 +170,7 @@ struct lcore_queue_conf
     unsigned n_rx_port;
     unsigned rx_port_list[MAX_RX_QUEUE_PER_LCORE];
 } __rte_cache_aligned;
-struct lcore_queue_conf lcore_queue_conf[RTE_MAX_LCORE]
+struct lcore_queue_conf lcore_queue_conf[RTE_MAX_LCORE];
 
 #if defined(_WINDOWS)
     static int udp_gso_available = 0;
@@ -280,7 +314,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     unsigned lcore_id = 1;
     struct lcore_queue_conf *qconf;
-    struct rte_eth_dev_tx_buffer *buffer;
     uint16_t portid = 0;
     int ret;
     struct rte_eth_rxconf rxq_conf;
@@ -289,16 +322,14 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_eth_dev_tx_buffer *tx_buffer;
     struct rte_mbuf *m;
     struct rte_eth_conf local_port_conf = port_conf;
-    struct rte_ether_hdr *eth;
+    struct rte_rte_ether_hdr *eth;
     void *tmp;
-    struct rte_mbuf *m;
 
     //handling udp packet
-    struct rte_ether_hdr;
-    struct ether_hdr *eth_hdr;
+    struct rte_ether_hdr *eth_hdr;
     struct vlan_hdr *vh;
     uint16_t *proto;
-    struct ipv4_hdr *ip_hdr;
+    struct rte_ipv4_hdr *ip_hdr;
 
     //setup DPDK
     tx_buffer = rte_zmalloc_socket("tx_buffer",
@@ -366,7 +397,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         printf("failed to init rx_queue\n");
     }
     //===================DPDK==========================//
-    int ret = 0;
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
     struct sockaddr_storage addr_from;
@@ -388,7 +418,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     uint16_t next_port = 0;    /* Data for the migration test */
     picoquic_cnx_t *last_cnx = NULL;
     int loop_immediate = 0;
-    int bytes_recv;
     int pkts_recv;
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
@@ -454,14 +483,14 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
             {
                 /* Submit the packet to the server */
                 uint16_t len;
-                for (i = 0; i < pkts_recv; i++)
+                for (int i = 0; i < pkts_recv; i++)
                 {
                     /* access IP header of rcv'd pkt */
-                    ip_hdr = (struct ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct ether_hdr));
+                    ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
 
-                    struct udp_hdr *udp = (struct udp_hdr *)((unsigned char *)ip_hdr +
-                                                             sizeof(struct ipv4_hdr));
-                    unsigned char *paylaod = (unsigned char *)(udp + 1);
+                    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
+                                                             sizeof(struct rte_ipv4_hdr));
+                    unsigned char *payload = (unsigned char *)(udp + 1);
                     int length = udp->dgram_len;
                     (void)picoquic_incoming_packet_ex(quic, payload,
                                                       (size_t)length, (struct sockaddr *)&addr_from,
@@ -512,17 +541,17 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         }
                         int offset = 0;
                         struct rte_ipv4_hdr ip_hdr;
-                        struct rte_udp_hdr udp_hdr;
+                        struct rte_udp_hdr rte_udp_hdr;
                         struct rte_ether_hdr eth_hdr;
                         struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
-                        setup_pkt_udp_ip_headers(&ip_hdr, &udp_hdr, send_length);
+                        setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, send_length);
 
-                        copy_buf_to_pkt(&p_hdr, sizeof(eth_hdr), m, offset);
-                        offset += sizeof(rte_eth_hdr);
-                        copy_buf_to_pkt(&ip_hdr, sizeof(rte_ipv4_hdr), m, offset);
-                        offset += sizeof(rte_ipv4_hdr);
-                        copy_buf_to_pkt(&udp_hdr, sizeof(rte_udp_hdr), m, offset);
-                        offset += sizeof(rte_udp_hdr);
+                        copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
+                        offset += sizeof(struct rte_ether_hdr);
+                        copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
+                        offset += sizeof(struct rte_ipv4_hdr);
+                        copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
+                        offset += sizeof(struct rte_udp_hdr);
                         copy_buf_to_pkt(send_buffer, send_buffer_size, m, offset);
                         //inchallah ca marche
                         ret = rte_eth_tx_burst(0, 0, &m, 1);
@@ -685,6 +714,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
         return ret;
     }
+}
 
 #else
 
@@ -1034,5 +1064,4 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
     return ret;
 }
-
 #endif
