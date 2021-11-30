@@ -10,9 +10,9 @@ set(CMAKE_C_STANDARD 11)
 
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(CMAKE_C_FLAGS "-std=gnu99 -Wall -O3 -fno-exceptions -fno-signed-zeros -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+    set(CMAKE_C_FLAGS "-std=gnu99 -g -Wall -O3 -fno-exceptions -fno-signed-zeros -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
 else()
-    set(CMAKE_C_FLAGS "-std=gnu99 -Wall -O3 -fno-exceptions -fno-signed-zeros -frename-registers -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+    set(CMAKE_C_FLAGS "-std=gnu99 -g -Wall -O3 -fno-exceptions -fno-signed-zeros -frename-registers -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
 endif()
 
 if(DISABLE_DEBUG_PRINTF)

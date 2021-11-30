@@ -96,26 +96,31 @@ uint32_t tx_ip_dst_addr = (198U << 24) | (18 << 16) | (0 << 8) | 2;
 uint16_t tx_udp_src_port = 9;
 uint16_t tx_udp_dst_port = 9;
 
-#define IP_DEFTTL  64
+#define IP_DEFTTL 64
 
-char* picoquic_string_create(const char* original, size_t len)
+char *picoquic_string_create(const char *original, size_t len)
 {
     size_t allocated = len + 1;
-    char * str = NULL;
+    char *str = NULL;
 
     /* tests to protect against integer overflow */
-    if (allocated > 0) {
-        str = (char*)malloc(allocated);
+    if (allocated > 0)
+    {
+        str = (char *)malloc(allocated);
 
-        if (str != NULL) {
-            if (original == NULL || len == 0) {
+        if (str != NULL)
+        {
+            if (original == NULL || len == 0)
+            {
                 str[0] = 0;
             }
-            else if (allocated > len) {
+            else if (allocated > len)
+            {
                 memcpy(str, original, len);
                 str[allocated - 1] = 0;
             }
-            else {
+            else
+            {
                 /* This could happen only in case of integer overflow */
                 free(str);
                 str = NULL;
@@ -126,11 +131,12 @@ char* picoquic_string_create(const char* original, size_t len)
     return str;
 }
 
-char* picoquic_string_duplicate(const char* original)
+char *picoquic_string_duplicate(const char *original)
 {
-    char* str = NULL;
+    char *str = NULL;
 
-    if (original != NULL) {
+    if (original != NULL)
+    {
         size_t len = strlen(original);
 
         str = picoquic_string_create(original, len);
@@ -139,26 +145,30 @@ char* picoquic_string_duplicate(const char* original)
     return str;
 }
 
-char* picoquic_string_free(char* str)
+char *picoquic_string_free(char *str)
 {
-    if (str != NULL) {
+    if (str != NULL)
+    {
         free(str);
     }
 
     return NULL;
 }
 
-char* picoquic_strip_endofline(char* buf, size_t bufmax, char const* line)
+char *picoquic_strip_endofline(char *buf, size_t bufmax, char const *line)
 {
-    for (size_t i = 0; i < bufmax; i++) {
+    for (size_t i = 0; i < bufmax; i++)
+    {
         int c = line[i];
 
-        if (c == 0 || c == '\r' || c == '\n') {
+        if (c == 0 || c == '\r' || c == '\n')
+        {
             buf[i] = 0;
             break;
         }
-        else {
-            buf[i] = (char) c;
+        else
+        {
+            buf[i] = (char)c;
         }
     }
 
@@ -166,7 +176,7 @@ char* picoquic_strip_endofline(char* buf, size_t bufmax, char const* line)
     return buf;
 }
 
-static FILE* debug_out = NULL;
+static FILE *debug_out = NULL;
 static int debug_suspended = 0;
 
 void debug_set_stream(FILE *F)
@@ -174,9 +184,10 @@ void debug_set_stream(FILE *F)
     debug_out = F;
 }
 
-void debug_printf(const char* fmt, ...)
+void debug_printf(const char *fmt, ...)
 {
-    if (debug_suspended == 0 && debug_out != NULL) {
+    if (debug_suspended == 0 && debug_out != NULL)
+    {
         va_list args;
         va_start(args, fmt);
         vfprintf(debug_out, fmt, args);
@@ -184,15 +195,18 @@ void debug_printf(const char* fmt, ...)
     }
 }
 
-void debug_dump(const void * x, int len)
+void debug_dump(const void *x, int len)
 {
-    if (debug_suspended == 0 && debug_out != NULL) {
-        uint8_t * bytes = (uint8_t *)x;
+    if (debug_suspended == 0 && debug_out != NULL)
+    {
+        uint8_t *bytes = (uint8_t *)x;
 
-        for (int i = 0; i < len;) {
+        for (int i = 0; i < len;)
+        {
             fprintf(debug_out, "%04x:  ", (int)i);
 
-            for (int j = 0; j < 16 && i < len; j++, i++) {
+            for (int j = 0; j < 16 && i < len; j++, i++)
+            {
                 fprintf(debug_out, "%02x ", bytes[i]);
             }
             fprintf(debug_out, "\n");
@@ -200,9 +214,10 @@ void debug_dump(const void * x, int len)
     }
 }
 
-void debug_printf_push_stream(FILE* f)
+void debug_printf_push_stream(FILE *f)
 {
-    if (debug_out) {
+    if (debug_out)
+    {
         fprintf(stderr, "Nested err out not supported\n");
         exit(1);
     }
@@ -211,7 +226,8 @@ void debug_printf_push_stream(FILE* f)
 
 void debug_printf_pop_stream(void)
 {
-    if (debug_out == NULL) {
+    if (debug_out == NULL)
+    {
         fprintf(stderr, "No current err out\n");
         exit(1);
     }
@@ -235,7 +251,7 @@ int debug_printf_reset(int suspended)
     return ret;
 }
 
-int picoquic_sprintf(char* buf, size_t buf_len, size_t * nb_chars, const char* fmt, ...)
+int picoquic_sprintf(char *buf, size_t buf_len, size_t *nb_chars, const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -246,7 +262,8 @@ int picoquic_sprintf(char* buf, size_t buf_len, size_t * nb_chars, const char* f
 #endif
     va_end(args);
 
-    if (nb_chars != NULL) {
+    if (nb_chars != NULL)
+    {
         *nb_chars = res;
     }
 
@@ -255,14 +272,16 @@ int picoquic_sprintf(char* buf, size_t buf_len, size_t * nb_chars, const char* f
     return res >= 0 ? ((size_t)res >= buf_len) : res;
 }
 
-int picoquic_print_connection_id_hexa(char* buf, size_t buf_len, const picoquic_connection_id_t * cnxid)
+int picoquic_print_connection_id_hexa(char *buf, size_t buf_len, const picoquic_connection_id_t *cnxid)
 {
-    static const char hex_to_char[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-    if (buf_len < ((size_t)cnxid->id_len) * 2u + 1u) {
-        return -1;  
+    static const char hex_to_char[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    if (buf_len < ((size_t)cnxid->id_len) * 2u + 1u)
+    {
+        return -1;
     }
 
-    for (unsigned i = 0; i < cnxid->id_len; i++) {
+    for (unsigned i = 0; i < cnxid->id_len; i++)
+    {
         buf[i * 2u] = hex_to_char[cnxid->id[i] >> 4];
         buf[i * 2u + 1u] = hex_to_char[cnxid->id[i] & 0x0f];
     }
@@ -272,37 +291,45 @@ int picoquic_print_connection_id_hexa(char* buf, size_t buf_len, const picoquic_
     return 0;
 }
 
-int picoquic_parse_hexa_digit(char x) {
+int picoquic_parse_hexa_digit(char x)
+{
     int ret = -1;
 
-    if (x >= '0' && x <= '9') {
+    if (x >= '0' && x <= '9')
+    {
         ret = x - '0';
     }
-    else if (x >= 'A' && x <= 'F') {
+    else if (x >= 'A' && x <= 'F')
+    {
         ret = x - 'A' + 10;
     }
-    else if (x >= 'a' && x <= 'f') {
+    else if (x >= 'a' && x <= 'f')
+    {
         ret = x - 'a' + 10;
     }
 
     return ret;
 }
 
-size_t picoquic_parse_hexa(char const * hex_input, size_t input_length, uint8_t * bin_output, size_t output_max)
+size_t picoquic_parse_hexa(char const *hex_input, size_t input_length, uint8_t *bin_output, size_t output_max)
 {
     size_t ret = 0;
-    if (input_length > 0 && (input_length & 1) == 0 && 2*output_max >= input_length) {
+    if (input_length > 0 && (input_length & 1) == 0 && 2 * output_max >= input_length)
+    {
         size_t offset = 0;
 
-        while (offset < input_length) {
+        while (offset < input_length)
+        {
             int a = picoquic_parse_hexa_digit(hex_input[offset++]);
             int b = picoquic_parse_hexa_digit(hex_input[offset++]);
 
-            if (a < 0 || b < 0) {
+            if (a < 0 || b < 0)
+            {
                 ret = 0;
                 break;
             }
-            else {
+            else
+            {
                 bin_output[ret++] = (uint8_t)((a << 4) | b);
             }
         }
@@ -311,12 +338,13 @@ size_t picoquic_parse_hexa(char const * hex_input, size_t input_length, uint8_t 
     return ret;
 }
 
-uint8_t picoquic_parse_connection_id_hexa(char const * hex_input, size_t input_length, picoquic_connection_id_t * cnx_id)
+uint8_t picoquic_parse_connection_id_hexa(char const *hex_input, size_t input_length, picoquic_connection_id_t *cnx_id)
 {
     memset(cnx_id, 0, sizeof(picoquic_connection_id_t));
-    cnx_id->id_len = (uint8_t) picoquic_parse_hexa(hex_input, input_length, cnx_id->id, 18);
+    cnx_id->id_len = (uint8_t)picoquic_parse_hexa(hex_input, input_length, cnx_id->id, 18);
 
-    if (cnx_id->id_len == 0) {
+    if (cnx_id->id_len == 0)
+    {
         memset(cnx_id, 0, sizeof(picoquic_connection_id_t));
     }
 
@@ -334,43 +362,50 @@ uint8_t picoquic_create_packet_header_cnxid_lengths(uint8_t dest_len, uint8_t sr
     return ret;
 }
 
-uint8_t picoquic_format_connection_id(uint8_t* bytes, size_t bytes_max, picoquic_connection_id_t cnx_id)
+uint8_t picoquic_format_connection_id(uint8_t *bytes, size_t bytes_max, picoquic_connection_id_t cnx_id)
 {
     uint8_t copied = cnx_id.id_len;
-    if (copied > bytes_max || copied == 0) {
+    if (copied > bytes_max || copied == 0)
+    {
         copied = 0;
-    } else {
+    }
+    else
+    {
         memcpy(bytes, cnx_id.id, copied);
     }
 
     return copied;
 }
 
-uint8_t picoquic_parse_connection_id(const uint8_t * bytes, uint8_t len, picoquic_connection_id_t * cnx_id)
+uint8_t picoquic_parse_connection_id(const uint8_t *bytes, uint8_t len, picoquic_connection_id_t *cnx_id)
 {
-    if (len <= PICOQUIC_CONNECTION_ID_MAX_SIZE) {
+    if (len <= PICOQUIC_CONNECTION_ID_MAX_SIZE)
+    {
         cnx_id->id_len = len;
         memcpy(cnx_id->id, bytes, len);
-    } else {
+    }
+    else
+    {
         len = 0;
         cnx_id->id_len = 0;
     }
     return len;
 }
 
-const picoquic_connection_id_t picoquic_null_connection_id = { 
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0 };
+const picoquic_connection_id_t picoquic_null_connection_id = {
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0};
 
-int picoquic_is_connection_id_null(const picoquic_connection_id_t * cnx_id)
+int picoquic_is_connection_id_null(const picoquic_connection_id_t *cnx_id)
 {
     return (cnx_id->id_len == 0) ? 1 : 0;
 }
 
-int picoquic_compare_connection_id(const picoquic_connection_id_t * cnx_id1, const picoquic_connection_id_t * cnx_id2)
+int picoquic_compare_connection_id(const picoquic_connection_id_t *cnx_id1, const picoquic_connection_id_t *cnx_id2)
 {
     int ret = -1;
 
-    if (cnx_id1->id_len == cnx_id2->id_len) {
+    if (cnx_id1->id_len == cnx_id2->id_len)
+    {
         ret = memcmp(cnx_id1->id, cnx_id2->id, cnx_id1->id_len);
     }
 
@@ -378,11 +413,12 @@ int picoquic_compare_connection_id(const picoquic_connection_id_t * cnx_id1, con
 }
 
 /* Hash connection ids for picohash_table's */
-uint64_t picoquic_connection_id_hash(const picoquic_connection_id_t * cid)
+uint64_t picoquic_connection_id_hash(const picoquic_connection_id_t *cid)
 {
     uint64_t val64 = 0;
 
-    for (size_t i = 0; i < cid->id_len; i++) {
+    for (size_t i = 0; i < cid->id_len; i++)
+    {
         val64 += val64 << 8;
         val64 += cid->id[i];
     }
@@ -396,15 +432,20 @@ uint64_t picoquic_val64_connection_id(picoquic_connection_id_t cnx_id)
 
     if (cnx_id.id_len < 8)
     {
-        for (size_t i = 0; i < cnx_id.id_len; i++) {
+        for (size_t i = 0; i < cnx_id.id_len; i++)
+        {
             val64 <<= 8;
             val64 |= cnx_id.id[i];
         }
-        for (size_t i = cnx_id.id_len; i < 8; i++) {
+        for (size_t i = cnx_id.id_len; i < 8; i++)
+        {
             val64 <<= 8;
         }
-    } else {
-        for (size_t i = 0; i < 8; i++) {
+    }
+    else
+    {
+        for (size_t i = 0; i < 8; i++)
+        {
             val64 <<= 8;
             val64 |= cnx_id.id[i];
         }
@@ -413,59 +454,69 @@ uint64_t picoquic_val64_connection_id(picoquic_connection_id_t cnx_id)
     return val64;
 }
 
-void picoquic_set64_connection_id(picoquic_connection_id_t * cnx_id, uint64_t val64)
+void picoquic_set64_connection_id(picoquic_connection_id_t *cnx_id, uint64_t val64)
 {
-    for (int i = 7; i >= 0; i--) {
+    for (int i = 7; i >= 0; i--)
+    {
         cnx_id->id[i] = (uint8_t)(val64 & 0xFF);
         val64 >>= 8;
     }
-    for (size_t i = 8; i < sizeof(cnx_id->id); i++) {
+    for (size_t i = 8; i < sizeof(cnx_id->id); i++)
+    {
         cnx_id->id[i] = 0;
     }
     cnx_id->id_len = 8;
 }
 
-uint64_t picoquic_hash_addr(const struct sockaddr* addr)
+uint64_t picoquic_hash_addr(const struct sockaddr *addr)
 {
     uint64_t h;
 
-    if (addr->sa_family == AF_INET) {
-        struct sockaddr_in* a4 = (struct sockaddr_in*)addr;
-        h = picohash_bytes((uint8_t*)&a4->sin_addr , 4);
+    if (addr->sa_family == AF_INET)
+    {
+        struct sockaddr_in *a4 = (struct sockaddr_in *)addr;
+        h = picohash_bytes((uint8_t *)&a4->sin_addr, 4);
         h += 128ull * a4->sin_port;
     }
-    else {
-        struct sockaddr_in6* a6 = (struct sockaddr_in6*)addr;
-        h = picohash_bytes((uint8_t*)& a6->sin6_addr, 16);
+    else
+    {
+        struct sockaddr_in6 *a6 = (struct sockaddr_in6 *)addr;
+        h = picohash_bytes((uint8_t *)&a6->sin6_addr, 16);
         h += 128ull * a6->sin6_port;
     }
 
     return h;
 }
 
-int picoquic_compare_addr(const struct sockaddr * expected, const struct sockaddr * actual)
+int picoquic_compare_addr(const struct sockaddr *expected, const struct sockaddr *actual)
 {
     int ret = -1;
 
-    if (expected->sa_family == actual->sa_family) {
-        if (expected->sa_family == AF_INET) {
-            struct sockaddr_in * ex = (struct sockaddr_in *)expected;
-            struct sockaddr_in * ac = (struct sockaddr_in *)actual;
+    if (expected->sa_family == actual->sa_family)
+    {
+        if (expected->sa_family == AF_INET)
+        {
+            struct sockaddr_in *ex = (struct sockaddr_in *)expected;
+            struct sockaddr_in *ac = (struct sockaddr_in *)actual;
             if (ex->sin_port == ac->sin_port &&
 #ifdef _WINDOWS
-                ex->sin_addr.S_un.S_addr == ac->sin_addr.S_un.S_addr) {
+                ex->sin_addr.S_un.S_addr == ac->sin_addr.S_un.S_addr)
+            {
 #else
-                ex->sin_addr.s_addr == ac->sin_addr.s_addr){
+                ex->sin_addr.s_addr == ac->sin_addr.s_addr)
+            {
 #endif
                 ret = 0;
             }
-        } else {
-            struct sockaddr_in6 * ex = (struct sockaddr_in6 *)expected;
-            struct sockaddr_in6 * ac = (struct sockaddr_in6 *)actual;
-
+        }
+        else
+        {
+            struct sockaddr_in6 *ex = (struct sockaddr_in6 *)expected;
+            struct sockaddr_in6 *ac = (struct sockaddr_in6 *)actual;
 
             if (ex->sin6_port == ac->sin6_port &&
-                memcmp(&ex->sin6_addr, &ac->sin6_addr, 16) == 0) {
+                memcmp(&ex->sin6_addr, &ac->sin6_addr, 16) == 0)
+            {
                 ret = 0;
             }
         }
@@ -474,67 +525,78 @@ int picoquic_compare_addr(const struct sockaddr * expected, const struct sockadd
     return ret;
 }
 
-int picoquic_addr_length(const struct sockaddr* addr)
+int picoquic_addr_length(const struct sockaddr *addr)
 {
     int len = 0;
-    if (addr->sa_family == AF_INET) {
+    if (addr->sa_family == AF_INET)
+    {
         len = (int)sizeof(struct sockaddr_in);
-    } else if (addr->sa_family == AF_INET6) {
+    }
+    else if (addr->sa_family == AF_INET6)
+    {
         len = (int)sizeof(struct sockaddr_in6);
     }
     return len;
 }
 /* Copy a sockaddr to a storage value, and return the copied address length */
-void picoquic_store_addr(struct sockaddr_storage * stored_addr, const struct sockaddr * addr)
+void picoquic_store_addr(struct sockaddr_storage *stored_addr, const struct sockaddr *addr)
 {
     int len = 0;
 
-    if (addr == NULL || (len = picoquic_addr_length(addr)) == 0) {
+    if (addr == NULL || (len = picoquic_addr_length(addr)) == 0)
+    {
         stored_addr->ss_family = 0;
     }
-    else {
+    else
+    {
         memcpy(stored_addr, addr, len);
     }
 }
 
 /* Return a pointer to the IP address and IP length in a sockaddr */
-void picoquic_get_ip_addr(struct sockaddr * addr, uint8_t ** ip_addr, uint8_t * ip_addr_len)
+void picoquic_get_ip_addr(struct sockaddr *addr, uint8_t **ip_addr, uint8_t *ip_addr_len)
 {
-    if (addr->sa_family == AF_INET) {
+    if (addr->sa_family == AF_INET)
+    {
         *ip_addr = (uint8_t *)&((struct sockaddr_in *)addr)->sin_addr;
         *ip_addr_len = 4;
     }
-    else if(addr->sa_family == AF_INET6) {
+    else if (addr->sa_family == AF_INET6)
+    {
         *ip_addr = (uint8_t *)&((struct sockaddr_in6 *)addr)->sin6_addr;
         *ip_addr_len = 16;
     }
-    else {
+    else
+    {
         *ip_addr = NULL;
         *ip_addr_len = 0;
     }
 }
 
 /* Store a test address */
-int picoquic_store_text_addr(struct sockaddr_storage* stored_addr, const char* ip_address_text, uint16_t port)
+int picoquic_store_text_addr(struct sockaddr_storage *stored_addr, const char *ip_address_text, uint16_t port)
 {
     int ret = 0;
-    struct sockaddr_in* ipv4_addr = (struct sockaddr_in*)stored_addr;
-    struct sockaddr_in6* ipv6_addr = (struct sockaddr_in6*)stored_addr;
+    struct sockaddr_in *ipv4_addr = (struct sockaddr_in *)stored_addr;
+    struct sockaddr_in6 *ipv6_addr = (struct sockaddr_in6 *)stored_addr;
 
     /* get the IP address of the server */
     memset(stored_addr, 0, sizeof(struct sockaddr_storage));
 
-    if (inet_pton(AF_INET, ip_address_text, &ipv4_addr->sin_addr) == 1) {
+    if (inet_pton(AF_INET, ip_address_text, &ipv4_addr->sin_addr) == 1)
+    {
         /* Valid IPv4 address */
         ipv4_addr->sin_family = AF_INET;
         ipv4_addr->sin_port = htons((unsigned short)port);
     }
-    else if (inet_pton(AF_INET6, ip_address_text, &ipv6_addr->sin6_addr) == 1) {
+    else if (inet_pton(AF_INET6, ip_address_text, &ipv6_addr->sin6_addr) == 1)
+    {
         /* Valid IPv6 address */
         ipv6_addr->sin6_family = AF_INET6;
         ipv6_addr->sin6_port = htons((unsigned short)port);
     }
-    else {
+    else
+    {
         ret = -1;
     }
 
@@ -542,26 +604,29 @@ int picoquic_store_text_addr(struct sockaddr_storage* stored_addr, const char* i
 }
 
 /* Get text string for address and port */
-char const* picoquic_addr_text(struct sockaddr* addr, char* text, size_t text_size)
+char const *picoquic_addr_text(struct sockaddr *addr, char *text, size_t text_size)
 {
     char addr_buffer[128];
-    char const* addr_text;
-    char const* ret_text = "?:?";
+    char const *addr_text;
+    char const *ret_text = "?:?";
 
-    switch (addr->sa_family) {
+    switch (addr->sa_family)
+    {
     case AF_INET:
         addr_text = inet_ntop(AF_INET,
-            (const void*)(&((struct sockaddr_in*)addr)->sin_addr),
-            addr_buffer, sizeof(addr_buffer));
-        if (picoquic_sprintf(text, text_size, NULL, "%s:%d", addr_text, ((struct sockaddr_in*) addr)->sin_port) == 0) {
+                              (const void *)(&((struct sockaddr_in *)addr)->sin_addr),
+                              addr_buffer, sizeof(addr_buffer));
+        if (picoquic_sprintf(text, text_size, NULL, "%s:%d", addr_text, ((struct sockaddr_in *)addr)->sin_port) == 0)
+        {
             ret_text = text;
         }
         break;
     case AF_INET6:
         addr_text = inet_ntop(AF_INET6,
-            (const void*)(&((struct sockaddr_in6*)addr)->sin6_addr),
-            addr_buffer, sizeof(addr_buffer));
-        if (picoquic_sprintf(text, text_size, NULL, "[%s]:%d", addr_text, ((struct sockaddr_in6*) addr)->sin6_port) == 0) {
+                              (const void *)(&((struct sockaddr_in6 *)addr)->sin6_addr),
+                              addr_buffer, sizeof(addr_buffer));
+        if (picoquic_sprintf(text, text_size, NULL, "[%s]:%d", addr_text, ((struct sockaddr_in6 *)addr)->sin6_port) == 0)
+        {
             ret_text = text;
         }
     default:
@@ -572,148 +637,162 @@ char const* picoquic_addr_text(struct sockaddr* addr, char* text, size_t text_si
 }
 
 /* get a loopback address of the required type */
-int picoquic_store_loopback_addr(struct sockaddr_storage* stored_addr, int addr_family, uint16_t port)
+int picoquic_store_loopback_addr(struct sockaddr_storage *stored_addr, int addr_family, uint16_t port)
 {
     int ret = -1;
-    if (addr_family == AF_INET) {
+    if (addr_family == AF_INET)
+    {
         ret = picoquic_store_text_addr(stored_addr, "128.0.0.1", port);
     }
-    else if (addr_family == AF_INET6) {
+    else if (addr_family == AF_INET6)
+    {
         ret = picoquic_store_text_addr(stored_addr, "::1", port);
     }
     return ret;
 }
 
 /* Return a directory path based on solution dir and file name */
-char const* picoquic_solution_dir = NULL;
+char const *picoquic_solution_dir = NULL;
 
-void picoquic_set_solution_dir(char const* solution_dir)
+void picoquic_set_solution_dir(char const *solution_dir)
 {
     picoquic_solution_dir = solution_dir;
 }
 
-int picoquic_get_input_path(char * target_file_path, size_t file_path_max, const char * solution_path, const char * file_name)
+int picoquic_get_input_path(char *target_file_path, size_t file_path_max, const char *solution_path, const char *file_name)
 {
-    if (solution_path == NULL) {
+    if (solution_path == NULL)
+    {
         solution_path = PICOQUIC_DEFAULT_SOLUTION_DIR;
     }
 
-    const char * separator = PICOQUIC_FILE_SEPARATOR;
+    const char *separator = PICOQUIC_FILE_SEPARATOR;
     size_t solution_path_length = strlen(solution_path);
-    if (solution_path_length != 0 && solution_path[solution_path_length - 1] == separator[0]) {
+    if (solution_path_length != 0 && solution_path[solution_path_length - 1] == separator[0])
+    {
         separator = "";
     }
 
     int ret = picoquic_sprintf(target_file_path, file_path_max, NULL, "%s%s%s",
-        solution_path, separator, file_name);
+                               solution_path, separator, file_name);
 
     return ret;
 }
 
 /* Safely open files in a portable way */
-FILE * picoquic_file_open_ex(char const * file_name, char const * flags, int * last_err)
+FILE *picoquic_file_open_ex(char const *file_name, char const *flags, int *last_err)
 {
-    FILE * F;
+    FILE *F;
 
 #ifdef _WINDOWS
     errno_t err = fopen_s(&F, file_name, flags);
-    if (err != 0){
-        if (last_err != NULL) {
+    if (err != 0)
+    {
+        if (last_err != NULL)
+        {
             *last_err = err;
         }
-        if (F != NULL) {
+        if (F != NULL)
+        {
             fclose(F);
             F = NULL;
         }
     }
 #else
     F = fopen(file_name, flags);
-    if (F == NULL && last_err != NULL) {
+    if (F == NULL && last_err != NULL)
+    {
         *last_err = errno;
     }
 #endif
 
     return F;
 }
-FILE* picoquic_file_open(char const* file_name, char const* flags)
+FILE *picoquic_file_open(char const *file_name, char const *flags)
 {
     return picoquic_file_open_ex(file_name, flags, NULL);
 }
 
 /* Safely close files in a portable way */
-FILE * picoquic_file_close(FILE * F)
+FILE *picoquic_file_close(FILE *F)
 {
-    if (F != NULL) {
+    if (F != NULL)
+    {
         (void)fclose(F);
     }
     return NULL;
 }
 
 /* Safely delete file in a portable way */
-int picoquic_file_delete(char const * file_name, int * last_err)
+int picoquic_file_delete(char const *file_name, int *last_err)
 {
     int ret;
 
 #ifdef _WINDOWS
     ret = _unlink(file_name);
-    if (last_err != NULL && ret != 0) {
+    if (last_err != NULL && ret != 0)
+    {
         *last_err = errno;
     }
 #else
     ret = unlink(file_name);
-    if (last_err != NULL && ret != 0) {
+    if (last_err != NULL && ret != 0)
+    {
         *last_err = errno;
     }
 #endif
     return ret;
 }
 
- /* Skip and decode function.
+/* Skip and decode function.
   * These functions return NULL in case of a failure (insufficient buffer).
   */
 
-const uint8_t* picoquic_frames_fixed_skip(const uint8_t* bytes, const uint8_t* bytes_max, uint64_t size)
+const uint8_t *picoquic_frames_fixed_skip(const uint8_t *bytes, const uint8_t *bytes_max, uint64_t size)
 {
     /* Write this test so as to avoid integer overflows, especially on 32 bit arch. */
     return size <= (uint64_t)(bytes_max - bytes) ? (bytes + size) : NULL;
 }
 
-
-const uint8_t* picoquic_frames_varint_skip(const uint8_t* bytes, const uint8_t* bytes_max)
+const uint8_t *picoquic_frames_varint_skip(const uint8_t *bytes, const uint8_t *bytes_max)
 {
-    if (bytes < bytes_max) {
+    if (bytes < bytes_max)
+    {
         uint8_t v_len = VARINT_LEN(bytes);
-        return  picoquic_frames_fixed_skip(bytes, bytes_max, v_len);
+        return picoquic_frames_fixed_skip(bytes, bytes_max, v_len);
     }
-    else {
+    else
+    {
         return NULL;
     }
 }
 
-
 /* Parse a varint. In case of an error, *n64 is unchanged, and NULL is returned */
-const uint8_t* picoquic_frames_varint_decode(const uint8_t* bytes, const uint8_t* bytes_max, uint64_t* n64)
+const uint8_t *picoquic_frames_varint_decode(const uint8_t *bytes, const uint8_t *bytes_max, uint64_t *n64)
 {
     uint8_t length;
 
-    if (bytes < bytes_max && bytes + (length = (uint8_t)VARINT_LEN(bytes)) <= bytes_max) {
+    if (bytes < bytes_max && bytes + (length = (uint8_t)VARINT_LEN(bytes)) <= bytes_max)
+    {
         uint64_t v = *bytes++ & 0x3F;
 
-        while (--length > 0) {
+        while (--length > 0)
+        {
             v <<= 8;
             v += *bytes++;
         }
 
         *n64 = v;
     }
-    else {
+    else
+    {
         bytes = NULL;
     }
 
     return bytes;
 }
 
-const uint8_t* picoquic_frames_varlen_decode(const uint8_t* bytes, const uint8_t* bytes_max, size_t* n)
+const uint8_t *picoquic_frames_varlen_decode(const uint8_t *bytes, const uint8_t *bytes_max, size_t *n)
 {
     uint64_t len = 0;
     bytes = picoquic_frames_varint_decode(bytes, bytes_max, &len);
@@ -721,72 +800,82 @@ const uint8_t* picoquic_frames_varlen_decode(const uint8_t* bytes, const uint8_t
     return (*n == len) ? bytes : NULL;
 }
 
-const uint8_t* picoquic_frames_uint8_decode(const uint8_t* bytes, const uint8_t* bytes_max, uint8_t* n)
+const uint8_t *picoquic_frames_uint8_decode(const uint8_t *bytes, const uint8_t *bytes_max, uint8_t *n)
 {
-    if (bytes < bytes_max) {
+    if (bytes < bytes_max)
+    {
         *n = *bytes++;
     }
-    else {
+    else
+    {
         bytes = NULL;
     }
     return bytes;
 }
 
-
-const uint8_t* picoquic_frames_uint16_decode(const uint8_t* bytes, const uint8_t* bytes_max, uint16_t* n)
+const uint8_t *picoquic_frames_uint16_decode(const uint8_t *bytes, const uint8_t *bytes_max, uint16_t *n)
 {
-    if (bytes + sizeof(*n) <= bytes_max) {
+    if (bytes + sizeof(*n) <= bytes_max)
+    {
         *n = PICOPARSE_16(bytes);
         bytes += sizeof(*n);
     }
-    else {
+    else
+    {
         bytes = NULL;
     }
     return bytes;
 }
 
-const uint8_t* picoquic_frames_uint32_decode(const uint8_t* bytes, const uint8_t* bytes_max, uint32_t* n)
+const uint8_t *picoquic_frames_uint32_decode(const uint8_t *bytes, const uint8_t *bytes_max, uint32_t *n)
 {
-    if (bytes + sizeof(*n) <= bytes_max) {
+    if (bytes + sizeof(*n) <= bytes_max)
+    {
         *n = PICOPARSE_32(bytes);
         bytes += sizeof(*n);
     }
-    else {
+    else
+    {
         bytes = NULL;
     }
     return bytes;
 }
 
-const uint8_t* picoquic_frames_uint64_decode(const uint8_t* bytes, const uint8_t* bytes_max, uint64_t* n)
+const uint8_t *picoquic_frames_uint64_decode(const uint8_t *bytes, const uint8_t *bytes_max, uint64_t *n)
 {
-    if (bytes + sizeof(*n) <= bytes_max) {
+    if (bytes + sizeof(*n) <= bytes_max)
+    {
         *n = PICOPARSE_64(bytes);
         bytes += sizeof(*n);
     }
-    else {
+    else
+    {
         bytes = NULL;
     }
     return bytes;
 }
 
-const uint8_t* picoquic_frames_length_data_skip(const uint8_t* bytes, const uint8_t* bytes_max)
+const uint8_t *picoquic_frames_length_data_skip(const uint8_t *bytes, const uint8_t *bytes_max)
 {
     uint64_t length;
-    if ((bytes = picoquic_frames_varint_decode(bytes, bytes_max, &length)) != NULL) {
+    if ((bytes = picoquic_frames_varint_decode(bytes, bytes_max, &length)) != NULL)
+    {
         bytes = picoquic_frames_fixed_skip(bytes, bytes_max, length);
     }
     return bytes;
 }
 
-const uint8_t* picoquic_frames_cid_decode(const uint8_t* bytes, const uint8_t* bytes_max, picoquic_connection_id_t* cid)
+const uint8_t *picoquic_frames_cid_decode(const uint8_t *bytes, const uint8_t *bytes_max, picoquic_connection_id_t *cid)
 {
     bytes = picoquic_frames_uint8_decode(bytes, bytes_max, &cid->id_len);
 
     if (cid->id_len > PICOQUIC_CONNECTION_ID_MAX_SIZE ||
-        bytes + cid->id_len > bytes_max) {
+        bytes + cid->id_len > bytes_max)
+    {
         bytes = NULL;
     }
-    else {
+    else
+    {
         memset(cid->id, 0, sizeof(cid->id));
         memcpy(cid->id, bytes, cid->id_len);
         bytes += cid->id_len;
@@ -795,43 +884,54 @@ const uint8_t* picoquic_frames_cid_decode(const uint8_t* bytes, const uint8_t* b
     return bytes;
 }
 
-
 /* Encoding functions of the form uint8_t * picoquic_frame_XXX_encode(uint8_t * bytes, uint8_t * bytes-max, ...)
  */
-uint8_t* picoquic_frames_varint_encode(uint8_t* bytes, const uint8_t* bytes_max, uint64_t n64)
+uint8_t *picoquic_frames_varint_encode(uint8_t *bytes, const uint8_t *bytes_max, uint64_t n64)
 {
-    if (n64 < 16384) {
-        if (n64 < 64) {
-            if (bytes + 1 <= bytes_max) {
+    if (n64 < 16384)
+    {
+        if (n64 < 64)
+        {
+            if (bytes + 1 <= bytes_max)
+            {
                 *bytes++ = (uint8_t)(n64);
             }
-            else {
+            else
+            {
                 bytes = NULL;
             }
         }
-        else {
-            if (bytes + 2 <= bytes_max) {
+        else
+        {
+            if (bytes + 2 <= bytes_max)
+            {
                 *bytes++ = (uint8_t)((n64 >> 8) | 0x40);
                 *bytes++ = (uint8_t)(n64);
             }
-            else {
+            else
+            {
                 bytes = NULL;
             }
         }
     }
-    else if (n64 < 1073741824) {
-        if (bytes + 4 <= bytes_max) {
+    else if (n64 < 1073741824)
+    {
+        if (bytes + 4 <= bytes_max)
+        {
             *bytes++ = (uint8_t)((n64 >> 24) | 0x80);
             *bytes++ = (uint8_t)(n64 >> 16);
             *bytes++ = (uint8_t)(n64 >> 8);
             *bytes++ = (uint8_t)(n64);
         }
-        else {
+        else
+        {
             bytes = NULL;
         }
     }
-    else {
-        if (bytes + 8 <= bytes_max) {
+    else
+    {
+        if (bytes + 8 <= bytes_max)
+        {
             *bytes++ = (uint8_t)((n64 >> 56) | 0xC0);
             *bytes++ = (uint8_t)(n64 >> 48);
             *bytes++ = (uint8_t)(n64 >> 40);
@@ -841,7 +941,8 @@ uint8_t* picoquic_frames_varint_encode(uint8_t* bytes, const uint8_t* bytes_max,
             *bytes++ = (uint8_t)(n64 >> 8);
             *bytes++ = (uint8_t)(n64);
         }
-        else {
+        else
+        {
             bytes = NULL;
         }
     }
@@ -849,41 +950,47 @@ uint8_t* picoquic_frames_varint_encode(uint8_t* bytes, const uint8_t* bytes_max,
     return bytes;
 }
 
-uint8_t* picoquic_frames_varlen_encode(uint8_t* bytes, const uint8_t* bytes_max, size_t n)
+uint8_t *picoquic_frames_varlen_encode(uint8_t *bytes, const uint8_t *bytes_max, size_t n)
 {
     return picoquic_frames_varint_encode(bytes, bytes_max, n);
 }
 
-uint8_t* picoquic_frames_uint8_encode(uint8_t* bytes, const uint8_t* bytes_max, uint8_t n)
+uint8_t *picoquic_frames_uint8_encode(uint8_t *bytes, const uint8_t *bytes_max, uint8_t n)
 {
-    if (bytes + sizeof(n) > bytes_max) {
+    if (bytes + sizeof(n) > bytes_max)
+    {
         bytes = NULL;
     }
-    else {
+    else
+    {
         *bytes++ = n;
     }
 
     return (bytes);
 }
 
-uint8_t* picoquic_frames_uint16_encode(uint8_t* bytes, const uint8_t* bytes_max, uint16_t n)
+uint8_t *picoquic_frames_uint16_encode(uint8_t *bytes, const uint8_t *bytes_max, uint16_t n)
 {
-    if (bytes + sizeof(n) > bytes_max) {
+    if (bytes + sizeof(n) > bytes_max)
+    {
         bytes = NULL;
     }
-    else {
+    else
+    {
         *bytes++ = (uint8_t)(n >> 8);
         *bytes++ = (uint8_t)n;
     }
     return (bytes);
 }
 
-uint8_t* picoquic_frames_uint24_encode(uint8_t* bytes, const uint8_t* bytes_max, uint32_t n)
+uint8_t *picoquic_frames_uint24_encode(uint8_t *bytes, const uint8_t *bytes_max, uint32_t n)
 {
-    if (bytes + 3 > bytes_max) {
+    if (bytes + 3 > bytes_max)
+    {
         bytes = NULL;
     }
-    else {
+    else
+    {
         *bytes++ = (uint8_t)(n >> 16);
         *bytes++ = (uint8_t)(n >> 8);
         *bytes++ = (uint8_t)n;
@@ -891,12 +998,14 @@ uint8_t* picoquic_frames_uint24_encode(uint8_t* bytes, const uint8_t* bytes_max,
     return (bytes);
 }
 
-uint8_t* picoquic_frames_uint32_encode(uint8_t* bytes, const uint8_t* bytes_max, uint32_t n)
+uint8_t *picoquic_frames_uint32_encode(uint8_t *bytes, const uint8_t *bytes_max, uint32_t n)
 {
-    if (bytes + sizeof(n) > bytes_max) {
+    if (bytes + sizeof(n) > bytes_max)
+    {
         bytes = NULL;
     }
-    else {
+    else
+    {
         *bytes++ = (uint8_t)(n >> 24);
         *bytes++ = (uint8_t)(n >> 16);
         *bytes++ = (uint8_t)(n >> 8);
@@ -905,12 +1014,14 @@ uint8_t* picoquic_frames_uint32_encode(uint8_t* bytes, const uint8_t* bytes_max,
     return (bytes);
 }
 
-uint8_t* picoquic_frames_uint64_encode(uint8_t* bytes, const uint8_t* bytes_max, uint64_t n)
+uint8_t *picoquic_frames_uint64_encode(uint8_t *bytes, const uint8_t *bytes_max, uint64_t n)
 {
-    if (bytes + sizeof(n) > bytes_max) {
+    if (bytes + sizeof(n) > bytes_max)
+    {
         bytes = NULL;
     }
-    else {
+    else
+    {
         *bytes++ = (uint8_t)(n >> 56);
         *bytes++ = (uint8_t)(n >> 48);
         *bytes++ = (uint8_t)(n >> 40);
@@ -921,40 +1032,42 @@ uint8_t* picoquic_frames_uint64_encode(uint8_t* bytes, const uint8_t* bytes_max,
         *bytes++ = (uint8_t)n;
     }
     return (bytes);
-
 }
 
-uint8_t* picoquic_frames_length_data_encode(uint8_t* bytes, const uint8_t* bytes_max, size_t l, const uint8_t* v)
+uint8_t *picoquic_frames_length_data_encode(uint8_t *bytes, const uint8_t *bytes_max, size_t l, const uint8_t *v)
 {
     if ((bytes = picoquic_frames_varlen_encode(bytes, bytes_max, l)) != NULL &&
-        (bytes + l) <= bytes_max) {
+        (bytes + l) <= bytes_max)
+    {
         memcpy(bytes, v, l);
         bytes += l;
     }
-    else {
+    else
+    {
         bytes = NULL;
     }
 
     return bytes;
 }
 
-uint8_t* picoquic_frames_cid_encode(uint8_t* bytes, const uint8_t* bytes_max, const picoquic_connection_id_t* cid)
+uint8_t *picoquic_frames_cid_encode(uint8_t *bytes, const uint8_t *bytes_max, const picoquic_connection_id_t *cid)
 {
     return picoquic_frames_length_data_encode(bytes, bytes_max, cid->id_len, cid->id);
 }
 
-uint8_t* picoquic_frames_charz_encode(uint8_t* bytes, const uint8_t* bytes_max, char const * s)
+uint8_t *picoquic_frames_charz_encode(uint8_t *bytes, const uint8_t *bytes_max, char const *s)
 {
-    if (s == NULL) {
+    if (s == NULL)
+    {
         bytes = picoquic_frames_varlen_encode(bytes, bytes_max, 0);
     }
-    else {
+    else
+    {
         size_t l = strlen(s);
-        bytes = picoquic_frames_length_data_encode(bytes, bytes_max, l, (const uint8_t*)s);
+        bytes = picoquic_frames_length_data_encode(bytes, bytes_max, l, (const uint8_t *)s);
     }
     return bytes;
 }
-
 
 /* Constant time memory comparison. This is only required now for
  * the comparison of 16 bytes long stateless reset secrets, so we have
@@ -964,39 +1077,43 @@ uint8_t* picoquic_frames_charz_encode(uint8_t* bytes, const uint8_t* bytes_max, 
  * Value is zero if strings match.
  */
 
-int picoquic_constant_time_memcmp(const uint8_t* x, const uint8_t* y, size_t l)
+int picoquic_constant_time_memcmp(const uint8_t *x, const uint8_t *y, size_t l)
 {
     uint64_t ret = 0;
 
-    while (l > 0) {
+    while (l > 0)
+    {
         ret += (*x++ ^ *y++);
         l--;
     }
 
-    return (ret == 0)?0:-1;
+    return (ret == 0) ? 0 : -1;
 }
 
 /* Minimal support for threads.
  */
 
 #ifndef _WINDOWS
-static void picoquic_set_abs_delay(struct timespec* ts, uint64_t microsec_wait) {
+static void picoquic_set_abs_delay(struct timespec *ts, uint64_t microsec_wait)
+{
     clock_gettime(CLOCK_REALTIME, ts);
     ts->tv_sec += (unsigned long)(microsec_wait / 1000000);
-    ts->tv_nsec += (unsigned long)((microsec_wait % 1000000)*1000);
-    if (ts->tv_nsec > 1000000000) {
+    ts->tv_nsec += (unsigned long)((microsec_wait % 1000000) * 1000);
+    if (ts->tv_nsec > 1000000000)
+    {
         ts->tv_sec++;
         ts->tv_nsec -= 1000000000;
     }
 }
 #endif
 
-int picoquic_create_thread(picoquic_thread_t * thread, picoquic_thread_fn thread_fn, void * arg)
+int picoquic_create_thread(picoquic_thread_t *thread, picoquic_thread_fn thread_fn, void *arg)
 {
 #ifdef _WINDOWS
     int ret = 0;
     *thread = CreateThread(NULL, 0, thread_fn, arg, 0, NULL);
-    if (*thread == NULL) {
+    if (*thread == NULL)
+    {
         ret = GetLastError();
     }
 #else
@@ -1005,11 +1122,12 @@ int picoquic_create_thread(picoquic_thread_t * thread, picoquic_thread_fn thread
     return ret;
 }
 
-void picoquic_delete_thread(picoquic_thread_t * thread)
+void picoquic_delete_thread(picoquic_thread_t *thread)
 {
 #ifdef _WINDOWS
     /* Wait until background thread has terminated, or timeout in milliseconds */
-    if (WaitForMultipleObjects(1, thread, TRUE, 1000) == WAIT_TIMEOUT) {
+    if (WaitForMultipleObjects(1, thread, TRUE, 1000) == WAIT_TIMEOUT)
+    {
         /* if soft wait fails, then hard cancel */
         TerminateThread(*thread, 0);
     }
@@ -1017,18 +1135,20 @@ void picoquic_delete_thread(picoquic_thread_t * thread)
     CloseHandle(*thread);
     *thread = NULL;
 #else
-    if (pthread_join(*thread, NULL) != 0) {
+    if (pthread_join(*thread, NULL) != 0)
+    {
         (void)pthread_cancel(*thread);
     }
 #endif
 }
 
-int picoquic_create_mutex(picoquic_mutex_t * mutex)
+int picoquic_create_mutex(picoquic_mutex_t *mutex)
 {
 #ifdef _WINDOWS
     int ret = 0;
     *mutex = CreateMutex(NULL, FALSE, NULL);
-    if (*mutex == NULL) {
+    if (*mutex == NULL)
+    {
         ret = -1;
     }
 #else
@@ -1037,7 +1157,7 @@ int picoquic_create_mutex(picoquic_mutex_t * mutex)
     return ret;
 }
 
-int picoquic_delete_mutex(picoquic_mutex_t* mutex)
+int picoquic_delete_mutex(picoquic_mutex_t *mutex)
 {
 #ifdef _WINDOWS
     int ret = 0;
@@ -1049,39 +1169,42 @@ int picoquic_delete_mutex(picoquic_mutex_t* mutex)
     return ret;
 }
 
-int picoquic_lock_mutex(picoquic_mutex_t  * mutex)
+int picoquic_lock_mutex(picoquic_mutex_t *mutex)
 {
 #ifdef _WINDOWS
     int ret = 0;
     DWORD w_ret = WaitForSingleObject(*mutex, INFINITE);
-    if (w_ret != WAIT_OBJECT_0) {
+    if (w_ret != WAIT_OBJECT_0)
+    {
         ret = -1;
     }
-#else 
+#else
     int ret = pthread_mutex_lock(mutex);
 #endif
     return ret;
 }
 
-int picoquic_unlock_mutex(picoquic_mutex_t * mutex)
+int picoquic_unlock_mutex(picoquic_mutex_t *mutex)
 {
 #ifdef _WINDOWS
     int ret = 0;
-    if (!ReleaseMutex(*mutex)) {
+    if (!ReleaseMutex(*mutex))
+    {
         ret = -1;
     }
-#else 
+#else
     int ret = pthread_mutex_unlock(mutex);
 #endif
     return ret;
 }
 
-int picoquic_create_event(picoquic_event_t* event)
+int picoquic_create_event(picoquic_event_t *event)
 {
 #ifdef _WINDOWS
     int ret = 0;
     *event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (*event == NULL) {
+    if (*event == NULL)
+    {
         ret = -1;
     }
 #else
@@ -1089,33 +1212,35 @@ int picoquic_create_event(picoquic_event_t* event)
 
     memset(event, 0, sizeof(picoquic_event_t));
     ret = pthread_mutex_init(&event->mutex, NULL);
-    if (ret == 0) {
+    if (ret == 0)
+    {
         ret = pthread_cond_init(&event->cond, NULL);
     }
 #endif
     return ret;
 }
 
-void picoquic_delete_event(picoquic_event_t* event)
+void picoquic_delete_event(picoquic_event_t *event)
 {
 #ifdef _WINDOWS
     CloseHandle(*event);
     *event = NULL;
-#else 
+#else
     (void)pthread_mutex_destroy(&event->mutex);
     (void)pthread_cond_destroy(&event->cond);
     memset(event, 0, sizeof(picoquic_event_t));
 #endif
 }
 
-int picoquic_signal_event(picoquic_event_t* event)
+int picoquic_signal_event(picoquic_event_t *event)
 {
 #ifdef _WINDOWS
     int ret = 0;
-    if (!SetEvent(*event)){
+    if (!SetEvent(*event))
+    {
         ret = -1;
     }
-#else 
+#else
     int ret;
     (void)pthread_mutex_lock(&event->mutex);
     ret = pthread_cond_broadcast(&event->cond);
@@ -1124,25 +1249,30 @@ int picoquic_signal_event(picoquic_event_t* event)
     return ret;
 }
 
-int picoquic_wait_for_event(picoquic_event_t* event, uint64_t microsec_wait)
+int picoquic_wait_for_event(picoquic_event_t *event, uint64_t microsec_wait)
 {
 #ifdef _WINDOWS
     int ret = 0;
     DWORD dwWaitResult;
     DWORD millisec_wait = (microsec_wait == UINT64_MAX) ? INFINITE : (DWORD)(microsec_wait / 1000);
     dwWaitResult = WaitForSingleObject(*event, millisec_wait);
-    if (dwWaitResult == WAIT_OBJECT_0) {
+    if (dwWaitResult == WAIT_OBJECT_0)
+    {
         (void)ResetEvent(*event);
-    } else {
+    }
+    else
+    {
         ret = -1;
     }
 #else
     int ret;
     (void)pthread_mutex_lock(&event->mutex);
-    if (microsec_wait == UINT64_MAX) {
+    if (microsec_wait == UINT64_MAX)
+    {
         ret = pthread_cond_wait(&event->cond, &event->mutex);
     }
-    else {
+    else
+    {
         struct timespec abstime;
         picoquic_set_abs_delay(&abstime, microsec_wait);
         ret = pthread_cond_timedwait(&event->cond, &event->mutex, &abstime);
@@ -1152,14 +1282,13 @@ int picoquic_wait_for_event(picoquic_event_t* event, uint64_t microsec_wait)
     return ret;
 }
 
-
 /* Pseudo random generation suitable for tests. Guaranties that the
 * same seed will produce the same sequence, allows for specific
 * random sequence for a given test.
 * Adapted from http://xoroshiro.di.unimi.it/splitmix64.c,
 * Written in 2015 by Sebastiano Vigna (vigna@acm.org)  */
 
-uint64_t picoquic_test_random(uint64_t* random_context)
+uint64_t picoquic_test_random(uint64_t *random_context)
 {
     uint64_t z;
     *random_context += 0x9e3779b97f4a7c15;
@@ -1169,28 +1298,32 @@ uint64_t picoquic_test_random(uint64_t* random_context)
     return z ^ (z >> 31);
 }
 
-void picoquic_test_random_bytes(uint64_t* random_context, uint8_t* bytes, size_t bytes_max)
+void picoquic_test_random_bytes(uint64_t *random_context, uint8_t *bytes, size_t bytes_max)
 {
     size_t byte_index = 0;
 
-    while (byte_index < bytes_max) {
+    while (byte_index < bytes_max)
+    {
         uint64_t v = picoquic_test_random(random_context);
 
-        for (int i = 0; i < 8 && byte_index < bytes_max; i++) {
+        for (int i = 0; i < 8 && byte_index < bytes_max; i++)
+        {
             bytes[byte_index++] = v & 0xFF;
             v >>= 8;
         }
     }
 }
 
-uint64_t picoquic_test_uniform_random(uint64_t* random_context, uint64_t rnd_max)
+uint64_t picoquic_test_uniform_random(uint64_t *random_context, uint64_t rnd_max)
 {
     uint64_t rnd = 0;
 
-    if (rnd_max > 0) {
+    if (rnd_max > 0)
+    {
         uint64_t rnd_min = ((uint64_t)((int64_t)-1)) % rnd_max;
 
-        do {
+        do
+        {
             rnd = picoquic_test_random(random_context);
         } while (rnd < rnd_min);
         rnd %= rnd_max;
@@ -1199,13 +1332,14 @@ uint64_t picoquic_test_uniform_random(uint64_t* random_context, uint64_t rnd_max
     return rnd;
 }
 
-double picoquic_test_gauss_random(uint64_t* random_context)
+double picoquic_test_gauss_random(uint64_t *random_context)
 {
     double dx = 0;
 
     /* Sum of 12 variables in [0..1], provides
      * average = 6.0, stdev = 3.0 */
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 12; i++)
+    {
         double d;
         uint64_t r = picoquic_test_random(random_context);
         r ^= r >> 17;
@@ -1222,97 +1356,95 @@ double picoquic_test_gauss_random(uint64_t* random_context)
 
 ///====================DPDK=======================
 void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
-			 struct rte_udp_hdr *udp_hdr,
-			 uint16_t pkt_data_len)
+                              struct rte_udp_hdr *udp_hdr,
+                              uint16_t pkt_data_len)
 {
-	uint16_t *ptr16;
-	uint32_t ip_cksum;
-	uint16_t pkt_len;
+    uint16_t *ptr16;
+    uint32_t ip_cksum;
+    uint16_t pkt_len;
 
-	/*
+    /*
 	 * Initialize UDP header.
 	 */
-	pkt_len = (uint16_t) (pkt_data_len + sizeof(struct rte_udp_hdr));
-	udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
-	udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
-	udp_hdr->dgram_len      = rte_cpu_to_be_16(pkt_len);
-	udp_hdr->dgram_cksum    = 0; /* No UDP checksum. */
+    pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_udp_hdr));
+    udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
+    udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
+    udp_hdr->dgram_len = rte_cpu_to_be_16(pkt_len);
+    udp_hdr->dgram_cksum = 0; /* No UDP checksum. */
 
-	/*
+    /*
 	 * Initialize IP header.
 	 */
-	pkt_len = (uint16_t) (pkt_len + sizeof(struct rte_ipv4_hdr));
-	ip_hdr->version_ihl   = RTE_IPV4_VHL_DEF;
-	ip_hdr->type_of_service   = 0;
-	ip_hdr->fragment_offset = 0;
-	ip_hdr->time_to_live   = IP_DEFTTL;
-	ip_hdr->next_proto_id = IPPROTO_UDP;
-	ip_hdr->packet_id = 0;
-	ip_hdr->total_length   = rte_cpu_to_be_16(pkt_len);
-	ip_hdr->src_addr = rte_cpu_to_be_32(tx_ip_src_addr);
-	ip_hdr->dst_addr = rte_cpu_to_be_32(tx_ip_dst_addr);
+    pkt_len = (uint16_t)(pkt_len + sizeof(struct rte_ipv4_hdr));
+    ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
+    ip_hdr->type_of_service = 0;
+    ip_hdr->fragment_offset = 0;
+    ip_hdr->time_to_live = IP_DEFTTL;
+    ip_hdr->next_proto_id = IPPROTO_UDP;
+    ip_hdr->packet_id = 0;
+    ip_hdr->total_length = rte_cpu_to_be_16(pkt_len);
+    ip_hdr->src_addr = rte_cpu_to_be_32(tx_ip_src_addr);
+    ip_hdr->dst_addr = rte_cpu_to_be_32(tx_ip_dst_addr);
 
-	/*
+    /*
 	 * Compute IP header checksum.
 	 */
-	ptr16 = (unaligned_uint16_t*) ip_hdr;
-	ip_cksum = 0;
-	ip_cksum += ptr16[0]; ip_cksum += ptr16[1];
-	ip_cksum += ptr16[2]; ip_cksum += ptr16[3];
-	ip_cksum += ptr16[4];
-	ip_cksum += ptr16[6]; ip_cksum += ptr16[7];
-	ip_cksum += ptr16[8]; ip_cksum += ptr16[9];
+    ptr16 = (unaligned_uint16_t *)ip_hdr;
+    ip_cksum = 0;
+    ip_cksum += ptr16[0];
+    ip_cksum += ptr16[1];
+    ip_cksum += ptr16[2];
+    ip_cksum += ptr16[3];
+    ip_cksum += ptr16[4];
+    ip_cksum += ptr16[6];
+    ip_cksum += ptr16[7];
+    ip_cksum += ptr16[8];
+    ip_cksum += ptr16[9];
 
-	/*
+    /*
 	 * Reduce 32 bit checksum to 16 bits and complement it.
 	 */
-	ip_cksum = ((ip_cksum & 0xFFFF0000) >> 16) +
-		(ip_cksum & 0x0000FFFF);
-	if (ip_cksum > 65535)
-		ip_cksum -= 65535;
-	ip_cksum = (~ip_cksum) & 0x0000FFFF;
-	if (ip_cksum == 0)
-		ip_cksum = 0xFFFF;
-	ip_hdr->hdr_checksum = (uint16_t) ip_cksum;
+    ip_cksum = ((ip_cksum & 0xFFFF0000) >> 16) +
+               (ip_cksum & 0x0000FFFF);
+    if (ip_cksum > 65535)
+        ip_cksum -= 65535;
+    ip_cksum = (~ip_cksum) & 0x0000FFFF;
+    if (ip_cksum == 0)
+        ip_cksum = 0xFFFF;
+    ip_hdr->hdr_checksum = (uint16_t)ip_cksum;
 }
 
-
-
-void
-copy_buf_to_pkt_segs(void* buf, unsigned len, struct rte_mbuf *pkt,
-		     unsigned offset)
+void copy_buf_to_pkt_segs(void *buf, unsigned len, struct rte_mbuf *pkt,
+                          unsigned offset)
 {
-	struct rte_mbuf *seg;
-	void *seg_buf;
-	unsigned copy_len;
+    struct rte_mbuf *seg;
+    void *seg_buf;
+    unsigned copy_len;
 
-	seg = pkt;
-	while (offset >= seg->data_len) {
-		offset -= seg->data_len;
-		seg = seg->next;
-	}
-	copy_len = seg->data_len - offset;
-	seg_buf = rte_pktmbuf_mtod_offset(seg, char *, offset);
-	while (len > copy_len) {
-		rte_memcpy(seg_buf, buf, (size_t) copy_len);
-		len -= copy_len;
-		buf = ((char*) buf + copy_len);
-		seg = seg->next;
-		seg_buf = rte_pktmbuf_mtod(seg, char *);
-		copy_len = seg->data_len;
-	}
-	rte_memcpy(seg_buf, buf, (size_t) len);
+    seg = pkt;
+    while (offset >= seg->data_len)
+    {
+        offset -= seg->data_len;
+        seg = seg->next;
+    }
+    copy_len = seg->data_len - offset;
+    seg_buf = rte_pktmbuf_mtod_offset(seg, char *, offset);
+    while (len > copy_len)
+    {
+        rte_memcpy(seg_buf, buf, (size_t)copy_len);
+        len -= copy_len;
+        buf = ((char *)buf + copy_len);
+        seg = seg->next;
+        seg_buf = rte_pktmbuf_mtod(seg, char *);
+        copy_len = seg->data_len;
+    }
+    rte_memcpy(seg_buf, buf, (size_t)len);
 }
 
-void
-copy_buf_to_pkt(void* buf, unsigned len, struct rte_mbuf *pkt, unsigned offset)
+void copy_buf_to_pkt(void *buf, unsigned len, struct rte_mbuf *pkt, unsigned offset)
 {
-	if (offset + len <= pkt->data_len) {
-		rte_memcpy(rte_pktmbuf_mtod_offset(pkt, char *, offset),
-			buf, (size_t) len);
-		return;
-	}
-	copy_buf_to_pkt_segs(buf, len, pkt, offset);
+
+    rte_memcpy(rte_pktmbuf_mtod_offset(pkt, char *, offset),
+               buf, (size_t)len);
+    return;
 }
-
-

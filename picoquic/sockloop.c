@@ -122,6 +122,7 @@
 #include <rte_string_fns.h>
 #include <rte_udp.h>
 #include <rte_ip.h>
+#include <rte_errno.h>
 
 #include <rte_common.h>
 #include <rte_byteorder.h>
@@ -173,12 +174,12 @@ struct lcore_queue_conf
 struct lcore_queue_conf lcore_queue_conf[RTE_MAX_LCORE];
 
 #if defined(_WINDOWS)
-    static int udp_gso_available = 0;
+static int udp_gso_available = 0;
 #else
 #if defined(UDP_SEGMENT)
-    static int udp_gso_available = 1;
+static int udp_gso_available = 1;
 #else
-    static int udp_gso_available = 0;
+static int udp_gso_available = 0;
 #endif
 #endif
 
@@ -340,12 +341,17 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         printf("fail to init buffer\n");
         return 0;
     }
-
+    unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
+    mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
+                                      MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+                                      rte_socket_id());
     if (mb_pool == NULL)
     {
-        printf("fail to init mb_pool\n");
+        printf("fail to init mb_pool10\n");
+        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
         return 0;
     }
+    printf("after init\n");
     ret = rte_eth_dev_info_get(0, &dev_info);
     if (ret != 0)
         rte_exit(EXIT_FAILURE,
@@ -396,6 +402,13 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         printf("failed to init rx_queue\n");
     }
+    printf("before start \n");
+    ret = rte_eth_dev_start(0);
+    if (ret != 0)
+    {
+        printf("failed to start device\n");
+    }
+    printf("after dpdk setup\n");
     //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
@@ -423,40 +436,13 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
-    // memset(sock_af, 0, sizeof(sock_af));
-    // memset(sock_ports, 0, sizeof(sock_ports));
-
-    // if ((nb_sockets = picoquic_packet_loop_open_sockets(local_port, local_af, s_socket, sock_af,
-    //                                                     sock_ports, socket_buffer_size, PICOQUIC_PACKET_LOOP_SOCKETS_MAX)) == 0)
-    // {
-    //     ret = PICOQUIC_ERROR_UNEXPECTED_ERROR;
-    // }
-    // else if (loop_callback != NULL)
-    // {
-    //     struct sockaddr_storage l_addr;
-    //     ret = loop_callback(quic, picoquic_packet_loop_ready, loop_callback_ctx, NULL);
-    //     if (picoquic_store_loopback_addr(&l_addr, sock_af[0], sock_ports[0]) == 0)
-    //     {
-    //         ret = loop_callback(quic, picoquic_packet_loop_port_update, loop_callback_ctx, &l_addr);
-    //     }
-    // }
-
-    // if (ret == 0)
-    // {
-    //     if (udp_gso_available && !do_not_use_gso)
-    //     {
-    //         send_buffer_size = 0xFFFF;
-    //         send_msg_ptr = &send_msg_size;
-    //     }
-    //     send_buffer = malloc(send_buffer_size);
-    //     if (send_buffer == NULL)
-    //     {
-    //         ret = -1;
-    //     }
-    // }
-
-    /* Wait for packets */
-    /* TODO: add stopping condition, was && (!just_once || !connection_done) */
+    send_buffer_size = 0xFFFF;
+    send_msg_ptr = &send_msg_size;
+    send_buffer = malloc(send_buffer_size);
+    if (send_buffer == NULL)
+    {
+        ret = -1;
+    }
     while (ret == 0)
     {
         int socket_rank = -1;
@@ -465,7 +451,9 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
         if_index_to = 0;
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
+        printf("before receive\n");
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
+        printf("afte receive\n");
         for (int j = 0; j < ret; j++)
         {
             m = pkts_burst[j];
@@ -481,7 +469,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
             if (pkts_recv > 0)
             {
-                /* Submit the packet to the server */
+
                 uint16_t len;
                 for (int i = 0; i < pkts_recv; i++)
                 {
@@ -489,13 +477,15 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
 
                     struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
-                                                             sizeof(struct rte_ipv4_hdr));
+                                                                     sizeof(struct rte_ipv4_hdr));
                     unsigned char *payload = (unsigned char *)(udp + 1);
                     int length = udp->dgram_len;
+                    printf("before incoming packet\n");
                     (void)picoquic_incoming_packet_ex(quic, payload,
                                                       (size_t)length, (struct sockaddr *)&addr_from,
                                                       (struct sockaddr *)&addr_to, if_index_to, received_ecn,
                                                       &last_cnx, current_time);
+                    printf("after incoming packet\n");
                 }
 
                 if (loop_callback != NULL)
@@ -520,11 +510,12 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     int if_index = dest_if;
                     int sock_ret = 0;
                     int sock_err = 0;
-
+                    printf("before prep next packet\n");
                     ret = picoquic_prepare_next_packet_ex(quic, loop_time,
                                                           send_buffer, send_buffer_size, &send_length,
                                                           &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
                                                           send_msg_ptr);
+                    printf("after prep next packet\n");
 
                     if (ret == 0 && send_length > 0)
                     {
@@ -543,10 +534,21 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         struct rte_ipv4_hdr ip_hdr;
                         struct rte_udp_hdr rte_udp_hdr;
                         struct rte_ether_hdr eth_hdr;
+                        printf("before alloc\n");
                         struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
+                        printf("after alloc\n");
+                        if (m == NULL)
+                        {   
+                            printf("fail to init pktmbuf\n");
+                            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+                            return 0;
+                        }
+                        printf("before setup pkt_udp_up_headers\n");
                         setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, send_length);
-
+                        printf("after setup pkt_udp_up_headers\n");
+                        printf("before copy buf to pkt\n");
                         copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
+                        printf("after copy buf to pkt\n");
                         offset += sizeof(struct rte_ether_hdr);
                         copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
                         offset += sizeof(struct rte_ipv4_hdr);
@@ -555,6 +557,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         copy_buf_to_pkt(send_buffer, send_buffer_size, m, offset);
                         //inchallah ca marche
                         ret = rte_eth_tx_burst(0, 0, &m, 1);
+                        printf("after transmit\n");
 
                         //     if (sock_ret <= 0)
                         //     {

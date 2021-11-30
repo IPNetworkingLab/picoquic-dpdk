@@ -9,14 +9,9 @@
 #include <sys/queue.h>
 #include <netinet/if_ether.h>
 
-#include <stdint.h>
-#include <sys/queue.h>
 #include <sys/socket.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include <assert.h>
-#include <errno.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <inttypes.h>
@@ -24,8 +19,6 @@
 #include <termios.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <picoquic.h>
 #include <picoquic_utils.h>
 #include <picosocks.h>
@@ -142,16 +135,16 @@ static int sample_client_create_stream(picoquic_cnx_t* cnx,
         }
         stream_ctx->file_rank = file_rank;
         stream_ctx->stream_id = (uint64_t)4 * file_rank;
-        stream_ctx->name_length = strlen(client_ctx->file_names[file_rank]);
+        stream_ctx->name_length = strlen("test");
 
         /* Mark the stream as active. The callback will be asked to provide data when 
          * the connection is ready. */
         ret = picoquic_mark_active_stream(cnx, stream_ctx->stream_id, 1, stream_ctx);
         if (ret != 0) {
-            fprintf(stdout, "Error %d, cannot initialize stream for file number %d\n", ret, (int)file_rank);
+            fprintf(stdout, "Error %d, cannot initialize stream for file number %d\n", ret, 1);
         }
         else {
-            printf("Opened stream %d for file %s\n", 4 * file_rank, client_ctx->file_names[file_rank]);
+            printf("Opened stream %d for file %s\n", 4 * file_rank, "test");
         }
     }
 
@@ -173,7 +166,7 @@ static void sample_client_report(sample_client_ctx_t* client_ctx)
         else {
             status = "unknown status";
         }
-        printf("%s: %s, received %zu bytes", client_ctx->file_names[stream_ctx->file_rank], status, stream_ctx->bytes_received);
+        printf("%s: %s, received %zu bytes", "test", status, stream_ctx->bytes_received);
         if (stream_ctx->is_stream_reset && stream_ctx->remote_error != PICOQUIC_SAMPLE_NO_ERROR){
             char const* error_text = "unknown error";
             switch (stream_ctx->remote_error) {
@@ -259,7 +252,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                      */
                     char file_path[1024];
                     size_t dir_len = strlen(client_ctx->default_dir);
-                    size_t file_name_len = strlen(client_ctx->file_names[stream_ctx->file_rank]);
+                    size_t file_name_len = strlen("test");
 
                     if (dir_len > 0 && dir_len < sizeof(file_path)) {
                         memcpy(file_path, client_ctx->default_dir, dir_len);
@@ -274,7 +267,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                         fprintf(stderr, "Could not format the file path.\n");
                         ret = -1;
                     } else {
-                        memcpy(file_path + dir_len, client_ctx->file_names[stream_ctx->file_rank],
+                        memcpy(file_path + dir_len, "test",
                             file_name_len);
                         file_path[dir_len + file_name_len] = 0;
                         stream_ctx->F = picoquic_file_open(file_path, "wb");
@@ -384,7 +377,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                  */
                 buffer = picoquic_provide_stream_data_buffer(bytes, available, is_fin, !is_fin);
                 if (buffer != NULL) {
-                    char const* filename = client_ctx->file_names[stream_ctx->file_rank];
+                    char const* filename = "test";
                     memcpy(buffer, filename + stream_ctx->name_sent_length, available);
                     stream_ctx->name_sent_length += available;
                     stream_ctx->is_name_sent = is_fin;
@@ -470,6 +463,7 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
 {
     int ret = 0;
     struct sockaddr_storage server_address;
+
     char const* sni = PICOQUIC_SAMPLE_SNI;
     picoquic_quic_t* quic = NULL;
     char const* ticket_store_filename = PICOQUIC_SAMPLE_CLIENT_TICKET_STORE;
@@ -479,18 +473,21 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
     picoquic_cnx_t* cnx = NULL;
     uint64_t current_time = picoquic_current_time();
 
+    (*(struct sockaddr_in *)(&server_address)).sin_family = AF_INET;
+    (*(struct sockaddr_in *)(&server_address)).sin_port = htons(55);
+    (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("10.0.0.0");
     /* Get the server's address */
-    if (ret == 0) {
-        int is_name = 0;
+    // if (ret == 0) {
+    //     int is_name = 0;
 
-        ret = picoquic_get_server_address(server_name, server_port, &server_address, &is_name);
-        if (ret != 0) {
-            fprintf(stderr, "Cannot get the IP address for <%s> port <%d>", server_name, server_port);
-        }
-        else if (is_name) {
-            sni = server_name;
-        }
-    }
+    //     ret = picoquic_get_server_address(server_name, server_port, &server_address, &is_name);
+    //     if (ret != 0) {
+    //         fprintf(stderr, "Cannot get the IP address for <%s> port <%d>", server_name, server_port);
+    //     }
+    //     else if (is_name) {
+    //         sni = server_name;
+    //     }
+    // }
 
     /* Create a QUIC context. It could be used for many connections, but in this sample we
      * will use it for just one connection. 
@@ -593,140 +590,9 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
     return ret;
 }
 static int
-lcore_hello(__rte_unused void *arg)
-{
-	uint16_t portid = 0;
-	int ret;
-	struct rte_eth_rxconf rxq_conf;
-	struct rte_eth_txconf txq_conf;
-	struct rte_eth_dev_info dev_info;
-	struct rte_eth_dev_tx_buffer *tx_buffer;
-	struct rte_mbuf *m;
-	struct rte_eth_conf local_port_conf = port_conf;
-	struct rte_ether_hdr *eth;
-	void *tmp;
-
-	tx_buffer = rte_zmalloc_socket("tx_buffer",
-								   RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-								   rte_eth_dev_socket_id(0));
-	if (tx_buffer == NULL)
-	{
-		printf("fail to init buffer\n");
-		return 0;
-	}
-
-	if (mb_pool == NULL)
-	{
-		printf("fail to init mb_pool\n");
-		return 0;
-	}
-	ret = rte_eth_dev_info_get(0, &dev_info);
-	if (ret != 0)
-		rte_exit(EXIT_FAILURE,
-				 "Error during getting device (port %u) info: %s\n",
-				 0, strerror(-ret));
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
-		local_port_conf.txmode.offloads |=
-			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-	ret = rte_eth_dev_configure(0, 1, 1, &local_port_conf);
-	if (ret != 0)
-	{
-		printf("error in dev_configure\n");
-		return 0;
-	}
-
-	ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
-										   &nb_txd);
-	if (ret < 0)
-		rte_exit(EXIT_FAILURE,
-				 "Cannot adjust number of descriptors: err=%d, port=%u\n",
-				 ret, portid);
-
-	ret = rte_eth_macaddr_get(portid, &eth_addr);
-
-	//init tx queue
-	txq_conf = dev_info.default_txconf;
-	txq_conf.offloads = local_port_conf.txmode.offloads;
-	ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
-								 rte_eth_dev_socket_id(portid),
-								 &txq_conf);
-	if (ret != 0)
-	{
-		printf("failed to init queue\n");
-		return 0;
-	}
-	ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST);
-	if (ret != 0)
-	{
-		printf("error in buffer_init\n");
-		return 0;
-	}
-	//init rx queue
-	rxq_conf = dev_info.default_rxconf;
-	rxq_conf.offloads = local_port_conf.rxmode.offloads;
-	ret = rte_eth_rx_queue_setup(0, 0, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pool);
-	if (ret != 0)
-	{
-		printf("failed to init rx_queue\n");
-	}
-
-	//changing mac addr and ether type
-	// eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	// eth->ether_type = htons(2048);
-	// rte_ether_addr_copy(&eth_addr, &eth->s_addr);
-	// tmp = &eth->d_addr.addr_bytes[0];
-	// *((uint64_t *)tmp) = 0;
-
-	printf("before start \n");
-	ret = rte_eth_dev_start(0);
-	if (ret != 0)
-	{
-		printf("failed to start device\n");
-	}
-	// ret = rte_eth_promiscuous_enable(portid);
-	// if (ret != 0)
-	// 	rte_exit(EXIT_FAILURE,
-	// 			 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
-	// 			 rte_strerror(-ret), portid);
-	char buf[5] = "hello";
-	char buf2[5] = "yo";
-	rte_memcpy(buf,buf2,5);
-	while (true)
-	{
-		size_t pkt_size;
-		m = rte_pktmbuf_alloc(mb_pool);
-		if (m == NULL)
-		// printf("hello\n");
-		{
-			printf("fail to init pktmbuf\n");
-			return 0;
-		}
-		
-		printf("size : %lu\n",sizeof(struct rte_ether_hdr));
-		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-		// eth->ether_type = htons(2048);
-		rte_ether_addr_copy(&eth_addr, &eth->s_addr);
-		tmp = &eth->d_addr.addr_bytes[0];
-		*((uint64_t *)tmp) = 0;
-
-		pkt_size = sizeof(struct rte_ether_hdr);
-		m->data_len = pkt_size;
-		m->pkt_len = pkt_size;
-		ret = rte_eth_tx_buffer(0, 0, tx_buffer, m);
-		// ret = rte_eth_tx_burst(0, 0, &m,1);
-
-		// if (ret != 0)
-		// {
-		// 	printf("send : %d\n", ret);
-		// }
-	}
-	return 0;
-}
-static int
 lcore_hello2(__rte_unused void *arg)
 {
-	picoquic_sample_client("root@TFE-Tyunyayev2", 5, ".", 1, "test");
+	picoquic_sample_client("root@TFE-Tyunyayev2", 5, ".", 1, "test.txt");
 	
 }
 int main(int argc, char **argv)
@@ -736,11 +602,6 @@ int main(int argc, char **argv)
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
-
-	unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
-	mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
-									  MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-									  rte_socket_id());
 	/* call lcore_hello() on every worker lcore */
 	// RTE_LCORE_FOREACH_WORKER(lcore_id)
 	// {
