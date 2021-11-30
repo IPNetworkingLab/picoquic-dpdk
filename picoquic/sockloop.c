@@ -556,6 +556,8 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         offset += sizeof(struct rte_udp_hdr);
                         copy_buf_to_pkt(send_buffer, send_buffer_size, m, offset);
                         //inchallah ca marche
+                        m->data_len = offset;
+		                m->pkt_len = offset;
                         ret = rte_eth_tx_burst(0, 0, &m, 1);
                         printf("after transmit\n");
 
