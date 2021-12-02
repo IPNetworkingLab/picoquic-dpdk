@@ -534,21 +534,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                 size_t bytes_sent = 0;
                 while (ret == 0)
                 {
-<<<<<<< HEAD
-                    struct sockaddr_storage peer_addr;
-                    struct sockaddr_storage local_addr;
-                    int if_index = dest_if;
-                    int sock_ret = 0;
-                    int sock_err = 0;
-                    printf("before prep next packet\n");
-                    ret = picoquic_prepare_next_packet_ex(quic, loop_time,
-                                                          send_buffer, send_buffer_size, &send_length,
-                                                          &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
-                                                          send_msg_ptr);
-                    printf("after prep next packet\n");
-
-                    if (ret == 0 && send_length > 0)
-=======
                     printf("sending new packet\n");
                     int offset = 0;
                     struct rte_ipv4_hdr ip_hdr;
@@ -557,7 +542,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     //printf("before alloc\n");
                     struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
                     if (m == NULL)
->>>>>>> 2f0ede6f... adding pcaps
                     {
                         SOCKET_TYPE send_socket = INVALID_SOCKET;
                         bytes_sent += send_length;
