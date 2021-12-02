@@ -49,6 +49,7 @@
 #include <rte_arp.h>
 #include <rte_spinlock.h>
 #include <rte_devargs.h>
+#include <rte_pdump.h>
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -592,8 +593,18 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
 static int
 lcore_hello2(__rte_unused void *arg)
 {
+<<<<<<< HEAD
 	picoquic_sample_client("root@TFE-Tyunyayev2", 5, ".", 1, "test.txt");
 	
+=======
+    char **files = (char **)malloc(1 * sizeof(char *));
+    files[0] = (char *)malloc(sizeof(strlen("test.txt")) + 1);
+    memcpy(files[0], "test.txt", strlen("test.txt") + 1);
+    rte_pdump_init();
+    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files);
+    rte_pdump_uninit();
+
+>>>>>>> 2f0ede6f... adding pcaps
 }
 int main(int argc, char **argv)
 {

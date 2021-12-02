@@ -35,6 +35,7 @@
 #include <picoquic_utils.h>
 #include <picosocks.h>
 #include <picoquic_packet_loop.h>
+#include <rte_pdump.h>
 
 
 #define MAX_PKT_BURST 32
@@ -72,6 +73,7 @@ static struct rte_eth_conf port_conf = {
 static int
 lcore_hello(__rte_unused void *arg)
 {
+<<<<<<< HEAD
 
 	int ret;
 	uint16_t portid = 0;
@@ -150,6 +152,11 @@ lcore_hello(__rte_unused void *arg)
 		}
 	}
 	return 0;
+=======
+    
+	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder");
+   
+>>>>>>> 2f0ede6f... adding pcaps
 }
 
 int main(int argc, char **argv)
@@ -158,6 +165,7 @@ int main(int argc, char **argv)
 	unsigned lcore_id;
 	lcore_id = rte_lcore_id();
 	ret = rte_eal_init(argc, argv);
+    rte_pdump_init();
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
 
@@ -174,6 +182,7 @@ int main(int argc, char **argv)
 
 	/* clean up the EAL */
 	rte_eal_cleanup();
+    rte_pdump_uninit();
 
 	return 0;
 }

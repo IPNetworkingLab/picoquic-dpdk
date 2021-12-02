@@ -432,6 +432,13 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     picoquic_cnx_t *last_cnx = NULL;
     int loop_immediate = 0;
     int pkts_recv;
+
+    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
+    (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("10.0.0.0");
+    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
+    (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
+    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("10.0.0.0");
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
@@ -451,7 +458,12 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
         if_index_to = 0;
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
+<<<<<<< HEAD
         printf("before receive\n");
+=======
+        // printf("before receive\n");
+
+>>>>>>> 2f0ede6f... adding pcaps
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
         printf("afte receive\n");
         for (int j = 0; j < ret; j++)
@@ -469,6 +481,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
             if (pkts_recv > 0)
             {
+<<<<<<< HEAD
 
                 uint16_t len;
                 for (int i = 0; i < pkts_recv; i++)
@@ -488,6 +501,22 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     printf("after incoming packet\n");
                 }
 
+=======
+                /* access IP header of rcv'd pkt */
+                struct rte_ipv4_hdr *ipv4_hdr;
+                ipv4_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
+
+                struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ipv4_hdr +
+                                                                 sizeof(struct rte_ipv4_hdr));
+
+                unsigned char *payload = (unsigned char *)(udp + 1);
+                printf("payload : %s\n", payload);
+                int length = udp->dgram_len;
+                (void)picoquic_incoming_packet_ex(quic, payload,
+                                                  (size_t)length, (struct sockaddr *)&addr_from,
+                                                  (struct sockaddr *)&addr_to, if_index_to, received_ecn,
+                                                  &last_cnx, current_time);
+>>>>>>> 2f0ede6f... adding pcaps
                 if (loop_callback != NULL)
                 {
                     size_t b_recvd = (size_t)bytes_recv;
@@ -505,6 +534,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                 size_t bytes_sent = 0;
                 while (ret == 0)
                 {
+<<<<<<< HEAD
                     struct sockaddr_storage peer_addr;
                     struct sockaddr_storage local_addr;
                     int if_index = dest_if;
@@ -518,6 +548,16 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     printf("after prep next packet\n");
 
                     if (ret == 0 && send_length > 0)
+=======
+                    printf("sending new packet\n");
+                    int offset = 0;
+                    struct rte_ipv4_hdr ip_hdr;
+                    struct rte_udp_hdr rte_udp_hdr;
+                    struct rte_ether_hdr eth_hdr;
+                    //printf("before alloc\n");
+                    struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
+                    if (m == NULL)
+>>>>>>> 2f0ede6f... adding pcaps
                     {
                         SOCKET_TYPE send_socket = INVALID_SOCKET;
                         bytes_sent += send_length;
@@ -623,6 +663,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     {
                         ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
                     }
+<<<<<<< HEAD
                 }
             }
 
@@ -701,6 +742,47 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
             /* Normal termination requested by the application, returns no error */
             ret = 0;
         }
+=======
+                    //printf("before setup pkt_udp_up_headers\n");
+                    setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, send_length);
+                    eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+                    //setting mac addr
+                    void *tmp;
+                    rte_ether_addr_copy(&eth_addr, &eth->src_addr);
+                    tmp = &eth->dst_addr.addr_bytes[0];
+                    *((uint64_t *)tmp) = 0;
+
+                    copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
+                    //printf("after copy buf to pkt\n");
+                    offset += sizeof(struct rte_ether_hdr);
+                    copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
+                    offset += sizeof(struct rte_ipv4_hdr);
+                    copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
+                    offset += sizeof(struct rte_udp_hdr);
+                    copy_buf_to_pkt(send_buffer, send_length, m, offset);
+                    offset += send_length;
+                    m->data_len = offset;
+                    m->pkt_len = offset;
+                    int test;
+                    test = rte_eth_tx_buffer(0, 0, tx_buffer, m);
+                    test = rte_eth_tx_buffer_flush(0, 0, tx_buffer);
+                    printf("after transmit\n");
+                    //printf("yoloafter\n");
+                }
+                break;
+            }
+            //printf("ret before if : %d\n", ret);
+            if (ret == 0 && loop_callback != NULL)
+            {
+                // printf("inside second if\n");
+                //printf("yolo if inside\n");
+                ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
+            }    
+        }
+    }
+
+    printf("leaving while\n");
+>>>>>>> 2f0ede6f... adding pcaps
 
         /* Close the sockets */
         for (int i = 0; i < nb_sockets; i++)
@@ -712,12 +794,19 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
             }
         }
 
+<<<<<<< HEAD
         if (send_buffer != NULL)
         {
             free(send_buffer);
         }
 
         return ret;
+=======
+    //free buffer
+    if (send_buffer != NULL)
+    {
+        free(send_buffer);
+>>>>>>> 2f0ede6f... adding pcaps
     }
 }
 
