@@ -458,12 +458,8 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
         if_index_to = 0;
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
-<<<<<<< HEAD
-        printf("before receive\n");
-=======
         // printf("before receive\n");
 
->>>>>>> 2f0ede6f... adding pcaps
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
         printf("afte receive\n");
         for (int j = 0; j < ret; j++)
@@ -481,27 +477,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
             if (pkts_recv > 0)
             {
-<<<<<<< HEAD
-
-                uint16_t len;
-                for (int i = 0; i < pkts_recv; i++)
-                {
-                    /* access IP header of rcv'd pkt */
-                    ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
-
-                    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
-                                                                     sizeof(struct rte_ipv4_hdr));
-                    unsigned char *payload = (unsigned char *)(udp + 1);
-                    int length = udp->dgram_len;
-                    printf("before incoming packet\n");
-                    (void)picoquic_incoming_packet_ex(quic, payload,
-                                                      (size_t)length, (struct sockaddr *)&addr_from,
-                                                      (struct sockaddr *)&addr_to, if_index_to, received_ecn,
-                                                      &last_cnx, current_time);
-                    printf("after incoming packet\n");
-                }
-
-=======
                 /* access IP header of rcv'd pkt */
                 struct rte_ipv4_hdr *ipv4_hdr;
                 ipv4_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
@@ -516,7 +491,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                                                   (size_t)length, (struct sockaddr *)&addr_from,
                                                   (struct sockaddr *)&addr_to, if_index_to, received_ecn,
                                                   &last_cnx, current_time);
->>>>>>> 2f0ede6f... adding pcaps
                 if (loop_callback != NULL)
                 {
                     size_t b_recvd = (size_t)bytes_recv;
@@ -647,86 +621,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     {
                         ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
                     }
-<<<<<<< HEAD
-                }
-            }
-
-            // if (ret == PICOQUIC_NO_ERROR_SIMULATE_NAT || ret == PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
-            // {
-            //     /* Two pseudo error codes used for testing migration!
-            //      * What follows is really test code, which we write here because it has to handle
-            //      * the sockets, which interferes a lot with the handling of the packet loop.
-            //      */
-            //     SOCKET_TYPE s_mig = INVALID_SOCKET;
-            //     int s_mig_af;
-            //     int sock_ret;
-            //     int testing_nat = (ret == PICOQUIC_NO_ERROR_SIMULATE_NAT);
-
-            //     sock_ret = picoquic_packet_loop_open_sockets(0, sock_af[0], &s_mig, &s_mig_af,
-            //                                                  &next_port, socket_buffer_size, 1);
-            //     if (sock_ret != 1 || s_mig == INVALID_SOCKET)
-            //     {
-            //         if (last_cnx != NULL)
-            //         {
-            //             picoquic_log_app_message(last_cnx, "Could not create socket for migration test, port=%d, af=%d, err=%d",
-            //                                      next_port, sock_af[0], sock_ret);
-            //         }
-            //     }
-            //     else if (testing_nat)
-            //     {
-            //         if (s_socket[0] != INVALID_SOCKET)
-            //         {
-            //             SOCKET_CLOSE(s_socket[0]);
-            //         }
-            //         s_socket[0] = s_mig;
-            //         sock_ports[0] = next_port;
-            //         ret = 0;
-
-            //         if (loop_callback != NULL)
-            //         {
-            //             struct sockaddr_storage l_addr;
-            //             if (picoquic_store_loopback_addr(&l_addr, sock_af[0], sock_ports[0]) == 0)
-            //             {
-            //                 ret = loop_callback(quic, picoquic_packet_loop_port_update, loop_callback_ctx, &l_addr);
-            //             }
-            //         }
-            //     }
-            //     else
-            //     {
-            //         /* Testing organized migration */
-            //         if (nb_sockets < PICOQUIC_PACKET_LOOP_SOCKETS_MAX && last_cnx != NULL)
-            //         {
-            //             struct sockaddr_storage local_address;
-            //             picoquic_store_addr(&local_address, (struct sockaddr *)&last_cnx->path[0]->local_addr);
-            //             if (local_address.ss_family == AF_INET6)
-            //             {
-            //                 ((struct sockaddr_in6 *)&local_address)->sin6_port = next_port;
-            //             }
-            //             else if (local_address.ss_family == AF_INET)
-            //             {
-            //                 ((struct sockaddr_in *)&local_address)->sin_port = next_port;
-            //             }
-            //             s_socket[nb_sockets] = s_mig;
-            //             sock_ports[nb_sockets] = next_port;
-            //             nb_sockets++;
-            //             testing_migration = 1;
-            //             ret = picoquic_probe_new_path(last_cnx, (struct sockaddr *)&last_cnx->path[0]->peer_addr,
-            //                                           (struct sockaddr *)&local_address, current_time);
-            //         }
-            //         else
-            //         {
-            //             SOCKET_CLOSE(s_mig);
-            //         }
-            //     }
-            // }
-        }
-
-        if (ret == PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP)
-        {
-            /* Normal termination requested by the application, returns no error */
-            ret = 0;
-        }
-=======
                     //printf("before setup pkt_udp_up_headers\n");
                     setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, send_length);
                     eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
@@ -766,7 +660,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     }
 
     printf("leaving while\n");
->>>>>>> 2f0ede6f... adding pcaps
 
         /* Close the sockets */
         for (int i = 0; i < nb_sockets; i++)
@@ -778,19 +671,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
             }
         }
 
-<<<<<<< HEAD
-        if (send_buffer != NULL)
-        {
-            free(send_buffer);
-        }
-
-        return ret;
-=======
     //free buffer
     if (send_buffer != NULL)
     {
         free(send_buffer);
->>>>>>> 2f0ede6f... adding pcaps
     }
 }
 
