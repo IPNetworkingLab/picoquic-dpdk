@@ -439,6 +439,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("10.0.0.0");
+
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
@@ -458,32 +459,23 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
         if_index_to = 0;
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
-        // printf("before receive\n");
-
+      
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
-        printf("afte receive\n");
-        for (int j = 0; j < ret; j++)
-        {
-            m = pkts_burst[j];
-        }
+       
 
-        if (pkts_recv < 0)
-        {
-            ret = -1;
-        }
-        else
-        {
-            uint64_t loop_time = current_time;
+        uint64_t loop_time = current_time;
 
-            if (pkts_recv > 0)
+        if (pkts_recv > 0)
+        {
+
+            uint16_t len;
+            for (int i = 0; i < pkts_recv; i++)
             {
                 /* access IP header of rcv'd pkt */
-                struct rte_ipv4_hdr *ipv4_hdr;
-                ipv4_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
+                ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
 
-                struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ipv4_hdr +
+                struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
                                                                  sizeof(struct rte_ipv4_hdr));
-
                 unsigned char *payload = (unsigned char *)(udp + 1);
                 printf("payload : %s\n", payload);
                 int length = udp->dgram_len;
@@ -491,191 +483,103 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                                                   (size_t)length, (struct sockaddr *)&addr_from,
                                                   (struct sockaddr *)&addr_to, if_index_to, received_ecn,
                                                   &last_cnx, current_time);
-                if (loop_callback != NULL)
-                {
-                    size_t b_recvd = (size_t)bytes_recv;
-                    ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
-                }
-                if (ret == 0)
-                {
-                    /* Try to receive more packets if possible */
-                    loop_immediate = 1;
-                    continue;
-                }
             }
-            if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
+
+            if (loop_callback != NULL)
             {
-                size_t bytes_sent = 0;
-                while (ret == 0)
+                size_t b_recvd = (size_t)bytes_recv;
+                ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+            }
+            if (ret == 0)
+            {
+                /* Try to receive more packets if possible */
+                loop_immediate = 1;
+                continue;
+            }
+        }
+        if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
+        {
+            size_t bytes_sent = 0;
+            while (ret == 0)
+            {
+                struct sockaddr_storage peer_addr;
+                struct sockaddr_storage local_addr;
+                int if_index = dest_if;
+                int sock_ret = 0;
+                int sock_err = 0;
+                
+                ret = picoquic_prepare_next_packet_ex(quic, loop_time,
+                                                      send_buffer, send_buffer_size, &send_length,
+                                                      &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
+                                                      send_msg_ptr);
+              
+
+                if (ret == 0 && send_length > 0)
                 {
-                    printf("sending new packet\n");
+                    SOCKET_TYPE send_socket = INVALID_SOCKET;
+                    bytes_sent += send_length;
+
+                    for (int i = 0; i < nb_sockets; i++)
+                    {
+                        if (sock_af[i] == peer_addr.ss_family)
+                        {
+                            send_socket = s_socket[i];
+                            break;
+                        }
+                    }
                     int offset = 0;
                     struct rte_ipv4_hdr ip_hdr;
                     struct rte_udp_hdr rte_udp_hdr;
                     struct rte_ether_hdr eth_hdr;
-                    //printf("before alloc\n");
+                   
                     struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
+                    
                     if (m == NULL)
                     {
-                        SOCKET_TYPE send_socket = INVALID_SOCKET;
-                        bytes_sent += send_length;
-
-                        for (int i = 0; i < nb_sockets; i++)
-                        {
-                            if (sock_af[i] == peer_addr.ss_family)
-                            {
-                                send_socket = s_socket[i];
-                                break;
-                            }
-                        }
-                        int offset = 0;
-                        struct rte_ipv4_hdr ip_hdr;
-                        struct rte_udp_hdr rte_udp_hdr;
-                        struct rte_ether_hdr eth_hdr;
-                        printf("before alloc\n");
-                        struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
-                        printf("after alloc\n");
-                        if (m == NULL)
-                        {   
-                            printf("fail to init pktmbuf\n");
-                            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-                            return 0;
-                        }
-                        printf("before setup pkt_udp_up_headers\n");
-                        setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, send_length);
-                        printf("after setup pkt_udp_up_headers\n");
-                        printf("before copy buf to pkt\n");
-                        copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
-                        printf("after copy buf to pkt\n");
-                        offset += sizeof(struct rte_ether_hdr);
-                        copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
-                        offset += sizeof(struct rte_ipv4_hdr);
-                        copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
-                        offset += sizeof(struct rte_udp_hdr);
-                        copy_buf_to_pkt(send_buffer, send_buffer_size, m, offset);
-                        //inchallah ca marche
-                        m->data_len = offset;
-		                m->pkt_len = offset;
-                        ret = rte_eth_tx_burst(0, 0, &m, 1);
-                        printf("after transmit\n");
-
-                        //     if (sock_ret <= 0)
-                        //     {
-                        //         if (last_cnx == NULL)
-                        //         {
-                        //             picoquic_log_context_free_app_message(quic, &log_cid, "Could not send message to AF_to=%d, AF_from=%d, if=%d, ret=%d, err=%d",
-                        //                                                   peer_addr.ss_family, local_addr.ss_family, if_index, sock_ret, sock_err);
-                        //         }
-                        //         else
-                        //         {
-                        //             picoquic_log_app_message(last_cnx, "Could not send message to AF_to=%d, AF_from=%d, if=%d, ret=%d, err=%d",
-                        //                                      peer_addr.ss_family, local_addr.ss_family, if_index, sock_ret, sock_err);
-
-                        //             if (picoquic_socket_error_implies_unreachable(sock_err))
-                        //             {
-                        //                 picoquic_notify_destination_unreachable(last_cnx, current_time,
-                        //                                                         (struct sockaddr *)&peer_addr, (struct sockaddr *)&local_addr, if_index,
-                        //                                                         sock_err);
-                        //             }
-                        //             else if (sock_err == EIO)
-                        //             {
-                        //                 size_t packet_index = 0;
-                        //                 size_t packet_size = send_msg_size;
-
-                        //                 while (packet_index < send_length)
-                        //                 {
-                        //                     if (packet_index + packet_size > send_length)
-                        //                     {
-                        //                         packet_size = send_length - packet_index;
-                        //                     }
-                        //                     sock_ret = picoquic_sendmsg(send_socket,
-                        //                                                 (struct sockaddr *)&peer_addr, (struct sockaddr *)&local_addr, if_index,
-                        //                                                 (const char *)(send_buffer + packet_index), (int)packet_size, 0, &sock_err);
-                        //                     if (sock_ret > 0)
-                        //                     {
-                        //                         packet_index += packet_size;
-                        //                     }
-                        //                     else
-                        //                     {
-                        //                         picoquic_log_app_message(last_cnx, "Retry with packet size=%zu fails at index %zu, ret=%d, err=%d.",
-                        //                                                  packet_size, packet_index, sock_ret, sock_err);
-                        //                         break;
-                        //                     }
-                        //                 }
-                        //                 if (sock_ret > 0)
-                        //                 {
-                        //                     picoquic_log_app_message(last_cnx, "Retry of %zu bytes by chunks of %zu bytes succeeds.",
-                        //                                              send_length, send_msg_size);
-                        //                 }
-                        //             }
-                        //         }
-                        //     }
-                        // }
-                        // else
-                        // {
-                        //     break;
-                        // }
+                        printf("fail to init pktmbuf\n");
+                        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+                        return 0;
                     }
-
-                    if (ret == 0 && loop_callback != NULL)
-                    {
-                        ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
-                    }
-                    //printf("before setup pkt_udp_up_headers\n");
                     setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, send_length);
-                    eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-                    //setting mac addr
-                    void *tmp;
-                    rte_ether_addr_copy(&eth_addr, &eth->src_addr);
-                    tmp = &eth->dst_addr.addr_bytes[0];
-                    *((uint64_t *)tmp) = 0;
-
                     copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
-                    //printf("after copy buf to pkt\n");
                     offset += sizeof(struct rte_ether_hdr);
                     copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
                     offset += sizeof(struct rte_ipv4_hdr);
                     copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
                     offset += sizeof(struct rte_udp_hdr);
-                    copy_buf_to_pkt(send_buffer, send_length, m, offset);
+                    copy_buf_to_pkt(send_buffer, send_buffer_size, m, offset);
                     offset += send_length;
+                    //inchallah ca marche
                     m->data_len = offset;
                     m->pkt_len = offset;
-                    int test;
-                    test = rte_eth_tx_buffer(0, 0, tx_buffer, m);
-                    test = rte_eth_tx_buffer_flush(0, 0, tx_buffer);
+                    rte_eth_tx_burst(0, 0, &m, 1);
                     printf("after transmit\n");
-                    //printf("yoloafter\n");
                 }
-                break;
+                else
+                {
+                    break;
+                }
             }
-            //printf("ret before if : %d\n", ret);
+
             if (ret == 0 && loop_callback != NULL)
             {
-                // printf("inside second if\n");
-                //printf("yolo if inside\n");
                 ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
-            }    
+            }
         }
     }
 
-    printf("leaving while\n");
+    if (ret == PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP)
+    {
+        /* Normal termination requested by the application, returns no error */
+        ret = 0;
+    }
 
-        /* Close the sockets */
-        for (int i = 0; i < nb_sockets; i++)
-        {
-            if (s_socket[i] != INVALID_SOCKET)
-            {
-                SOCKET_CLOSE(s_socket[i]);
-                s_socket[i] = INVALID_SOCKET;
-            }
-        }
-
-    //free buffer
     if (send_buffer != NULL)
     {
         free(send_buffer);
     }
+
+    return ret;
 }
 
 #else

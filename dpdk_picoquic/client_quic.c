@@ -72,19 +72,7 @@
 #define PICOQUIC_SAMPLE_CLIENT_QLOG_DIR ".";
 #define PICOQUIC_SAMPLE_SERVER_QLOG_DIR ".";
 
-struct rte_mempool *mb_pool;
 
-static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
-static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
-static struct rte_ether_addr eth_addr;
-static struct rte_eth_conf port_conf = {
-	.rxmode = {
-		.split_hdr_size = 0,
-	},
-	.txmode = {
-		.mq_mode = ETH_MQ_TX_NONE,
-	},
-};
 
 
 typedef struct st_sample_client_stream_ctx_t {
@@ -136,16 +124,16 @@ static int sample_client_create_stream(picoquic_cnx_t* cnx,
         }
         stream_ctx->file_rank = file_rank;
         stream_ctx->stream_id = (uint64_t)4 * file_rank;
-        stream_ctx->name_length = strlen("test");
+        stream_ctx->name_length = strlen(client_ctx->file_names[file_rank]);
 
         /* Mark the stream as active. The callback will be asked to provide data when 
          * the connection is ready. */
         ret = picoquic_mark_active_stream(cnx, stream_ctx->stream_id, 1, stream_ctx);
         if (ret != 0) {
-            fprintf(stdout, "Error %d, cannot initialize stream for file number %d\n", ret, 1);
+            fprintf(stdout, "Error %d, cannot initialize stream for file number %d\n", ret, (int)file_rank);
         }
         else {
-            printf("Opened stream %d for file %s\n", 4 * file_rank, "test");
+            printf("Opened stream %d for file %s\n", 4 * file_rank, client_ctx->file_names[file_rank]);
         }
     }
 
@@ -167,7 +155,7 @@ static void sample_client_report(sample_client_ctx_t* client_ctx)
         else {
             status = "unknown status";
         }
-        printf("%s: %s, received %zu bytes", "test", status, stream_ctx->bytes_received);
+        printf("%s: %s, received %zu bytes", client_ctx->file_names[stream_ctx->file_rank], status, stream_ctx->bytes_received);
         if (stream_ctx->is_stream_reset && stream_ctx->remote_error != PICOQUIC_SAMPLE_NO_ERROR){
             char const* error_text = "unknown error";
             switch (stream_ctx->remote_error) {
@@ -253,7 +241,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                      */
                     char file_path[1024];
                     size_t dir_len = strlen(client_ctx->default_dir);
-                    size_t file_name_len = strlen("test");
+                    size_t file_name_len = strlen(client_ctx->file_names[stream_ctx->file_rank]);
 
                     if (dir_len > 0 && dir_len < sizeof(file_path)) {
                         memcpy(file_path, client_ctx->default_dir, dir_len);
@@ -268,7 +256,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                         fprintf(stderr, "Could not format the file path.\n");
                         ret = -1;
                     } else {
-                        memcpy(file_path + dir_len, "test",
+                        memcpy(file_path + dir_len, client_ctx->file_names[stream_ctx->file_rank],
                             file_name_len);
                         file_path[dir_len + file_name_len] = 0;
                         stream_ctx->F = picoquic_file_open(file_path, "wb");
@@ -378,7 +366,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                  */
                 buffer = picoquic_provide_stream_data_buffer(bytes, available, is_fin, !is_fin);
                 if (buffer != NULL) {
-                    char const* filename = "test";
+                    char const* filename = client_ctx->file_names[stream_ctx->file_rank];
                     memcpy(buffer, filename + stream_ctx->name_sent_length, available);
                     stream_ctx->name_sent_length += available;
                     stream_ctx->is_name_sent = is_fin;
@@ -464,7 +452,6 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
 {
     int ret = 0;
     struct sockaddr_storage server_address;
-
     char const* sni = PICOQUIC_SAMPLE_SNI;
     picoquic_quic_t* quic = NULL;
     char const* ticket_store_filename = PICOQUIC_SAMPLE_CLIENT_TICKET_STORE;
@@ -474,21 +461,10 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
     picoquic_cnx_t* cnx = NULL;
     uint64_t current_time = picoquic_current_time();
 
+    /* Get the server's address */
     (*(struct sockaddr_in *)(&server_address)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&server_address)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("10.0.0.0");
-    /* Get the server's address */
-    // if (ret == 0) {
-    //     int is_name = 0;
-
-    //     ret = picoquic_get_server_address(server_name, server_port, &server_address, &is_name);
-    //     if (ret != 0) {
-    //         fprintf(stderr, "Cannot get the IP address for <%s> port <%d>", server_name, server_port);
-    //     }
-    //     else if (is_name) {
-    //         sni = server_name;
-    //     }
-    // }
 
     /* Create a QUIC context. It could be used for many connections, but in this sample we
      * will use it for just one connection. 

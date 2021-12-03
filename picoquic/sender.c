@@ -415,25 +415,19 @@ size_t picoquic_create_packet_header(
     size_t* pn_offset,
     size_t* pn_length)
 {
-    printf("inside create\n");
     size_t length = 0;
 
     /* Prepare the packet header */
-    printf("before packet_type\n");
     if (packet_type == picoquic_packet_1rtt_protected) {
         /* Create a short packet -- using 32 bit sequence numbers for now */
-        printf("before cnx\n");
         uint8_t K = (cnx->key_phase_enc) ? 0x04 : 0;
         uint8_t C = 0x40; /* set the QUIC bit */
         size_t pn_l = 4;  /* default packet length to 4 bytes */
-        printf("before if\n");
         if (cnx->do_grease_quic_bit) {
             /* we grease the quic bit if both local and remote agreed to do so */
             C &= (uint8_t)picoquic_public_random_64();
             cnx->quic_bit_greased |= (C == 0);
-             printf("after if\n");
         }
-        printf("before length\n");
         length = 0;
         bytes[length++] = (K | C | picoquic_spin_function_table[cnx->spin_policy].spinbit_outgoing(cnx));
         length += picoquic_format_connection_id(&bytes[length], PICOQUIC_MAX_PACKET_SIZE - length,
@@ -463,7 +457,6 @@ size_t picoquic_create_packet_header(
     }
     
     else {
-        printf("inside else\n");
         /* Create a long packet */
         picoquic_connection_id_t dest_cnx_id =
             (cnx->client_mode && (packet_type == picoquic_packet_initial ||
