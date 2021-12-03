@@ -105,7 +105,6 @@ lcore_hello(__rte_unused void *arg)
 	}
 	printf("before start \n");
 
-	
 	ret = rte_eth_dev_start(0);
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n",
@@ -119,11 +118,19 @@ lcore_hello(__rte_unused void *arg)
 	while (true)
 	{
 		ret = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
+		struct rte_ether_hdr *eth_hdr;
+		struct vlan_hdr *vh;
+		uint16_t *proto;
+		struct rte_ipv4_hdr *ip_hdr;
 		for (int j = 0; j < ret; j++)
 		{
-			m = pkts_burst[j];
-			eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-			printf("eth_type  : %u\n", ntohs(eth->ether_type));
+
+			ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[j], char *) + sizeof(struct rte_ether_hdr));
+
+			struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
+															 sizeof(struct rte_ipv4_hdr));
+			unsigned char *payload = (unsigned char *)(udp + 1);
+			printf("payload : %s\n", payload);
 		}
 	}
 	return 0;
@@ -139,10 +146,6 @@ int main(int argc, char **argv)
 		rte_panic("Cannot init EAL\n");
 
 	/* call lcore_hello() on every worker lcore */
-	RTE_LCORE_FOREACH_WORKER(lcore_id)
-	{
-		rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
-	}
 
 	/* call it on main lcore too */
 	lcore_hello(NULL);

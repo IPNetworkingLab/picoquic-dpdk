@@ -408,6 +408,11 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         printf("failed to start device\n");
     }
+    ret = rte_eth_promiscuous_enable(portid);
+    if (ret != 0)
+        rte_exit(EXIT_FAILURE,
+                 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
+                 rte_strerror(-ret), portid);
     printf("after dpdk setup\n");
     //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
@@ -453,15 +458,13 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     }
     while (ret == 0)
     {
-        int socket_rank = -1;
         int64_t delta_t = 0;
         unsigned char received_ecn;
 
         if_index_to = 0;
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
-      
+
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
-       
 
         uint64_t loop_time = current_time;
 
@@ -483,18 +486,12 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                                                   (size_t)length, (struct sockaddr *)&addr_from,
                                                   (struct sockaddr *)&addr_to, if_index_to, received_ecn,
                                                   &last_cnx, current_time);
-            }
 
-            if (loop_callback != NULL)
-            {
-                size_t b_recvd = (size_t)bytes_recv;
-                ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
-            }
-            if (ret == 0)
-            {
-                /* Try to receive more packets if possible */
-                loop_immediate = 1;
-                continue;
+                if (loop_callback != NULL)
+                {
+                    size_t b_recvd = (size_t)bytes_recv;
+                    ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+                }
             }
         }
         if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
@@ -507,33 +504,22 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                 int if_index = dest_if;
                 int sock_ret = 0;
                 int sock_err = 0;
-                
+
                 ret = picoquic_prepare_next_packet_ex(quic, loop_time,
                                                       send_buffer, send_buffer_size, &send_length,
                                                       &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
                                                       send_msg_ptr);
-              
 
                 if (ret == 0 && send_length > 0)
                 {
-                    SOCKET_TYPE send_socket = INVALID_SOCKET;
                     bytes_sent += send_length;
-
-                    for (int i = 0; i < nb_sockets; i++)
-                    {
-                        if (sock_af[i] == peer_addr.ss_family)
-                        {
-                            send_socket = s_socket[i];
-                            break;
-                        }
-                    }
                     int offset = 0;
                     struct rte_ipv4_hdr ip_hdr;
                     struct rte_udp_hdr rte_udp_hdr;
                     struct rte_ether_hdr eth_hdr;
-                   
+
                     struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
-                    
+
                     if (m == NULL)
                     {
                         printf("fail to init pktmbuf\n");
@@ -547,7 +533,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     offset += sizeof(struct rte_ipv4_hdr);
                     copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
                     offset += sizeof(struct rte_udp_hdr);
-                    copy_buf_to_pkt(send_buffer, send_buffer_size, m, offset);
+                    copy_buf_to_pkt(send_buffer, send_length, m, offset);
                     offset += send_length;
                     //inchallah ca marche
                     m->data_len = offset;

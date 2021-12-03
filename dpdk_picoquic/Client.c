@@ -25,7 +25,6 @@
 #include <unistd.h>
 #include <pthread.h>
 
-
 #include <rte_common.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
@@ -57,7 +56,13 @@
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
+uint32_t tx_ip_src_addr = (198U << 24) | (18 << 16) | (0 << 8) | 1;
+uint32_t tx_ip_dst_addr = (198U << 24) | (18 << 16) | (0 << 8) | 2;
 
+uint16_t tx_udp_src_port = 9;
+uint16_t tx_udp_dst_port = 9;
+
+#define IP_DEFTTL 64
 struct rte_mempool *mb_pool;
 
 static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
@@ -71,6 +76,100 @@ static struct rte_eth_conf port_conf = {
 		.mq_mode = ETH_MQ_TX_NONE,
 	},
 };
+
+void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
+							  struct rte_udp_hdr *udp_hdr,
+							  uint16_t pkt_data_len)
+{
+	uint16_t *ptr16;
+	uint32_t ip_cksum;
+	uint16_t pkt_len;
+
+	/*
+	 * Initialize UDP header.
+	 */
+	pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_udp_hdr));
+	udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
+	udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
+	udp_hdr->dgram_len = rte_cpu_to_be_16(pkt_len);
+	udp_hdr->dgram_cksum = 0; /* No UDP checksum. */
+
+	/*
+	 * Initialize IP header.
+	 */
+	pkt_len = (uint16_t)(pkt_len + sizeof(struct rte_ipv4_hdr));
+	ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
+	ip_hdr->type_of_service = 0;
+	ip_hdr->fragment_offset = 0;
+	ip_hdr->time_to_live = IP_DEFTTL;
+	ip_hdr->next_proto_id = IPPROTO_UDP;
+	ip_hdr->packet_id = 0;
+	ip_hdr->total_length = rte_cpu_to_be_16(pkt_len);
+	ip_hdr->src_addr = rte_cpu_to_be_32(tx_ip_src_addr);
+	ip_hdr->dst_addr = rte_cpu_to_be_32(tx_ip_dst_addr);
+
+	/*
+	 * Compute IP header checksum.
+	 */
+	ptr16 = (unaligned_uint16_t *)ip_hdr;
+	ip_cksum = 0;
+	ip_cksum += ptr16[0];
+	ip_cksum += ptr16[1];
+	ip_cksum += ptr16[2];
+	ip_cksum += ptr16[3];
+	ip_cksum += ptr16[4];
+	ip_cksum += ptr16[6];
+	ip_cksum += ptr16[7];
+	ip_cksum += ptr16[8];
+	ip_cksum += ptr16[9];
+
+	/*
+	 * Reduce 32 bit checksum to 16 bits and complement it.
+	 */
+	ip_cksum = ((ip_cksum & 0xFFFF0000) >> 16) +
+			   (ip_cksum & 0x0000FFFF);
+	if (ip_cksum > 65535)
+		ip_cksum -= 65535;
+	ip_cksum = (~ip_cksum) & 0x0000FFFF;
+	if (ip_cksum == 0)
+		ip_cksum = 0xFFFF;
+	ip_hdr->hdr_checksum = (uint16_t)ip_cksum;
+}
+
+void copy_buf_to_pkt_segs(void *buf, unsigned len, struct rte_mbuf *pkt,
+						  unsigned offset)
+{
+	struct rte_mbuf *seg;
+	void *seg_buf;
+	unsigned copy_len;
+
+	seg = pkt;
+	while (offset >= seg->data_len)
+	{
+		offset -= seg->data_len;
+		seg = seg->next;
+	}
+	copy_len = seg->data_len - offset;
+	seg_buf = rte_pktmbuf_mtod_offset(seg, char *, offset);
+	while (len > copy_len)
+	{
+		rte_memcpy(seg_buf, buf, (size_t)copy_len);
+		len -= copy_len;
+		buf = ((char *)buf + copy_len);
+		seg = seg->next;
+		seg_buf = rte_pktmbuf_mtod(seg, char *);
+		copy_len = seg->data_len;
+	}
+	rte_memcpy(seg_buf, buf, (size_t)len);
+}
+
+void copy_buf_to_pkt(void *buf, unsigned len, struct rte_mbuf *pkt, unsigned offset)
+{
+
+	rte_memcpy(rte_pktmbuf_mtod_offset(pkt, char *, offset),
+			   buf, (size_t)len);
+	return;
+}
 
 static int
 lcore_hello(__rte_unused void *arg)
@@ -154,7 +253,7 @@ lcore_hello(__rte_unused void *arg)
 	//changing mac addr and ether type
 	// eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	// eth->ether_type = htons(2048);
-	// rte_ether_addr_copy(&eth_addr, &eth->s_addr);
+	// rte_ether_addr_copy(&eth_addr, &eth->src_addr);
 	// tmp = &eth->d_addr.addr_bytes[0];
 	// *((uint64_t *)tmp) = 0;
 
@@ -164,43 +263,42 @@ lcore_hello(__rte_unused void *arg)
 	{
 		printf("failed to start device\n");
 	}
-	// ret = rte_eth_promiscuous_enable(portid);
-	// if (ret != 0)
-	// 	rte_exit(EXIT_FAILURE,
-	// 			 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
-	// 			 rte_strerror(-ret), portid);
-	char buf[5] = "hello";
-	char buf2[5] = "yo";
-	rte_memcpy(buf,buf2,5);
-	while (true)
+
+	size_t pkt_size;
+	m = rte_pktmbuf_alloc(mb_pool);
+	if (m == NULL)
+	// printf("hello\n");
 	{
-		size_t pkt_size;
-		m = rte_pktmbuf_alloc(mb_pool);
-		if (m == NULL)
-		// printf("hello\n");
-		{
-			printf("fail to init pktmbuf\n");
-			return 0;
-		}
-		
-		printf("size : %lu\n",sizeof(struct rte_ether_hdr));
-		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-		// eth->ether_type = htons(2048);
-		rte_ether_addr_copy(&eth_addr, &eth->s_addr);
-		tmp = &eth->d_addr.addr_bytes[0];
-		*((uint64_t *)tmp) = 0;
-
-		pkt_size = sizeof(struct rte_ether_hdr);
-		m->data_len = pkt_size;
-		m->pkt_len = pkt_size;
-		ret = rte_eth_tx_buffer(0, 0, tx_buffer, m);
-		// ret = rte_eth_tx_burst(0, 0, &m,1);
-
-		// if (ret != 0)
-		// {
-		// 	printf("send : %d\n", ret);
-		// }
+		printf("fail to init pktmbuf\n");
+		return 0;
 	}
+	int offset = 0;
+	struct rte_ipv4_hdr ip_hdr;
+	struct rte_udp_hdr rte_udp_hdr;
+	struct rte_ether_hdr eth_hdr;
+	m = rte_pktmbuf_alloc(mb_pool);
+
+	if (m == NULL)
+	{
+		printf("fail to init pktmbuf\n");
+		rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+		return 0;
+	}
+	setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, 5);
+	copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
+	offset += sizeof(struct rte_ether_hdr);
+	copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
+	offset += sizeof(struct rte_ipv4_hdr);
+	copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
+	offset += sizeof(struct rte_udp_hdr);
+	copy_buf_to_pkt("test", 5, m, offset);
+	offset += 5;
+	//inchallah ca marche
+	m->data_len = offset;
+	m->pkt_len = offset;
+	rte_eth_tx_burst(0, 0, &m, 1);
+	printf("after transmit\n");
+
 	return 0;
 }
 
