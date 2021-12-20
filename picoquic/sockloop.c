@@ -515,10 +515,15 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     bytes_sent += send_length;
                     int offset = 0;
                     struct rte_ipv4_hdr ip_hdr;
-                    struct rte_udp_hdr rte_udp_hdr;
-                    struct rte_ether_hdr eth_hdr;
+                    struct rte_udp_hdr udp_hdr;
+                    struct rte_ether_hdr* eth_hdr;
+                    
+
 
                     struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
+                    eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+                    eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+                    offset += sizeof(struct rte_ether_hdr);
 
                     if (m == NULL)
                     {
@@ -526,12 +531,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
                         return 0;
                     }
-                    setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, send_length);
-                    copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
-                    offset += sizeof(struct rte_ether_hdr);
+                    setup_pkt_udp_ip_headers(&ip_hdr, &udp_hdr, send_length);
                     copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
                     offset += sizeof(struct rte_ipv4_hdr);
-                    copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
+                    copy_buf_to_pkt(&udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
                     offset += sizeof(struct rte_udp_hdr);
                     copy_buf_to_pkt(send_buffer, send_length, m, offset);
                     offset += send_length;

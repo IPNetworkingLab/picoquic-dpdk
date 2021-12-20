@@ -275,7 +275,7 @@ lcore_hello(__rte_unused void *arg)
 	int offset = 0;
 	struct rte_ipv4_hdr ip_hdr;
 	struct rte_udp_hdr rte_udp_hdr;
-	struct rte_ether_hdr eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 	m = rte_pktmbuf_alloc(mb_pool);
 
 	if (m == NULL)
@@ -285,6 +285,9 @@ lcore_hello(__rte_unused void *arg)
 		return 0;
 	}
 	setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, 5);
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+	offset += sizeof(struct rte_ether_hdr);
 	copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
 	offset += sizeof(struct rte_ether_hdr);
 	copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
