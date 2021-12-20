@@ -35,7 +35,7 @@
 #include <picoquic_utils.h>
 #include <picosocks.h>
 #include <picoquic_packet_loop.h>
-#include <rte_pdump.h>
+
 
 
 
@@ -429,7 +429,7 @@ int main(int argc, char **argv)
 	unsigned lcore_id;
 	lcore_id = rte_lcore_id();
 	ret = rte_eal_init(argc, argv);
-    rte_pdump_init();
+    // rte_pdump_init();
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
 

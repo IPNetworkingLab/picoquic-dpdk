@@ -49,7 +49,7 @@
 #include <rte_arp.h>
 #include <rte_spinlock.h>
 #include <rte_devargs.h>
-#include <rte_pdump.h>
+
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -239,6 +239,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                      * When formatting the file_path, verify that the directory name is zero-length,
                      * or terminated by a proper file separator.
                      */
+                    printf("inside writting to file\n");
                     char file_path[1024];
                     size_t dir_len = strlen(client_ctx->default_dir);
                     size_t file_name_len = strlen(client_ctx->file_names[stream_ctx->file_rank]);
@@ -572,9 +573,7 @@ lcore_hello2(__rte_unused void *arg)
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen("test.txt")) + 1);
     memcpy(files[0], "test.txt", strlen("test.txt") + 1);
-    rte_pdump_init();
     picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files);
-    rte_pdump_uninit();
 
 }
 int main(int argc, char **argv)

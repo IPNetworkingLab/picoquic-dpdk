@@ -436,14 +436,16 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     uint16_t next_port = 0;    /* Data for the migration test */
     picoquic_cnx_t *last_cnx = NULL;
     int loop_immediate = 0;
-    int pkts_recv;
+    int pkts_recv; 
+
+
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("10.0.0.0");
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("10.0.0.5");
     (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("10.0.0.0");
+    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("10.0.0.5");
 
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
@@ -467,10 +469,9 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
 
         uint64_t loop_time = current_time;
-
         if (pkts_recv > 0)
         {
-
+            
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
             {
@@ -516,15 +517,9 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     int offset = 0;
                     struct rte_ipv4_hdr ip_hdr;
                     struct rte_udp_hdr udp_hdr;
-                    struct rte_ether_hdr* eth_hdr;
-                    
-
+                    struct rte_ether_hdr eth_hdr;
 
                     struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
-                    eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-                    eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-                    offset += sizeof(struct rte_ether_hdr);
-
                     if (m == NULL)
                     {
                         printf("fail to init pktmbuf\n");
@@ -532,6 +527,9 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         return 0;
                     }
                     setup_pkt_udp_ip_headers(&ip_hdr, &udp_hdr, send_length);
+                    (&eth_hdr)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+                    copy_buf_to_pkt(&eth_hdr, sizeof(struct rte_ether_hdr), m, offset);
+                    offset += sizeof(struct rte_ether_hdr);
                     copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
                     offset += sizeof(struct rte_ipv4_hdr);
                     copy_buf_to_pkt(&udp_hdr, sizeof(struct rte_udp_hdr), m, offset);

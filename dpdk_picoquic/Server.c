@@ -29,6 +29,7 @@
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
 #include <unistd.h>
+#include <rte_pdump.h>
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -142,6 +143,7 @@ int main(int argc, char **argv)
 	unsigned lcore_id;
 	lcore_id = rte_lcore_id();
 	ret = rte_eal_init(argc, argv);
+	rte_pdump_init();
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
 
