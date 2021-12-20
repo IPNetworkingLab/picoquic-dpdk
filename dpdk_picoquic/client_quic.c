@@ -214,6 +214,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
     }
 
     if (ret == 0) {
+        printf("inside ret == 0\n");
         switch (fin_or_event) {
         case picoquic_callback_stream_data:
         case picoquic_callback_stream_fin:
