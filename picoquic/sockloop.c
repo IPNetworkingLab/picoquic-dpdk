@@ -456,6 +456,8 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         ret = -1;
     }
+    int receivedCounter = 0;
+    int sendCounter = 0;
     while (ret == 0)
     {
         int64_t delta_t = 0;
@@ -473,24 +475,39 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
             {
+                receivedCounter++;
+                printf("receivedCounter : %d\n", receivedCounter);
                 /* access IP header of rcv'd pkt */
 
-                ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
-                struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
-                                                                 sizeof(struct rte_ipv4_hdr));
-                unsigned char *payload = (unsigned char *)(udp + 1);
-                printf("payload : %s\n", payload);
-                rte_be16_t length = udp->dgram_len;
-                printf("length : %d\n",ntohs(length));
-                (void)picoquic_incoming_packet_ex(quic, payload,
-                                                  (size_t)ntohs(length), (struct sockaddr *)&addr_from,
-                                                  (struct sockaddr *)&addr_to, if_index_to, received_ecn,
-                                                  &last_cnx, current_time);
-
-                if (loop_callback != NULL)
+                eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
+                if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
                 {
-                    size_t b_recvd = (size_t)bytes_recv;
-                    ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+                    ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
+
+                    uint32_t tx_ip_src_addr_test = (10U << 24) | 1;
+                    uint32_t tx_ip_dst_addr_test = (10U << 24) | 2;
+                    // printf("received : %zu\n", ip_hdr->src_addr);
+                    // printf("expected1 : %zu\n", tx_ip_src_addr_test);
+                    // printf("expected2 : %zu\n", tx_ip_dst_addr_test);
+
+                    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
+                                                                     sizeof(struct rte_ipv4_hdr));
+
+                    unsigned char *payload = (unsigned char *)(udp + 1);
+                    printf("payload : %s\n", payload);
+                    rte_be16_t length = udp->dgram_len;
+                    size_t actual_length = htons(length) - sizeof(struct rte_udp_hdr);
+                    printf("length received : %zu\n", actual_length);
+                    (void)picoquic_incoming_packet_ex(quic, payload,
+                                                      actual_length, (struct sockaddr *)&addr_from,
+                                                      (struct sockaddr *)&addr_to, if_index_to, received_ecn,
+                                                      &last_cnx, current_time);
+
+                    if (loop_callback != NULL)
+                    {
+                        size_t b_recvd = (size_t)bytes_recv;
+                        ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+                    }
                 }
             }
         }
@@ -542,12 +559,14 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     offset += sizeof(struct rte_udp_hdr);
                     copy_buf_to_pkt(send_buffer, send_length, m, offset);
                     offset += send_length;
-                    printf("send_length : %zu\n",send_length);
+                    printf("send_length : %zu\n", send_length);
                     //inchallah ca marche
                     m->data_len = offset;
                     m->pkt_len = offset;
                     rte_eth_tx_burst(0, 0, &m, 1);
                     printf("after transmit\n");
+                    sendCounter++;
+                    printf("sendCounter %d\n", sendCounter);
                 }
                 else
                 {

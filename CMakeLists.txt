@@ -316,6 +316,10 @@ target_link_libraries(picoquic_sample
 
 target_include_directories(picoquic_sample PRIVATE loglib picoquic)
 
+target_include_directories(picoquic_dpdk_client PRIVATE loglib picoquic)
+
+target_include_directories(picoquic_dpdk_server PRIVATE loglib picoquic)
+
 set(TEST_EXES picoquic_ct picohttp_ct)
 
 # get all project files for formatting

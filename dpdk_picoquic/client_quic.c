@@ -49,7 +49,7 @@
 #include <rte_arp.h>
 #include <rte_spinlock.h>
 #include <rte_devargs.h>
-
+#include <autoqlog.h>
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256

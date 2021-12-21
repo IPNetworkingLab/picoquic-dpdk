@@ -89,9 +89,10 @@
 #include <rte_string_fns.h>
 #include <rte_flow.h>
 /* clang-format on */
+130.104.229.15
 
-uint32_t tx_ip_src_addr = (198U << 24) | (18 << 16) | (0 << 8) | 1;
-uint32_t tx_ip_dst_addr = (198U << 24) | (18 << 16) | (0 << 8) | 2;
+uint32_t tx_ip_src_addr = (130U << 130) | 1;
+uint32_t tx_ip_dst_addr = (10U << 24) | 2;
 
 uint16_t tx_udp_src_port = 9;
 uint16_t tx_udp_dst_port = 9;
