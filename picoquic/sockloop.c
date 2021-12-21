@@ -321,7 +321,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_eth_txconf txq_conf;
     struct rte_eth_dev_info dev_info;
     struct rte_eth_dev_tx_buffer *tx_buffer;
-    struct rte_mbuf *m;
     struct rte_eth_conf local_port_conf = port_conf;
     struct rte_rte_ether_hdr *eth;
     void *tmp;
@@ -545,13 +544,19 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     // rte_pktmbuf_reset_headroom(m);
                     // m->l2_len = sizeof(struct rte_ether_hdr);
                     // m->l3_len = sizeof(struct rte_ipv4_hdr);
+
+                    //=====a bit schnaps=======//
+                    struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
+                    rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
+                    tmp = &eth_ptr->dst_addr.addr_bytes[0];
+                    *((uint64_t *)tmp) = 0;
+
                     setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length);
                     (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-                    copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
-                    // rte_ether_addr_copy(&eth_addr, (&(&eth_hdr_struct))->src_addr));
-                    // tmp = &(&eth_hdr_struct)->dst_addr.addr_bytes[0];
-                    // *((uint64_t *)tmp) = 0;
 
+                    // copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
+                    // offset += sizeof(struct rte_ether_hdr);
+                    copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
                     offset += sizeof(struct rte_ether_hdr);
                     copy_buf_to_pkt(&ip_hdr_struct, sizeof(struct rte_ipv4_hdr), m, offset);
                     offset += sizeof(struct rte_ipv4_hdr);
@@ -563,7 +568,8 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     //inchallah ca marche
                     m->data_len = offset;
                     m->pkt_len = offset;
-                    rte_eth_tx_burst(0, 0, &m, 1);
+                    int test = rte_eth_tx_burst(0, 0, &m, 1);
+                    printf("test : %d\n", test);
                     printf("after transmit\n");
                     sendCounter++;
                     printf("sendCounter %d\n", sendCounter);

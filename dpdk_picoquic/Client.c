@@ -285,9 +285,9 @@ lcore_hello(__rte_unused void *arg)
 		return 0;
 	}
 	
-	rte_pktmbuf_reset_headroom(m);
-	m->l2_len = sizeof(struct rte_ether_hdr);
-	m->l3_len = sizeof(struct rte_ipv4_hdr);
+	// rte_pktmbuf_reset_headroom(m);
+	// m->l2_len = sizeof(struct rte_ether_hdr);
+	// m->l3_len = sizeof(struct rte_ipv4_hdr);
 	setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, 5);
 	(&eth_hdr)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 	copy_buf_to_pkt(&eth_hdr, sizeof(struct rte_ether_hdr), m, offset);
