@@ -423,7 +423,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     uint8_t *send_buffer = NULL;
     size_t send_length = 0;
     size_t send_msg_size = 0;
-    size_t send_buffer_size = 1536;
+    size_t send_buffer_size = 1563;
     size_t *send_msg_ptr = NULL;
     int bytes_recv;
     picoquic_connection_id_t log_cid;
@@ -448,7 +448,8 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
-    send_buffer_size = 0xFFFF;
+    // send_buffer_size = 0xFFFF;
+    // printf("send_buffer_size %zu\n", send_buffer_size);
     send_msg_ptr = &send_msg_size;
     send_buffer = malloc(send_buffer_size);
     if (send_buffer == NULL)
@@ -520,7 +521,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                 int if_index = dest_if;
                 int sock_ret = 0;
                 int sock_err = 0;
-
+                send_length = 0;
                 ret = picoquic_prepare_next_packet_ex(quic, loop_time,
                                                       send_buffer, send_buffer_size, &send_length,
                                                       &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
