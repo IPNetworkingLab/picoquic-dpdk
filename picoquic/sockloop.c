@@ -494,10 +494,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                                                                      sizeof(struct rte_ipv4_hdr));
 
                     unsigned char *payload = (unsigned char *)(udp + 1);
-                    printf("payload : %s\n", payload);
+                    // printf("payload : %s\n", payload);
                     rte_be16_t length = udp->dgram_len;
                     size_t actual_length = htons(length) - sizeof(struct rte_udp_hdr);
-                    printf("length received : %zu\n", actual_length);
+                    // printf("length received : %zu\n", actual_length);
                     (void)picoquic_incoming_packet_ex(quic, payload,
                                                       actual_length, (struct sockaddr *)&addr_from,
                                                       (struct sockaddr *)&addr_to, if_index_to, received_ecn,
@@ -565,13 +565,13 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     offset += sizeof(struct rte_udp_hdr);
                     copy_buf_to_pkt(send_buffer, send_length, m, offset);
                     offset += send_length;
-                    printf("send_length : %zu\n", send_length);
+                    // printf("send_length : %zu\n", send_length);
                     //inchallah ca marche
                     m->data_len = offset;
                     m->pkt_len = offset;
                     int test = rte_eth_tx_burst(0, 0, &m, 1);
-                    printf("test : %d\n", test);
-                    printf("after transmit\n");
+                    // printf("test : %d\n", test);
+                    // printf("after transmit\n");
                     sendCounter++;
                     printf("sendCounter %d\n", sendCounter);
                 }
