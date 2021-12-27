@@ -469,19 +469,22 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
 
         uint64_t loop_time = current_time;
-        if (pkts_recv > 0)
+        if (pkts_recv < 0)
+        {
+            ret = -1;
+        }
+        else
         {
 
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
             {
-                receivedCounter++;
-                printf("receivedCounter : %d\n", receivedCounter);
                 /* access IP header of rcv'd pkt */
-
                 eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
                 {
+                    receivedCounter++;
+                    printf("receivedCounter : %d\n", receivedCounter);
                     ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
 
                     uint32_t tx_ip_src_addr_test = (10U << 24) | 1;
@@ -508,6 +511,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         size_t b_recvd = (size_t)bytes_recv;
                         ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
                     }
+                    if (ret == 0)
+                    {
+                        continue;
+                    }
                 }
             }
         }
@@ -526,7 +533,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                                                       send_buffer, send_buffer_size, &send_length,
                                                       &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
                                                       send_msg_ptr);
-
+                if (send_length > 0)
+                {
+                    printf("send length: %zu\n", send_length);
+                }
                 if (ret == 0 && send_length > 0)
                 {
                     bytes_sent += send_length;
@@ -542,11 +552,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
                         return 0;
                     }
-                    // rte_pktmbuf_reset_headroom(m);
-                    // m->l2_len = sizeof(struct rte_ether_hdr);
-                    // m->l3_len = sizeof(struct rte_ipv4_hdr);
-
-                    //=====a bit schnaps=======//
+                    
                     struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
                     rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
                     tmp = &eth_ptr->dst_addr.addr_bytes[0];
@@ -554,9 +560,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
                     setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length);
                     (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-
-                    // copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ether_hdr), m, offset);
-                    // offset += sizeof(struct rte_ether_hdr);
                     copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
                     offset += sizeof(struct rte_ether_hdr);
                     copy_buf_to_pkt(&ip_hdr_struct, sizeof(struct rte_ipv4_hdr), m, offset);
@@ -565,13 +568,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     offset += sizeof(struct rte_udp_hdr);
                     copy_buf_to_pkt(send_buffer, send_length, m, offset);
                     offset += send_length;
-                    // printf("send_length : %zu\n", send_length);
                     //inchallah ca marche
                     m->data_len = offset;
                     m->pkt_len = offset;
                     int test = rte_eth_tx_burst(0, 0, &m, 1);
-                    // printf("test : %d\n", test);
-                    // printf("after transmit\n");
                     sendCounter++;
                     printf("sendCounter %d\n", sendCounter);
                 }

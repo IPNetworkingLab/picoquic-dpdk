@@ -284,13 +284,16 @@ int sample_server_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_prepare_to_send:
             /* Active sending API */
             if (stream_ctx == NULL) {
+                printf("inside stream_ctx == NULL\n");
                 /* This should never happen */
             }
             else if (stream_ctx->F == NULL) {
+                printf("inside stream_ctx->F == NULL\n");
                 /* Error, asking for data after end of file */
             }
             else {
                 /* Implement the zero copy callback */
+                printf("inside else\n");
                 size_t available = stream_ctx->file_length - stream_ctx->file_sent;
                 int is_fin = 1;
                 uint8_t* buffer;

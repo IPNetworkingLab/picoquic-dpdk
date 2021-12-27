@@ -570,10 +570,11 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
 }
 static int
 lcore_hello2(__rte_unused void *arg)
-{
+{   
+    char filename[100] = "test.txt";
     char **files = (char **)malloc(1 * sizeof(char *));
-    files[0] = (char *)malloc(sizeof(strlen("bible.pdf")) + 1);
-    memcpy(files[0], "bible.pdf", strlen("bible.pdf") + 1);
+    files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
+    memcpy(files[0], filename, strlen(filename) + 1);
     picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files);
 
 }
