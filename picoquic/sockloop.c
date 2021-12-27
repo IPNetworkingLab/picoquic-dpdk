@@ -468,13 +468,15 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
 
-        uint64_t loop_time = current_time;
+        current_time = picoquic_current_time();
+
         if (pkts_recv < 0)
         {
             ret = -1;
         }
         else
         {
+            uint64_t loop_time = current_time;
 
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
@@ -508,7 +510,8 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
                     if (loop_callback != NULL)
                     {
-                        size_t b_recvd = (size_t)bytes_recv;
+                        printf("hello\n");
+                        size_t b_recvd = (size_t)actual_length;
                         ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
                     }
                     if (ret == 0)
@@ -517,73 +520,73 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     }
                 }
             }
-        }
-        if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
-        {
-            size_t bytes_sent = 0;
-            while (ret == 0)
+            if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
-                struct sockaddr_storage peer_addr;
-                struct sockaddr_storage local_addr;
-                int if_index = dest_if;
-                int sock_ret = 0;
-                int sock_err = 0;
-                send_length = 0;
-                ret = picoquic_prepare_next_packet_ex(quic, loop_time,
-                                                      send_buffer, send_buffer_size, &send_length,
-                                                      &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
-                                                      send_msg_ptr);
-                if (send_length > 0)
+                size_t bytes_sent = 0;
+                while (ret == 0)
                 {
-                    printf("send length: %zu\n", send_length);
-                }
-                if (ret == 0 && send_length > 0)
-                {
-                    bytes_sent += send_length;
-                    int offset = 0;
-                    struct rte_ipv4_hdr ip_hdr_struct;
-                    struct rte_udp_hdr udp_hdr_struct;
-                    struct rte_ether_hdr eth_hdr_struct;
-
-                    struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
-                    if (m == NULL)
+                    struct sockaddr_storage peer_addr;
+                    struct sockaddr_storage local_addr;
+                    int if_index = dest_if;
+                    int sock_ret = 0;
+                    int sock_err = 0;
+                    send_length = 0;
+                    ret = picoquic_prepare_next_packet_ex(quic, loop_time,
+                                                          send_buffer, send_buffer_size, &send_length,
+                                                          &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
+                                                          send_msg_ptr);
+                    if (send_length > 0)
                     {
-                        printf("fail to init pktmbuf\n");
-                        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-                        return 0;
+                        printf("send length: %zu\n", send_length);
                     }
-                    
-                    struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
-                    rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
-                    tmp = &eth_ptr->dst_addr.addr_bytes[0];
-                    *((uint64_t *)tmp) = 0;
+                    if (ret == 0 && send_length > 0)
+                    {
+                        bytes_sent += send_length;
+                        int offset = 0;
+                        struct rte_ipv4_hdr ip_hdr_struct;
+                        struct rte_udp_hdr udp_hdr_struct;
+                        struct rte_ether_hdr eth_hdr_struct;
 
-                    setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length);
-                    (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-                    copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
-                    offset += sizeof(struct rte_ether_hdr);
-                    copy_buf_to_pkt(&ip_hdr_struct, sizeof(struct rte_ipv4_hdr), m, offset);
-                    offset += sizeof(struct rte_ipv4_hdr);
-                    copy_buf_to_pkt(&udp_hdr_struct, sizeof(struct rte_udp_hdr), m, offset);
-                    offset += sizeof(struct rte_udp_hdr);
-                    copy_buf_to_pkt(send_buffer, send_length, m, offset);
-                    offset += send_length;
-                    //inchallah ca marche
-                    m->data_len = offset;
-                    m->pkt_len = offset;
-                    int test = rte_eth_tx_burst(0, 0, &m, 1);
-                    sendCounter++;
-                    printf("sendCounter %d\n", sendCounter);
+                        struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
+                        if (m == NULL)
+                        {
+                            printf("fail to init pktmbuf\n");
+                            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+                            return 0;
+                        }
+
+                        struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
+                        rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
+                        tmp = &eth_ptr->dst_addr.addr_bytes[0];
+                        *((uint64_t *)tmp) = 0;
+
+                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length);
+                        (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+                        copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
+                        offset += sizeof(struct rte_ether_hdr);
+                        copy_buf_to_pkt(&ip_hdr_struct, sizeof(struct rte_ipv4_hdr), m, offset);
+                        offset += sizeof(struct rte_ipv4_hdr);
+                        copy_buf_to_pkt(&udp_hdr_struct, sizeof(struct rte_udp_hdr), m, offset);
+                        offset += sizeof(struct rte_udp_hdr);
+                        copy_buf_to_pkt(send_buffer, send_length, m, offset);
+                        offset += send_length;
+                        //inchallah ca marche
+                        m->data_len = offset;
+                        m->pkt_len = offset;
+                        int test = rte_eth_tx_burst(0, 0, &m, 1);
+                        sendCounter++;
+                        printf("sendCounter %d\n", sendCounter);
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                else
+
+                if (ret == 0 && loop_callback != NULL)
                 {
-                    break;
+                    ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
                 }
-            }
-
-            if (ret == 0 && loop_callback != NULL)
-            {
-                ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
             }
         }
     }

@@ -4526,10 +4526,12 @@ int picoquic_prepare_next_packet_ex(picoquic_quic_t* quic,
     }
 
     if (sp != NULL) {
+        printf("inside sp != NULL\n");
         if (sp->length > send_buffer_max) {
             *send_length = 0;
         }
         else {
+            printf("else sp != NULL\n");
             memcpy(send_buffer, sp->bytes, sp->length);
             *send_length = sp->length;
             picoquic_store_addr(p_addr_to, (struct sockaddr*) & sp->addr_to);
@@ -4542,12 +4544,15 @@ int picoquic_prepare_next_packet_ex(picoquic_quic_t* quic,
         picoquic_delete_stateless_packet(sp);
     }
     else {
+        
         picoquic_cnx_t* cnx = picoquic_get_earliest_cnx_to_wake(quic, current_time);
 
         if (cnx == NULL) {
+            
             *send_length = 0;
         }
         else {
+            printf("inside else cnx == NULL\n");
             ret = picoquic_prepare_packet_ex(cnx, current_time, send_buffer, send_buffer_max, send_length, p_addr_to, p_addr_from, 
                 if_index, send_msg_size);
             if (log_cid != NULL) {
@@ -4556,6 +4561,10 @@ int picoquic_prepare_next_packet_ex(picoquic_quic_t* quic,
 
             if (ret == PICOQUIC_ERROR_DISCONNECTED) {
                 ret = 0;
+                printf("Closed. Retrans= %d, spurious= %d, max sp gap = %d, max sp delay = %d, dg-coal: %f",
+                    (int)cnx->nb_retransmission_total, (int)cnx->nb_spurious,
+                    (int)cnx->path[0]->max_reorder_gap, (int)cnx->path[0]->max_spurious_rtt,
+                    (cnx->nb_trains_sent > 0) ? ((double)cnx->nb_packets_sent / (double)cnx->nb_trains_sent) : 0.0);
 
                 picoquic_log_app_message(cnx, "Closed. Retrans= %d, spurious= %d, max sp gap = %d, max sp delay = %d, dg-coal: %f",
                     (int)cnx->nb_retransmission_total, (int)cnx->nb_spurious,
