@@ -298,8 +298,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                          void *loop_callback_ctx)
 {
     //===================DPDK==========================//
-    //VARS
-
+   
     struct rte_mempool *mb_pool;
     static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
@@ -325,14 +324,20 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_rte_ether_hdr *eth;
     void *tmp;
 
-    //handling udp packet
+    //handling udp packets
     struct rte_ether_hdr *eth_hdr;
     struct vlan_hdr *vh;
     uint16_t *proto;
     struct rte_ipv4_hdr *ip_hdr;
 
     //setup DPDK
-    tx_buffer = rte_zmalloc_socket("tx_buffer",
+    lcore_id = rte_lcore_id();
+
+    char tx_buffer_name[10] = "tx_buffer";
+    tx_buffer_name[9] = lcore_id;
+    tx_buffer_name[10] = '\0';
+
+    tx_buffer = rte_zmalloc_socket(tx_buffer_name,
                                    RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
                                    rte_eth_dev_socket_id(0));
     if (tx_buffer == NULL)
@@ -340,13 +345,17 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         printf("fail to init buffer\n");
         return 0;
     }
+    char mbuf_pool_name[] = "mbuf_pool"
+    mbuf_pool_name[9] = lcore_id;
+    mbuf_pool_name[10] = '\0';
+    
     unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
     mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
                                       MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
                                       rte_socket_id());
     if (mb_pool == NULL)
     {
-        printf("fail to init mb_pool10\n");
+        printf("fail to init mb_pool\n");
         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
         return 0;
     }
@@ -423,7 +432,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     uint8_t *send_buffer = NULL;
     size_t send_length = 0;
     size_t send_msg_size = 0;
-    size_t send_buffer_size = 1563;
+    size_t send_buffer_size = 1536;
     size_t *send_msg_ptr = NULL;
     int bytes_recv;
     picoquic_connection_id_t log_cid;
@@ -448,8 +457,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
-    // send_buffer_size = 0xFFFF;
-    // printf("send_buffer_size %zu\n", send_buffer_size);
+    
     send_msg_ptr = &send_msg_size;
     send_buffer = malloc(send_buffer_size);
     if (send_buffer == NULL)
@@ -491,18 +499,14 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
                     uint32_t tx_ip_src_addr_test = (10U << 24) | 1;
                     uint32_t tx_ip_dst_addr_test = (10U << 24) | 2;
-                    // printf("received : %zu\n", ip_hdr->src_addr);
-                    // printf("expected1 : %zu\n", tx_ip_src_addr_test);
-                    // printf("expected2 : %zu\n", tx_ip_dst_addr_test);
+                    
 
                     struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
                                                                      sizeof(struct rte_ipv4_hdr));
 
                     unsigned char *payload = (unsigned char *)(udp + 1);
-                    // printf("payload : %s\n", payload);
                     rte_be16_t length = udp->dgram_len;
                     size_t actual_length = htons(length) - sizeof(struct rte_udp_hdr);
-                    // printf("length received : %zu\n", actual_length);
                     (void)picoquic_incoming_packet_ex(quic, payload,
                                                       actual_length, (struct sockaddr *)&addr_from,
                                                       (struct sockaddr *)&addr_to, if_index_to, received_ecn,
@@ -510,7 +514,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
                     if (loop_callback != NULL)
                     {
-                        printf("hello\n");
                         size_t b_recvd = (size_t)actual_length;
                         ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
                     }
@@ -535,10 +538,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                                                           send_buffer, send_buffer_size, &send_length,
                                                           &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
                                                           send_msg_ptr);
-                    if (send_length > 0)
-                    {
-                        printf("send length: %zu\n", send_length);
-                    }
                     if (ret == 0 && send_length > 0)
                     {
                         bytes_sent += send_length;
@@ -575,7 +574,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         m->pkt_len = offset;
                         int test = rte_eth_tx_burst(0, 0, &m, 1);
                         sendCounter++;
-                        printf("sendCounter %d\n", sendCounter);
                     }
                     else
                     {
