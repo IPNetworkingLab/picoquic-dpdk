@@ -410,7 +410,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         printf("failed to init rx_queue\n");
     }
-    printf("before start \n");
+    
     ret = rte_eth_dev_start(0);
     if (ret != 0)
     {
@@ -572,11 +572,12 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         //inchallah ca marche
                         m->data_len = offset;
                         m->pkt_len = offset;
-                        int test = rte_eth_tx_burst(0, 0, &m, 1);
+                        rte_eth_tx_buffer(0,0,tx_buffer,m);
                         sendCounter++;
                     }
                     else
                     {
+                        rte_eth_tx_buffer_flush(0,0,tx_buffer);
                         break;
                     }
                 }
