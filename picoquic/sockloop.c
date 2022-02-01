@@ -432,6 +432,12 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
 
+    //addresses
+    rte_be32_t src_addr;
+    rte_be32_t dst_addr;                                               
+    rte_be16_t src_port;
+    rte_be16_t dst_port;
+
     int if_index_to;
     uint8_t buffer[1536];
     uint8_t *send_buffer = NULL;
@@ -492,10 +498,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
                     udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
-                    rte_be32_t src_addr = ip_hdr->src_addr;
-                    rte_be32_t dst_addr	= ip_hdr->dst_addr;                                               
-                    rte_be16_t src_port = udp_hdr->src_port;
-                    rte_be16_t dst_port = udp_hdr->dst_port;
+                    src_addr = ip_hdr->src_addr;
+                    dst_addr = ip_hdr->dst_addr;                                               
+                    src_port = udp_hdr->src_port;
+                    dst_port = udp_hdr->dst_port;
 
                     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
                     (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
@@ -553,12 +559,17 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                             return 0;
                         }
 
+                        src_addr = (*(struct sockaddr_in *)(&local_addr)).sin_addr.s_addr;
+                        dst_addr = (*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr;                                         
+                        src_port = (*(struct sockaddr_in *)(&local_addr)).sin_port;
+                        dst_port = (*(struct sockaddr_in *)(&peer_addr)).sin_port;
+
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
 
-                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length);
+                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,src_addr,dst_addr,src_port,dst_port);
                         (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
                         copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
                         offset += sizeof(struct rte_ether_hdr);

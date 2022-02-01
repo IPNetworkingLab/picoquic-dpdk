@@ -1,23 +1,23 @@
 /*
-* Author: Christian Huitema
-* Copyright (c) 2017, Private Octopus, Inc.
-* All rights reserved.
-*
-* Permission to use, copy, modify, and distribute this software for any
-* purpose with or without fee is hereby granted, provided that the above
-* copyright notice and this permission notice appear in all copies.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL Private Octopus, Inc. BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Author: Christian Huitema
+ * Copyright (c) 2017, Private Octopus, Inc.
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Private Octopus, Inc. BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 /* clang-format off */
 
@@ -95,7 +95,6 @@ uint32_t tx_ip_dst_addr = (198U << 24) | (18 << 16) | (0 << 8) | 2;
 
 uint16_t tx_udp_src_port = 9;
 uint16_t tx_udp_dst_port = 9;
-
 
 #define IP_DEFTTL 64
 
@@ -746,8 +745,8 @@ int picoquic_file_delete(char const *file_name, int *last_err)
 }
 
 /* Skip and decode function.
-  * These functions return NULL in case of a failure (insufficient buffer).
-  */
+ * These functions return NULL in case of a failure (insufficient buffer).
+ */
 
 const uint8_t *picoquic_frames_fixed_skip(const uint8_t *bytes, const uint8_t *bytes_max, uint64_t size)
 {
@@ -1284,10 +1283,10 @@ int picoquic_wait_for_event(picoquic_event_t *event, uint64_t microsec_wait)
 }
 
 /* Pseudo random generation suitable for tests. Guaranties that the
-* same seed will produce the same sequence, allows for specific
-* random sequence for a given test.
-* Adapted from http://xoroshiro.di.unimi.it/splitmix64.c,
-* Written in 2015 by Sebastiano Vigna (vigna@acm.org)  */
+ * same seed will produce the same sequence, allows for specific
+ * random sequence for a given test.
+ * Adapted from http://xoroshiro.di.unimi.it/splitmix64.c,
+ * Written in 2015 by Sebastiano Vigna (vigna@acm.org)  */
 
 uint64_t picoquic_test_random(uint64_t *random_context)
 {
@@ -1358,24 +1357,25 @@ double picoquic_test_gauss_random(uint64_t *random_context)
 ///====================DPDK=======================
 void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
                               struct rte_udp_hdr *udp_hdr,
-                              uint16_t pkt_data_len)
+                              uint16_t pkt_data_len, rte_be32_t tx_ip_src_addr, rte_be32_t tx_ip_dst_addr, rte_be16_t tx_udp_src_port, rte_be16_t tx_udp_dst_port)
 {
     uint16_t *ptr16;
     uint32_t ip_cksum;
     uint16_t pkt_len;
 
     /*
-	 * Initialize UDP header.
-	 */
+     * Initialize UDP header.
+     */
+
     pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_udp_hdr));
-    udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
-    udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
-    udp_hdr->dgram_len = rte_cpu_to_be_16(pkt_len);
+    udp_hdr->src_port = tx_udp_src_port;
+    udp_hdr->dst_port = tx_udp_dst_port;
+    udp_hdr->dgram_len = pkt_len;
     udp_hdr->dgram_cksum = 0; /* No UDP checksum. */
 
     /*
-	 * Initialize IP header.
-	 */
+     * Initialize IP header.
+     */
     pkt_len = (uint16_t)(pkt_len + sizeof(struct rte_ipv4_hdr));
     ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
     ip_hdr->type_of_service = 0;
@@ -1383,13 +1383,13 @@ void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
     ip_hdr->time_to_live = IP_DEFTTL;
     ip_hdr->next_proto_id = IPPROTO_UDP;
     ip_hdr->packet_id = 0;
-    ip_hdr->total_length = rte_cpu_to_be_16(pkt_len);
-    ip_hdr->src_addr = rte_cpu_to_be_32(tx_ip_src_addr);
-    ip_hdr->dst_addr = rte_cpu_to_be_32(tx_ip_dst_addr);
+    ip_hdr->total_length = pkt_len;
+    ip_hdr->src_addr = tx_ip_src_addr;
+    ip_hdr->dst_addr = tx_ip_dst_addr;
 
     /*
-	 * Compute IP header checksum.
-	 */
+     * Compute IP header checksum.
+     */
     ptr16 = (unaligned_uint16_t *)ip_hdr;
     ip_cksum = 0;
     ip_cksum += ptr16[0];
@@ -1403,8 +1403,8 @@ void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
     ip_cksum += ptr16[9];
 
     /*
-	 * Reduce 32 bit checksum to 16 bits and complement it.
-	 */
+     * Reduce 32 bit checksum to 16 bits and complement it.
+     */
     ip_cksum = ((ip_cksum & 0xFFFF0000) >> 16) +
                (ip_cksum & 0x0000FFFF);
     if (ip_cksum > 65535)
