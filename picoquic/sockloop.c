@@ -324,11 +324,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_rte_ether_hdr *eth;
     void *tmp;
 
-    //handling udp packets
-    struct rte_ether_hdr *eth_hdr;
-    struct vlan_hdr *vh;
-    uint16_t *proto;
-    struct rte_ipv4_hdr *ip_hdr;
+    
 
     //setup DPDK
     lcore_id = rte_lcore_id();
@@ -345,7 +341,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         printf("fail to init buffer\n");
         return 0;
     }
-    char mbuf_pool_name[] = "mbuf_pool"
+    char mbuf_pool_name[] = "mbuf_pool";
     mbuf_pool_name[9] = lcore_id;
     mbuf_pool_name[10] = '\0';
     
@@ -427,6 +423,15 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     int64_t delay_max = 10000000;
     struct sockaddr_storage addr_from;
     struct sockaddr_storage addr_to;
+
+    struct sockaddr_storage peer_addr;
+    struct sockaddr_storage local_addr;
+
+    //handling packets
+    struct rte_ether_hdr *eth_hdr;
+    struct rte_ipv4_hdr *ip_hdr;
+    struct rte_udp_hdr *udp_hdr;
+
     int if_index_to;
     uint8_t buffer[1536];
     uint8_t *send_buffer = NULL;
@@ -446,13 +451,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     int loop_immediate = 0;
     int pkts_recv;
 
-    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("10.0.0.5");
-    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("10.0.0.5");
-
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
@@ -464,8 +462,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         ret = -1;
     }
-    int receivedCounter = 0;
-    int sendCounter = 0;
     while (ret == 0)
     {
         int64_t delta_t = 0;
@@ -489,32 +485,37 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
             {
-                /* access IP header of rcv'd pkt */
+                /* access ethernet header of rcv'd pkt */
                 eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
                 {
-                    receivedCounter++;
-                    printf("receivedCounter : %d\n", receivedCounter);
                     ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
+                    udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
-                    uint32_t tx_ip_src_addr_test = (10U << 24) | 1;
-                    uint32_t tx_ip_dst_addr_test = (10U << 24) | 2;
-                    
+                    rte_be32_t src_addr = ip_hdr->src_addr;
+                    rte_be32_t dst_addr	= ip_hdr->dst_addr;                                               
+                    rte_be16_t src_port = udp_hdr->src_port;
+                    rte_be16_t dst_port = udp_hdr->dst_port;
 
-                    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
-                                                                     sizeof(struct rte_ipv4_hdr));
+                    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
+                    (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
+                    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = src_addr;
+                    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
+                    (*(struct sockaddr_in *)(&addr_to)).sin_port = dst_port;
+                    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = dst_addr;
 
-                    unsigned char *payload = (unsigned char *)(udp + 1);
-                    rte_be16_t length = udp->dgram_len;
-                    size_t actual_length = htons(length) - sizeof(struct rte_udp_hdr);
+                    unsigned char *payload = (unsigned char *)(udp_hdr + 1);
+                    rte_be16_t length = udp_hdr->dgram_len;
+                    size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
+
                     (void)picoquic_incoming_packet_ex(quic, payload,
-                                                      actual_length, (struct sockaddr *)&addr_from,
+                                                      payload_length, (struct sockaddr *)&addr_from,
                                                       (struct sockaddr *)&addr_to, if_index_to, received_ecn,
                                                       &last_cnx, current_time);
 
                     if (loop_callback != NULL)
                     {
-                        size_t b_recvd = (size_t)actual_length;
+                        size_t b_recvd = (size_t)payload_length;
                         ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
                     }
                     if (ret == 0)
@@ -528,8 +529,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                 size_t bytes_sent = 0;
                 while (ret == 0)
                 {
-                    struct sockaddr_storage peer_addr;
-                    struct sockaddr_storage local_addr;
                     int if_index = dest_if;
                     int sock_ret = 0;
                     int sock_err = 0;
@@ -569,11 +568,9 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         offset += sizeof(struct rte_udp_hdr);
                         copy_buf_to_pkt(send_buffer, send_length, m, offset);
                         offset += send_length;
-                        //inchallah ca marche
                         m->data_len = offset;
                         m->pkt_len = offset;
                         rte_eth_tx_buffer(0,0,tx_buffer,m);
-                        sendCounter++;
                     }
                     else
                     {
