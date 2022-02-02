@@ -293,7 +293,6 @@ int sample_server_callback(picoquic_cnx_t* cnx,
             }
             else {
                 /* Implement the zero copy callback */
-                printf("inside else\n");
                 size_t available = stream_ctx->file_length - stream_ctx->file_sent;
                 int is_fin = 1;
                 uint8_t* buffer;

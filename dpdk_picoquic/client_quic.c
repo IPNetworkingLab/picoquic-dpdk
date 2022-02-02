@@ -571,7 +571,7 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
 static int
 lcore_hello2(__rte_unused void *arg)
 {   
-    char filename[100] = "bible.pdf";
+    char filename[100] = "1GB.bin";
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
     memcpy(files[0], filename, strlen(filename) + 1);

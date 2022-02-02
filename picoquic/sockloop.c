@@ -286,6 +286,80 @@ int picoquic_packet_loop_open_sockets(int local_port, int local_af, SOCKET_TYPE 
     return nb_sockets;
 }
 
+
+
+
+void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
+                              struct rte_udp_hdr *udp_hdr,
+                              uint16_t pkt_data_len)
+{
+
+
+    uint32_t tx_ip_src_addr = (198U << 24) | (18 << 16) | (0 << 8) | 1;
+    uint32_t tx_ip_dst_addr = (198U << 24) | (18 << 16) | (0 << 8) | 2;
+
+    uint16_t tx_udp_src_port = 9;
+    uint16_t tx_udp_dst_port = 9;
+
+    #define IP_DEFTTL 64
+
+
+    uint16_t *ptr16;
+    uint32_t ip_cksum;
+    uint16_t pkt_len;
+
+    /*
+	 * Initialize UDP header.
+	 */
+    pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_udp_hdr));
+    udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
+    udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
+    udp_hdr->dgram_len = rte_cpu_to_be_16(pkt_len);
+    udp_hdr->dgram_cksum = 0; /* No UDP checksum. */
+
+    /*
+	 * Initialize IP header.
+	 */
+    pkt_len = (uint16_t)(pkt_len + sizeof(struct rte_ipv4_hdr));
+    ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
+    ip_hdr->type_of_service = 0;
+    ip_hdr->fragment_offset = 0;
+    ip_hdr->time_to_live = IP_DEFTTL;
+    ip_hdr->next_proto_id = IPPROTO_UDP;
+    ip_hdr->packet_id = 0;
+    ip_hdr->total_length = rte_cpu_to_be_16(pkt_len);
+    ip_hdr->src_addr = rte_cpu_to_be_32(tx_ip_src_addr);
+    ip_hdr->dst_addr = rte_cpu_to_be_32(tx_ip_dst_addr);
+
+    /*
+	 * Compute IP header checksum.
+	 */
+    ptr16 = (unaligned_uint16_t *)ip_hdr;
+    ip_cksum = 0;
+    ip_cksum += ptr16[0];
+    ip_cksum += ptr16[1];
+    ip_cksum += ptr16[2];
+    ip_cksum += ptr16[3];
+    ip_cksum += ptr16[4];
+    ip_cksum += ptr16[6];
+    ip_cksum += ptr16[7];
+    ip_cksum += ptr16[8];
+    ip_cksum += ptr16[9];
+
+    /*
+	 * Reduce 32 bit checksum to 16 bits and complement it.
+	 */
+    ip_cksum = ((ip_cksum & 0xFFFF0000) >> 16) +
+               (ip_cksum & 0x0000FFFF);
+    if (ip_cksum > 65535)
+        ip_cksum -= 65535;
+    ip_cksum = (~ip_cksum) & 0x0000FFFF;
+    if (ip_cksum == 0)
+        ip_cksum = 0xFFFF;
+    ip_hdr->hdr_checksum = (uint16_t)ip_cksum;
+}
+
+
 #ifdef _DPDK
 
 int picoquic_packet_loop(picoquic_quic_t *quic,
@@ -533,6 +607,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
             if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
                 size_t bytes_sent = 0;
+                int counter = 0;
                 while (ret == 0)
                 {
                     int if_index = dest_if;
@@ -564,12 +639,14 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         src_port = (*(struct sockaddr_in *)(&local_addr)).sin_port;
                         dst_port = (*(struct sockaddr_in *)(&peer_addr)).sin_port;
 
+                        
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
 
                         setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,src_addr,dst_addr,src_port,dst_port);
+                        setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
                         (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
                         copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
                         offset += sizeof(struct rte_ether_hdr);
@@ -581,11 +658,24 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         offset += send_length;
                         m->data_len = offset;
                         m->pkt_len = offset;
-                        rte_eth_tx_buffer(0,0,tx_buffer,m);
+                        int flushed = rte_eth_tx_buffer(0,0,tx_buffer,m);
+                        printf("flushed : %d\n",flushed);
+                        counter++;
+                        printf("counter : %d\n",counter);
                     }
+
                     else
                     {
-                        rte_eth_tx_buffer_flush(0,0,tx_buffer);
+                        int flushed2;
+                        flushed2 = rte_eth_tx_buffer_flush(0,0,tx_buffer);
+                        if(counter != 0){
+                            printf("counter : %d\n",counter);
+                        }
+                        
+                        if(flushed2 != 0){
+                            printf("flushed2 %d\n",flushed2);
+                        }
+                        counter = 0;
                         break;
                     }
                 }
