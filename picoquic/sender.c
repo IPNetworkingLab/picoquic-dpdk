@@ -4526,12 +4526,10 @@ int picoquic_prepare_next_packet_ex(picoquic_quic_t* quic,
     }
 
     if (sp != NULL) {
-        printf("inside sp != NULL\n");
         if (sp->length > send_buffer_max) {
             *send_length = 0;
         }
         else {
-            printf("else sp != NULL\n");
             memcpy(send_buffer, sp->bytes, sp->length);
             *send_length = sp->length;
             picoquic_store_addr(p_addr_to, (struct sockaddr*) & sp->addr_to);

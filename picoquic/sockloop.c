@@ -505,7 +505,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
-
+    struct rte_mbuf *m;
     //addresses
     rte_be32_t src_addr;
     rte_be32_t dst_addr;                                               
@@ -530,6 +530,12 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     picoquic_cnx_t *last_cnx = NULL;
     int loop_immediate = 0;
     int pkts_recv;
+    FILE *ptr_rcv;
+    FILE *ptr_send;
+    ptr_rcv = fopen("rcv.txt","w");
+    ptr_send = fopen("send.txt","w");
+
+
 
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
@@ -542,6 +548,8 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         ret = -1;
     }
+    int sendCounter = 0;
+    int receivCounter = 0;
     while (ret == 0)
     {
         int64_t delta_t = 0;
@@ -551,7 +559,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
 
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
-
+        
         current_time = picoquic_current_time();
 
         if (pkts_recv < 0)
@@ -564,7 +572,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
-            {
+            {   
+                receivCounter++;
+                fprintf(ptr_rcv,"%d\n",receivCounter);
+                printf("receivCounter : %d\n",receivCounter);
                 /* access ethernet header of rcv'd pkt */
                 eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
@@ -577,17 +588,16 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     src_port = udp_hdr->src_port;
                     dst_port = udp_hdr->dst_port;
 
-                    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
-                    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = src_addr;
-                    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_to)).sin_port = dst_port;
-                    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = dst_addr;
+                    // (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
+                    // (*(struct sockaddr_in *)(&addr_from)).sin_port = 55;
+                    // (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = 1;
+                    // (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
+                    // (*(struct sockaddr_in *)(&addr_to)).sin_port = 55;
+                    // (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = 1;
 
                     unsigned char *payload = (unsigned char *)(udp_hdr + 1);
                     rte_be16_t length = udp_hdr->dgram_len;
                     size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
-
                     (void)picoquic_incoming_packet_ex(quic, payload,
                                                       payload_length, (struct sockaddr *)&addr_from,
                                                       (struct sockaddr *)&addr_to, if_index_to, received_ecn,
@@ -598,11 +608,17 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         size_t b_recvd = (size_t)payload_length;
                         ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
                     }
+                    rte_pktmbuf_free(pkts_burst[i]);
                     if (ret == 0)
                     {
                         continue;
                     }
+                    
                 }
+                else{
+                    rte_pktmbuf_free(pkts_burst[i]);
+                }
+                
             }
             if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
@@ -626,7 +642,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
 
-                        struct rte_mbuf *m = rte_pktmbuf_alloc(mb_pool);
+                        m = rte_pktmbuf_alloc(mb_pool);
                         if (m == NULL)
                         {
                             printf("fail to init pktmbuf\n");
@@ -645,7 +661,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
 
-                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,src_addr,dst_addr,src_port,dst_port);
                         setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
                         (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
                         copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
@@ -659,21 +674,32 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         m->data_len = offset;
                         m->pkt_len = offset;
                         int flushed = rte_eth_tx_buffer(0,0,tx_buffer,m);
-                        printf("flushed : %d\n",flushed);
-                        counter++;
-                        printf("counter : %d\n",counter);
+                        sendCounter+=flushed;
+                        fprintf(ptr_send,"%d\n",sendCounter);
+                        printf("sendCounter : %d\n",sendCounter);
+                        if(flushed == 0){
+                            counter++;
+                        }
+                        else if(flushed == 32){
+                            counter = 0;
+                        }
+                        if(flushed != 0 && flushed != 32){
+                            printf("some failed transmission\n");
+                            printf("flushed first if : %d\n",flushed);
+                        }
+                        
                     }
 
                     else
                     {
                         int flushed2;
                         flushed2 = rte_eth_tx_buffer_flush(0,0,tx_buffer);
-                        if(counter != 0){
-                            printf("counter : %d\n",counter);
-                        }
-                        
-                        if(flushed2 != 0){
-                            printf("flushed2 %d\n",flushed2);
+                        sendCounter += flushed2;
+                        fprintf(ptr_send,"%d\n",sendCounter);
+                        printf("sendCounter : %d\n",sendCounter);
+                        if(counter != flushed2){
+                            printf("some failed transmission\n");
+                            printf("counter : %d, flushed2 : %d\n",counter,flushed2);
                         }
                         counter = 0;
                         break;
@@ -698,7 +724,6 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         free(send_buffer);
     }
-
     return ret;
 }
 
