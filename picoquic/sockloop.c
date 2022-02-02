@@ -1,23 +1,23 @@
 /*
-* Author: Christian Huitema
-* Copyright (c) 2020, Private Octopus, Inc.
-* All rights reserved.
-*
-* Permission to use, copy, modify, and distribute this software for any
-* purpose with or without fee is hereby granted, provided that the above
-* copyright notice and this permission notice appear in all copies.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL Private Octopus, Inc. BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Author: Christian Huitema
+ * Copyright (c) 2020, Private Octopus, Inc.
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL Private Octopus, Inc. BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 /* Socket loop implements the "wait for messages" loop common to most servers
  * and many clients.
@@ -157,7 +157,7 @@
 #include <rte_eal.h>
 #include <rte_spinlock.h>
 
-//DPDK
+// DPDK
 #define _DPDK
 #define MAX_PKT_BURST 32
 #define MAX_RX_QUEUE_PER_LCORE 16
@@ -166,6 +166,8 @@
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
+#define IP_DEFTTL 64
+
 struct lcore_queue_conf
 {
     unsigned n_rx_port;
@@ -286,14 +288,10 @@ int picoquic_packet_loop_open_sockets(int local_port, int local_af, SOCKET_TYPE 
     return nb_sockets;
 }
 
-
-
-
 void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
-                              struct rte_udp_hdr *udp_hdr,
-                              uint16_t pkt_data_len)
+                                   struct rte_udp_hdr *udp_hdr,
+                                   uint16_t pkt_data_len)
 {
-
 
     uint32_t tx_ip_src_addr = (198U << 24) | (18 << 16) | (0 << 8) | 1;
     uint32_t tx_ip_dst_addr = (198U << 24) | (18 << 16) | (0 << 8) | 2;
@@ -301,16 +299,13 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     uint16_t tx_udp_src_port = 9;
     uint16_t tx_udp_dst_port = 9;
 
-    #define IP_DEFTTL 64
-
-
     uint16_t *ptr16;
     uint32_t ip_cksum;
     uint16_t pkt_len;
 
     /*
-	 * Initialize UDP header.
-	 */
+     * Initialize UDP header.
+     */
     pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_udp_hdr));
     udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
     udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
@@ -318,8 +313,8 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     udp_hdr->dgram_cksum = 0; /* No UDP checksum. */
 
     /*
-	 * Initialize IP header.
-	 */
+     * Initialize IP header.
+     */
     pkt_len = (uint16_t)(pkt_len + sizeof(struct rte_ipv4_hdr));
     ip_hdr->version_ihl = RTE_IPV4_VHL_DEF;
     ip_hdr->type_of_service = 0;
@@ -332,8 +327,8 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     ip_hdr->dst_addr = rte_cpu_to_be_32(tx_ip_dst_addr);
 
     /*
-	 * Compute IP header checksum.
-	 */
+     * Compute IP header checksum.
+     */
     ptr16 = (unaligned_uint16_t *)ip_hdr;
     ip_cksum = 0;
     ip_cksum += ptr16[0];
@@ -347,8 +342,8 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     ip_cksum += ptr16[9];
 
     /*
-	 * Reduce 32 bit checksum to 16 bits and complement it.
-	 */
+     * Reduce 32 bit checksum to 16 bits and complement it.
+     */
     ip_cksum = ((ip_cksum & 0xFFFF0000) >> 16) +
                (ip_cksum & 0x0000FFFF);
     if (ip_cksum > 65535)
@@ -358,7 +353,6 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
         ip_cksum = 0xFFFF;
     ip_hdr->hdr_checksum = (uint16_t)ip_cksum;
 }
-
 
 #ifdef _DPDK
 
@@ -372,7 +366,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                          void *loop_callback_ctx)
 {
     //===================DPDK==========================//
-   
+
     struct rte_mempool *mb_pool;
     static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
@@ -398,9 +392,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct rte_rte_ether_hdr *eth;
     void *tmp;
 
-    
-
-    //setup DPDK
+    // setup DPDK
     lcore_id = rte_lcore_id();
 
     char tx_buffer_name[10] = "tx_buffer";
@@ -418,7 +410,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     char mbuf_pool_name[] = "mbuf_pool";
     mbuf_pool_name[9] = lcore_id;
     mbuf_pool_name[10] = '\0';
-    
+
     unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
     mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
                                       MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
@@ -455,7 +447,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
     ret = rte_eth_macaddr_get(portid, &eth_addr);
 
-    //init tx queue
+    // init tx queue
     txq_conf = dev_info.default_txconf;
     txq_conf.offloads = local_port_conf.txmode.offloads;
     ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
@@ -472,7 +464,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         printf("error in buffer_init\n");
         return 0;
     }
-    //init rx queue
+    // init rx queue
     rxq_conf = dev_info.default_rxconf;
     rxq_conf.offloads = local_port_conf.rxmode.offloads;
     ret = rte_eth_rx_queue_setup(0, 0, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pool);
@@ -480,7 +472,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     {
         printf("failed to init rx_queue\n");
     }
-    
+
     ret = rte_eth_dev_start(0);
     if (ret != 0)
     {
@@ -501,14 +493,14 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     struct sockaddr_storage peer_addr;
     struct sockaddr_storage local_addr;
 
-    //handling packets
+    // handling packets
     struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
     struct rte_mbuf *m;
-    //addresses
+    // addresses
     rte_be32_t src_addr;
-    rte_be32_t dst_addr;                                               
+    rte_be32_t dst_addr;
     rte_be16_t src_port;
     rte_be16_t dst_port;
 
@@ -530,18 +522,12 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
     picoquic_cnx_t *last_cnx = NULL;
     int loop_immediate = 0;
     int pkts_recv;
-    FILE *ptr_rcv;
-    FILE *ptr_send;
-    ptr_rcv = fopen("rcv.txt","w");
-    ptr_send = fopen("send.txt","w");
-
-
 
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
-    
+
     send_msg_ptr = &send_msg_size;
     send_buffer = malloc(send_buffer_size);
     if (send_buffer == NULL)
@@ -559,7 +545,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
 
         pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
-        
+
         current_time = picoquic_current_time();
 
         if (pkts_recv < 0)
@@ -572,10 +558,9 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
 
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
-            {   
+            {
                 receivCounter++;
-                fprintf(ptr_rcv,"%d\n",receivCounter);
-                printf("receivCounter : %d\n",receivCounter);
+                // printf("receivCounter : %d\n",receivCounter);
                 /* access ethernet header of rcv'd pkt */
                 eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
@@ -584,7 +569,7 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
                     src_addr = ip_hdr->src_addr;
-                    dst_addr = ip_hdr->dst_addr;                                               
+                    dst_addr = ip_hdr->dst_addr;
                     src_port = udp_hdr->src_port;
                     dst_port = udp_hdr->dst_port;
 
@@ -613,12 +598,11 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                     {
                         continue;
                     }
-                    
                 }
-                else{
+                else
+                {
                     rte_pktmbuf_free(pkts_burst[i]);
                 }
-                
             }
             if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
@@ -651,11 +635,10 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         }
 
                         src_addr = (*(struct sockaddr_in *)(&local_addr)).sin_addr.s_addr;
-                        dst_addr = (*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr;                                         
+                        dst_addr = (*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr;
                         src_port = (*(struct sockaddr_in *)(&local_addr)).sin_port;
                         dst_port = (*(struct sockaddr_in *)(&peer_addr)).sin_port;
 
-                        
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
@@ -673,35 +656,25 @@ int picoquic_packet_loop(picoquic_quic_t *quic,
                         offset += send_length;
                         m->data_len = offset;
                         m->pkt_len = offset;
-                        int flushed = rte_eth_tx_buffer(0,0,tx_buffer,m);
-                        sendCounter+=flushed;
-                        fprintf(ptr_send,"%d\n",sendCounter);
-                        printf("sendCounter : %d\n",sendCounter);
-                        if(flushed == 0){
+                        int flushed = rte_eth_tx_buffer(0, 0, tx_buffer, m);
+                        sendCounter += flushed;
+                        // printf("sendCounter : %d\n",sendCounter);
+                        if (flushed == 0)
+                        {
                             counter++;
                         }
-                        else if(flushed == 32){
+                        else if (flushed == 32)
+                        {
                             counter = 0;
                         }
-                        if(flushed != 0 && flushed != 32){
-                            printf("some failed transmission\n");
-                            printf("flushed first if : %d\n",flushed);
-                        }
-                        
                     }
 
                     else
                     {
                         int flushed2;
-                        flushed2 = rte_eth_tx_buffer_flush(0,0,tx_buffer);
+                        flushed2 = rte_eth_tx_buffer_flush(0, 0, tx_buffer);
                         sendCounter += flushed2;
-                        fprintf(ptr_send,"%d\n",sendCounter);
-                        printf("sendCounter : %d\n",sendCounter);
-                        if(counter != flushed2){
-                            printf("some failed transmission\n");
-                            printf("counter : %d, flushed2 : %d\n",counter,flushed2);
-                        }
-                        counter = 0;
+                        // printf("sendCounter : %d\n",sendCounter);
                         break;
                     }
                 }
