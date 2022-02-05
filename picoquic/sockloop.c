@@ -583,19 +583,20 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     src_port = udp_hdr->src_port;
                     dst_port = udp_hdr->dst_port;
 
-                    
+                                        
                     char *addr_val = inet_ntoa(*(struct in_addr *)&src_addr);
                     printf("src_addr_received : %s\n",addr_val);
 
                     addr_val = inet_ntoa(*(struct in_addr *)&dst_addr);
                     printf("dst_addr_received : %s\n",addr_val);
 
-                    // (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
-                    // (*(struct sockaddr_in *)(&addr_from)).sin_port = 55;
-                    // (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = 1;
-                    // (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
-                    // (*(struct sockaddr_in *)(&addr_to)).sin_port = 55;
-                    // (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = 1;
+                    (*(struct sockaddr_in *)(&addr_from2)).sin_family = AF_INET;
+                    (*(struct sockaddr_in *)(&addr_from2)).sin_port = src_port;
+                    (*(struct sockaddr_in *)(&addr_from2)).sin_addr.s_addr = src_addr;
+
+                    (*(struct sockaddr_in *)(&addr_to2)).sin_family = AF_INET;
+                    (*(struct sockaddr_in *)(&addr_to2)).sin_port = dst_port;
+                    (*(struct sockaddr_in *)(&addr_to2)).sin_addr.s_addr = dst_addr;
 
                     unsigned char *payload = (unsigned char *)(udp_hdr + 1);
                     rte_be16_t length = udp_hdr->dgram_len;
