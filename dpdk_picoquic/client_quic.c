@@ -514,7 +514,7 @@ int picoquic_sample_client(char const *server_name, int server_port, char const 
     /* Get the server's address */
     (*(struct sockaddr_in *)(&server_address)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&server_address)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("192.169.0.10");
+    (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("198.18.0.2");
 
     /* Create a QUIC context. It could be used for many connections, but in this sample we
      * will use it for just one connection.
@@ -641,16 +641,16 @@ lcore_hello2(__rte_unused void *arg)
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("192.169.0.1");
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.1");
 
     (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("192.169.0.2");
+    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("198.18.0.2");
     char filename[100] = "bible.pdf";
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
-    
+
 
     memcpy(files[0], filename, strlen(filename) + 1);
     picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files,addr_from,addr_to);

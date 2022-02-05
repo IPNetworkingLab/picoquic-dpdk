@@ -427,11 +427,11 @@ lcore_hello(__rte_unused void *arg)
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("192.169.0.2");
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
 
     (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("192.169.0.1");
+    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("198.18.0.1");
 	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",addr_from,addr_to);
    
 }

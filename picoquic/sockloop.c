@@ -576,8 +576,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     dst_addr = ip_hdr->dst_addr;
                     src_port = udp_hdr->src_port;
                     dst_port = udp_hdr->dst_port;
-                    printf("src_addr : %u\n",htonl(src_addr));
-                    printf("dst_addr : %u\n",htonl(dst_addr));
+
+                    
+                    char *addr_val = inet_ntoa(*(struct in_addr *)&src_addr);
+                    printf("src_addr_received : %s\n",addr_val);
+
+                    addr_val = inet_ntoa(*(struct in_addr *)&dst_addr);
+                    printf("dst_addr_received : %s\n",addr_val);
 
                     // (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
                     // (*(struct sockaddr_in *)(&addr_from)).sin_port = 55;
@@ -644,6 +649,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
                         setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,addr_from,addr_to);
+                        //setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
 
                     
                         char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);                        

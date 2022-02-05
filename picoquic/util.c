@@ -1376,6 +1376,13 @@ void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
     dst_addr = (*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr;
     dst_port = (*(struct sockaddr_in *)(&peer_addr)).sin_port;
 
+    char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);                        
+    printf("src_addr : %s\n",src_addr);
+
+    char *dst_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_to)).sin_addr);                        
+    printf("src_addr : %s\n",dst_addr);
+
+
     
 
     /*
@@ -1385,7 +1392,7 @@ void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
     pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_udp_hdr));
     udp_hdr->src_port = src_port;
     udp_hdr->dst_port = dst_port;
-    udp_hdr->dgram_len = pkt_len;
+    udp_hdr->dgram_len = rte_cpu_to_be_16(pkt_len);
     udp_hdr->dgram_cksum = 0; /* No UDP checksum. */
 
     /*
@@ -1398,7 +1405,7 @@ void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
     ip_hdr->time_to_live = IP_DEFTTL;
     ip_hdr->next_proto_id = IPPROTO_UDP;
     ip_hdr->packet_id = 0;
-    ip_hdr->total_length = pkt_len;
+    ip_hdr->total_length = rte_cpu_to_be_16(pkt_len);
     ip_hdr->src_addr = src_addr;
     ip_hdr->dst_addr = dst_addr;
 
