@@ -302,7 +302,13 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     uint16_t *ptr16;
     uint32_t ip_cksum;
     uint16_t pkt_len;
+    
 
+    // printf("====================clean===============\n");
+    // printf("src_adr %u\n",rte_cpu_to_be_32(tx_ip_src_addr));
+    // printf("dst_adr %u\n",rte_cpu_to_be_32(tx_ip_dst_addr));
+    // printf("src_port %zu\n",rte_cpu_to_be_16(tx_udp_src_port));
+    // printf("dst_port %zu\n",rte_cpu_to_be_16(tx_udp_dst_port));
     /*
      * Initialize UDP header.
      */
@@ -649,7 +655,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
                         setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,addr_from,addr_to);
-                        //setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
+                        // setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
 
                     
                         char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);                        

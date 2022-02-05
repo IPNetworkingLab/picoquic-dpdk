@@ -1376,11 +1376,18 @@ void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
     dst_addr = (*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr;
     dst_port = (*(struct sockaddr_in *)(&peer_addr)).sin_port;
 
-    char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);                        
-    printf("src_addr : %s\n",src_addr);
+    // printf("HELLO\n");
+    // printf("====================no-clean===============\n");
+    // printf("src_adr %u\n",src_addr);
+    // printf("dst_adr %u\n",dst_addr);
+    // printf("src_port %zu\n",src_port);
+    // printf("dst_port %zu\n",dst_port);
 
-    char *dst_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_to)).sin_addr);                        
-    printf("src_addr : %s\n",dst_addr);
+    // char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);                        
+    // printf("src_addr : %s\n",src_addr);
+
+    // char *dst_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_to)).sin_addr);                        
+    // printf("src_addr : %s\n",dst_addr);
 
 
     
