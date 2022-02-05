@@ -56,7 +56,6 @@
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
 
-
 #define PICOQUIC_SAMPLE_ALPN "picoquic_sample"
 #define PICOQUIC_SAMPLE_SNI "test.example.com"
 
@@ -72,16 +71,14 @@
 #define PICOQUIC_SAMPLE_CLIENT_QLOG_DIR ".";
 #define PICOQUIC_SAMPLE_SERVER_QLOG_DIR ".";
 
-
-
-
-typedef struct st_sample_client_stream_ctx_t {
-    struct st_sample_client_stream_ctx_t* next_stream;
+typedef struct st_sample_client_stream_ctx_t
+{
+    struct st_sample_client_stream_ctx_t *next_stream;
     size_t file_rank;
     uint64_t stream_id;
     size_t name_length;
     size_t name_sent_length;
-    FILE* F;
+    FILE *F;
     size_t bytes_received;
     uint64_t remote_error;
     unsigned int is_name_sent : 1;
@@ -90,35 +87,40 @@ typedef struct st_sample_client_stream_ctx_t {
     unsigned int is_stream_finished : 1;
 } sample_client_stream_ctx_t;
 
-typedef struct st_sample_client_ctx_t {
-    char const* default_dir;
-    char const** file_names;
-    sample_client_stream_ctx_t* first_stream;
-    sample_client_stream_ctx_t* last_stream;
+typedef struct st_sample_client_ctx_t
+{
+    char const *default_dir;
+    char const **file_names;
+    sample_client_stream_ctx_t *first_stream;
+    sample_client_stream_ctx_t *last_stream;
     int nb_files;
     int nb_files_received;
     int nb_files_failed;
     int is_disconnected;
 } sample_client_ctx_t;
 
-static int sample_client_create_stream(picoquic_cnx_t* cnx,
-    sample_client_ctx_t* client_ctx, int file_rank)
+static int sample_client_create_stream(picoquic_cnx_t *cnx,
+                                       sample_client_ctx_t *client_ctx, int file_rank)
 {
     int ret = 0;
-    sample_client_stream_ctx_t* stream_ctx = (sample_client_stream_ctx_t*)
+    sample_client_stream_ctx_t *stream_ctx = (sample_client_stream_ctx_t *)
         malloc(sizeof(sample_client_stream_ctx_t));
 
-    if (stream_ctx == NULL) {
+    if (stream_ctx == NULL)
+    {
         fprintf(stdout, "Memory Error, cannot create stream for file number %d\n", (int)file_rank);
         ret = -1;
     }
-    else {
+    else
+    {
         memset(stream_ctx, 0, sizeof(sample_client_stream_ctx_t));
-        if (client_ctx->first_stream == NULL) {
+        if (client_ctx->first_stream == NULL)
+        {
             client_ctx->first_stream = stream_ctx;
             client_ctx->last_stream = stream_ctx;
         }
-        else {
+        else
+        {
             client_ctx->last_stream->next_stream = stream_ctx;
             client_ctx->last_stream = stream_ctx;
         }
@@ -126,13 +128,15 @@ static int sample_client_create_stream(picoquic_cnx_t* cnx,
         stream_ctx->stream_id = (uint64_t)4 * file_rank;
         stream_ctx->name_length = strlen(client_ctx->file_names[file_rank]);
 
-        /* Mark the stream as active. The callback will be asked to provide data when 
+        /* Mark the stream as active. The callback will be asked to provide data when
          * the connection is ready. */
         ret = picoquic_mark_active_stream(cnx, stream_ctx->stream_id, 1, stream_ctx);
-        if (ret != 0) {
+        if (ret != 0)
+        {
             fprintf(stdout, "Error %d, cannot initialize stream for file number %d\n", ret, (int)file_rank);
         }
-        else {
+        else
+        {
             printf("Opened stream %d for file %s\n", 4 * file_rank, client_ctx->file_names[file_rank]);
         }
     }
@@ -140,25 +144,31 @@ static int sample_client_create_stream(picoquic_cnx_t* cnx,
     return ret;
 }
 
-static void sample_client_report(sample_client_ctx_t* client_ctx)
+static void sample_client_report(sample_client_ctx_t *client_ctx)
 {
-    sample_client_stream_ctx_t* stream_ctx = client_ctx->first_stream;
+    sample_client_stream_ctx_t *stream_ctx = client_ctx->first_stream;
 
-    while (stream_ctx != NULL) {
-        char const* status;
-        if (stream_ctx->is_stream_finished) {
+    while (stream_ctx != NULL)
+    {
+        char const *status;
+        if (stream_ctx->is_stream_finished)
+        {
             status = "complete";
         }
-        else if (stream_ctx->is_stream_reset) {
+        else if (stream_ctx->is_stream_reset)
+        {
             status = "reset";
         }
-        else {
+        else
+        {
             status = "unknown status";
         }
         printf("%s: %s, received %zu bytes", client_ctx->file_names[stream_ctx->file_rank], status, stream_ctx->bytes_received);
-        if (stream_ctx->is_stream_reset && stream_ctx->remote_error != PICOQUIC_SAMPLE_NO_ERROR){
-            char const* error_text = "unknown error";
-            switch (stream_ctx->remote_error) {
+        if (stream_ctx->is_stream_reset && stream_ctx->remote_error != PICOQUIC_SAMPLE_NO_ERROR)
+        {
+            char const *error_text = "unknown error";
+            switch (stream_ctx->remote_error)
+            {
             case PICOQUIC_SAMPLE_INTERNAL_ERROR:
                 error_text = "internal error";
                 break;
@@ -184,13 +194,15 @@ static void sample_client_report(sample_client_ctx_t* client_ctx)
     }
 }
 
-static void sample_client_free_context(sample_client_ctx_t* client_ctx)
+static void sample_client_free_context(sample_client_ctx_t *client_ctx)
 {
-    sample_client_stream_ctx_t* stream_ctx;
+    sample_client_stream_ctx_t *stream_ctx;
 
-    while ((stream_ctx = client_ctx->first_stream) != NULL) {
+    while ((stream_ctx = client_ctx->first_stream) != NULL)
+    {
         client_ctx->first_stream = stream_ctx->next_stream;
-        if (stream_ctx->F != NULL) {
+        if (stream_ctx->F != NULL)
+        {
             (void)picoquic_file_close(stream_ctx->F);
         }
         free(stream_ctx);
@@ -198,43 +210,49 @@ static void sample_client_free_context(sample_client_ctx_t* client_ctx)
     client_ctx->last_stream = NULL;
 }
 
-
-int sample_client_callback(picoquic_cnx_t* cnx,
-    uint64_t stream_id, uint8_t* bytes, size_t length,
-    picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx)
+int sample_client_callback(picoquic_cnx_t *cnx,
+                           uint64_t stream_id, uint8_t *bytes, size_t length,
+                           picoquic_call_back_event_t fin_or_event, void *callback_ctx, void *v_stream_ctx)
 {
     int ret = 0;
-    sample_client_ctx_t* client_ctx = (sample_client_ctx_t*)callback_ctx;
-    sample_client_stream_ctx_t* stream_ctx = (sample_client_stream_ctx_t*)v_stream_ctx;
+    sample_client_ctx_t *client_ctx = (sample_client_ctx_t *)callback_ctx;
+    sample_client_stream_ctx_t *stream_ctx = (sample_client_stream_ctx_t *)v_stream_ctx;
 
-    if (client_ctx == NULL) {
-        /* This should never happen, because the callback context for the client is initialized 
+    if (client_ctx == NULL)
+    {
+        /* This should never happen, because the callback context for the client is initialized
          * when creating the client connection. */
         return -1;
     }
 
-    if (ret == 0) {
+    if (ret == 0)
+    {
         // printf("inside ret == 0\n");
-        switch (fin_or_event) {
+        switch (fin_or_event)
+        {
         case picoquic_callback_stream_data:
         case picoquic_callback_stream_fin:
             /* Data arrival on stream #x, maybe with fin mark */
-            if (stream_ctx == NULL) {
+            if (stream_ctx == NULL)
+            {
                 /* This is unexpected, as all contexts were declared when initializing the
                  * connection. */
                 return -1;
             }
-            else if (!stream_ctx->is_name_sent) {
+            else if (!stream_ctx->is_name_sent)
+            {
                 /* Unexpected: should not receive data before sending the file name to the server */
                 return -1;
             }
-            else if (stream_ctx->is_stream_reset || stream_ctx->is_stream_finished) {
+            else if (stream_ctx->is_stream_reset || stream_ctx->is_stream_finished)
+            {
                 /* Unexpected: receive after fin */
                 return -1;
             }
             else
             {
-                if (stream_ctx->F == NULL) {
+                if (stream_ctx->F == NULL)
+                {
                     /* Open the file to receive the data. This is done at the last possible moment,
                      * to minimize the number of files open simultaneously.
                      * When formatting the file_path, verify that the directory name is zero-length,
@@ -245,25 +263,31 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                     size_t dir_len = strlen(client_ctx->default_dir);
                     size_t file_name_len = strlen(client_ctx->file_names[stream_ctx->file_rank]);
 
-                    if (dir_len > 0 && dir_len < sizeof(file_path)) {
+                    if (dir_len > 0 && dir_len < sizeof(file_path))
+                    {
                         memcpy(file_path, client_ctx->default_dir, dir_len);
-                        if (file_path[dir_len - 1] != PICOQUIC_FILE_SEPARATOR[0]) {
+                        if (file_path[dir_len - 1] != PICOQUIC_FILE_SEPARATOR[0])
+                        {
                             file_path[dir_len] = PICOQUIC_FILE_SEPARATOR[0];
                             dir_len++;
                         }
                     }
 
-                    if (dir_len + file_name_len + 1 >= sizeof(file_path)) {
+                    if (dir_len + file_name_len + 1 >= sizeof(file_path))
+                    {
                         /* Unexpected: could not format the file name */
                         fprintf(stderr, "Could not format the file path.\n");
                         ret = -1;
-                    } else {
+                    }
+                    else
+                    {
                         memcpy(file_path + dir_len, client_ctx->file_names[stream_ctx->file_rank],
-                            file_name_len);
+                               file_name_len);
                         file_path[dir_len + file_name_len] = 0;
                         stream_ctx->F = picoquic_file_open(file_path, "wb");
 
-                        if (stream_ctx->F == NULL) {
+                        if (stream_ctx->F == NULL)
+                        {
                             /* Could not open the file */
                             fprintf(stderr, "Could not open the file: %s\n", file_path);
                             ret = -1;
@@ -271,24 +295,29 @@ int sample_client_callback(picoquic_cnx_t* cnx,
                     }
                 }
 
-                if (ret == 0 && length > 0) {
+                if (ret == 0 && length > 0)
+                {
                     /* write the received bytes to the file */
-                    if (fwrite(bytes, length, 1, stream_ctx->F) != 1) {
+                    if (fwrite(bytes, length, 1, stream_ctx->F) != 1)
+                    {
                         /* Could not write file to disk */
                         fprintf(stderr, "Could not write data to disk.\n");
                         ret = -1;
                     }
-                    else {
+                    else
+                    {
                         stream_ctx->bytes_received += length;
                     }
                 }
 
-                if (ret == 0 && fin_or_event == picoquic_callback_stream_fin) {
+                if (ret == 0 && fin_or_event == picoquic_callback_stream_fin)
+                {
                     stream_ctx->F = picoquic_file_close(stream_ctx->F);
                     stream_ctx->is_stream_finished = 1;
                     client_ctx->nb_files_received++;
 
-                    if ((client_ctx->nb_files_received + client_ctx->nb_files_failed) >= client_ctx->nb_files) {
+                    if ((client_ctx->nb_files_received + client_ctx->nb_files_failed) >= client_ctx->nb_files)
+                    {
                         /* everything is done, close the connection */
                         ret = picoquic_close(cnx, 0);
                     }
@@ -300,21 +329,25 @@ int sample_client_callback(picoquic_cnx_t* cnx,
             picoquic_reset_stream(cnx, stream_id, 0);
             /* Fall through */
         case picoquic_callback_stream_reset: /* Server reset stream #x */
-            if (stream_ctx == NULL) {
+            if (stream_ctx == NULL)
+            {
                 /* This is unexpected, as all contexts were declared when initializing the
                  * connection. */
                 return -1;
             }
-            else if (stream_ctx->is_stream_reset || stream_ctx->is_stream_finished) {
+            else if (stream_ctx->is_stream_reset || stream_ctx->is_stream_finished)
+            {
                 /* Unexpected: receive after fin */
                 return -1;
             }
-            else {
+            else
+            {
                 stream_ctx->remote_error = picoquic_get_remote_stream_error(cnx, stream_id);
                 stream_ctx->is_stream_reset = 1;
                 client_ctx->nb_files_failed++;
 
-                if ((client_ctx->nb_files_received + client_ctx->nb_files_failed) >= client_ctx->nb_files) {
+                if ((client_ctx->nb_files_received + client_ctx->nb_files_failed) >= client_ctx->nb_files)
+                {
                     /* everything is done, close the connection */
                     fprintf(stdout, "All done, closing the connection.\n");
                     ret = picoquic_close(cnx, 0);
@@ -322,7 +355,7 @@ int sample_client_callback(picoquic_cnx_t* cnx,
             }
             break;
         case picoquic_callback_stateless_reset:
-        case picoquic_callback_close: /* Received connection close */
+        case picoquic_callback_close:             /* Received connection close */
         case picoquic_callback_application_close: /* Received application close */
             fprintf(stdout, "Connection closed.\n");
             /* Mark the connection as completed */
@@ -335,9 +368,11 @@ int sample_client_callback(picoquic_cnx_t* cnx,
              * TODO: some form of negotiation?
              */
             fprintf(stdout, "Received a version negotiation request:");
-            for (size_t byte_index = 0; byte_index + 4 <= length; byte_index += 4) {
+            for (size_t byte_index = 0; byte_index + 4 <= length; byte_index += 4)
+            {
                 uint32_t vn = 0;
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 4; i++)
+                {
                     vn <<= 8;
                     vn += bytes[byte_index + i];
                 }
@@ -350,34 +385,41 @@ int sample_client_callback(picoquic_cnx_t* cnx,
             break;
         case picoquic_callback_prepare_to_send:
             /* Active sending API */
-            if (stream_ctx == NULL) {
+            if (stream_ctx == NULL)
+            {
                 /* Decidedly unexpected */
                 return -1;
-            } else if (stream_ctx->name_sent_length < stream_ctx->name_length){
-                uint8_t* buffer;
+            }
+            else if (stream_ctx->name_sent_length < stream_ctx->name_length)
+            {
+                uint8_t *buffer;
                 size_t available = stream_ctx->name_length - stream_ctx->name_sent_length;
                 int is_fin = 1;
 
                 /* The length parameter marks the space available in the packet */
-                if (available > length) {
+                if (available > length)
+                {
                     available = length;
                     is_fin = 0;
                 }
-                /* Needs to retrieve a pointer to the actual buffer 
-                 * the "bytes" parameter points to the sending context 
+                /* Needs to retrieve a pointer to the actual buffer
+                 * the "bytes" parameter points to the sending context
                  */
                 buffer = picoquic_provide_stream_data_buffer(bytes, available, is_fin, !is_fin);
-                if (buffer != NULL) {
-                    char const* filename = client_ctx->file_names[stream_ctx->file_rank];
+                if (buffer != NULL)
+                {
+                    char const *filename = client_ctx->file_names[stream_ctx->file_rank];
                     memcpy(buffer, filename + stream_ctx->name_sent_length, available);
                     stream_ctx->name_sent_length += available;
                     stream_ctx->is_name_sent = is_fin;
                 }
-                else {
+                else
+                {
                     ret = -1;
                 }
             }
-            else {
+            else
+            {
                 /* Nothing to send, just return */
             }
             break;
@@ -404,24 +446,28 @@ int sample_client_callback(picoquic_cnx_t* cnx,
  * when the connection is complete.
  */
 
-static int sample_client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode, 
-    void* callback_ctx, void * callback_arg)
+static int sample_client_loop_cb(picoquic_quic_t *quic, picoquic_packet_loop_cb_enum cb_mode,
+                                 void *callback_ctx, void *callback_arg)
 {
     int ret = 0;
-    sample_client_ctx_t* cb_ctx = (sample_client_ctx_t*)callback_ctx;
+    sample_client_ctx_t *cb_ctx = (sample_client_ctx_t *)callback_ctx;
 
-    if (cb_ctx == NULL) {
+    if (cb_ctx == NULL)
+    {
         ret = PICOQUIC_ERROR_UNEXPECTED_ERROR;
     }
-    else {
-        switch (cb_mode) {
+    else
+    {
+        switch (cb_mode)
+        {
         case picoquic_packet_loop_ready:
             fprintf(stdout, "Waiting for packets.\n");
             break;
         case picoquic_packet_loop_after_receive:
             break;
         case picoquic_packet_loop_after_send:
-            if (cb_ctx->is_disconnected) {
+            if (cb_ctx->is_disconnected)
+            {
                 ret = PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP;
             }
             break;
@@ -449,44 +495,50 @@ static int sample_client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_
  * - The loop breaks if the client connection is finished.
  */
 
-int picoquic_sample_client(char const * server_name, int server_port, char const * default_dir,
-    int nb_files, char const ** file_names)
+int picoquic_sample_client(char const *server_name, int server_port, char const *default_dir,
+                           int nb_files, char const **file_names, 
+                           struct sockaddr_storage addr_from, 
+                           struct sockaddr_storage addr_to)
 {
     int ret = 0;
     struct sockaddr_storage server_address;
-    char const* sni = PICOQUIC_SAMPLE_SNI;
-    picoquic_quic_t* quic = NULL;
-    char const* ticket_store_filename = PICOQUIC_SAMPLE_CLIENT_TICKET_STORE;
-    char const* token_store_filename = PICOQUIC_SAMPLE_CLIENT_TOKEN_STORE;
-    char const* qlog_dir = PICOQUIC_SAMPLE_CLIENT_QLOG_DIR;
-    sample_client_ctx_t client_ctx = { 0 };
-    picoquic_cnx_t* cnx = NULL;
+    char const *sni = PICOQUIC_SAMPLE_SNI;
+    picoquic_quic_t *quic = NULL;
+    char const *ticket_store_filename = PICOQUIC_SAMPLE_CLIENT_TICKET_STORE;
+    char const *token_store_filename = PICOQUIC_SAMPLE_CLIENT_TOKEN_STORE;
+    char const *qlog_dir = PICOQUIC_SAMPLE_CLIENT_QLOG_DIR;
+    sample_client_ctx_t client_ctx = {0};
+    picoquic_cnx_t *cnx = NULL;
     uint64_t current_time = picoquic_current_time();
 
     /* Get the server's address */
     (*(struct sockaddr_in *)(&server_address)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&server_address)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("10.0.0.0");
+    (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("192.169.0.10");
 
     /* Create a QUIC context. It could be used for many connections, but in this sample we
-     * will use it for just one connection. 
+     * will use it for just one connection.
      * The sample code exercises just a small subset of the QUIC context configuration options:
      * - use files to store tickets and tokens in order to manage retry and 0-RTT
      * - set the congestion control algorithm to BBR
      * - enable logging of encryption keys for wireshark debugging.
      * - instantiate a binary log option, and log all packets.
      */
-    if (ret == 0) {
+    if (ret == 0)
+    {
         quic = picoquic_create(1, NULL, NULL, NULL, PICOQUIC_SAMPLE_ALPN, NULL, NULL,
-            NULL, NULL, NULL, current_time, NULL,
-            ticket_store_filename, NULL, 0);
+                               NULL, NULL, NULL, current_time, NULL,
+                               ticket_store_filename, NULL, 0);
 
-        if (quic == NULL) {
+        if (quic == NULL)
+        {
             fprintf(stderr, "Could not create quic context\n");
             ret = -1;
         }
-        else {
-            if (picoquic_load_retry_tokens(quic, token_store_filename) != 0) {
+        else
+        {
+            if (picoquic_load_retry_tokens(quic, token_store_filename) != 0)
+            {
                 fprintf(stderr, "No token file present. Will create one as <%s>.\n", token_store_filename);
             }
 
@@ -503,7 +555,8 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
      * parameter values set by default for picoquic. This could be fixed later.
      */
 
-    if (ret == 0) {
+    if (ret == 0)
+    {
         client_ctx.default_dir = default_dir;
         client_ctx.file_names = file_names;
         client_ctx.nb_files = nb_files;
@@ -512,25 +565,31 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
 
         /* Create a client connection */
         cnx = picoquic_create_cnx(quic, picoquic_null_connection_id, picoquic_null_connection_id,
-            (struct sockaddr*) & server_address, current_time, 0, sni, PICOQUIC_SAMPLE_ALPN, 1);
+                                  (struct sockaddr *)&server_address, current_time, 0, sni, PICOQUIC_SAMPLE_ALPN, 1);
 
-        if (cnx == NULL) {
+        if (cnx == NULL)
+        {
             fprintf(stderr, "Could not create connection context\n");
             ret = -1;
         }
-        else {
+        else
+        {
 
             /* Set the client callback context */
             picoquic_set_callback(cnx, sample_client_callback, &client_ctx);
             /* Client connection parameters could be set here, before starting the connection. */
             ret = picoquic_start_client_cnx(cnx);
-            if (ret < 0) {
+            if (ret < 0)
+            {
                 fprintf(stderr, "Could not activate connection\n");
-            } else {
+            }
+            else
+            {
                 /* Printing out the initial CID, which is used to identify log files */
                 picoquic_connection_id_t icid = picoquic_get_initial_cnxid(cnx);
                 printf("Initial connection ID: ");
-                for (uint8_t i = 0; i < icid.id_len; i++) {
+                for (uint8_t i = 0; i < icid.id_len; i++)
+                {
                     printf("%02x", icid.id[i]);
                 }
                 printf("\n");
@@ -538,26 +597,32 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
         }
 
         /* Create a stream context for all the files that should be downloaded */
-        for (int i = 0; ret == 0 && i < client_ctx.nb_files; i++) {
+        for (int i = 0; ret == 0 && i < client_ctx.nb_files; i++)
+        {
             ret = sample_client_create_stream(cnx, &client_ctx, i);
-            if (ret < 0) {
+            if (ret < 0)
+            {
                 fprintf(stderr, "Could not initiate stream for fi\n");
             }
         }
     }
 
     /* Wait for packets */
-    ret = picoquic_packet_loop(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx);
+
+    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx,addr_from,addr_to);
 
     /* Done. At this stage, we could print out statistics, etc. */
     sample_client_report(&client_ctx);
 
     /* Save tickets and tokens, and free the QUIC context */
-    if (quic != NULL) {
-        if (picoquic_save_session_tickets(quic, ticket_store_filename) != 0) {
+    if (quic != NULL)
+    {
+        if (picoquic_save_session_tickets(quic, ticket_store_filename) != 0)
+        {
             fprintf(stderr, "Could not store the saved session tickets.\n");
         }
-        if (picoquic_save_retry_tokens(quic, token_store_filename) != 0) {
+        if (picoquic_save_retry_tokens(quic, token_store_filename) != 0)
+        {
             fprintf(stderr, "Could not save tokens to <%s>.\n", token_store_filename);
         }
         picoquic_free(quic);
@@ -570,33 +635,45 @@ int picoquic_sample_client(char const * server_name, int server_port, char const
 }
 static int
 lcore_hello2(__rte_unused void *arg)
-{   
-    char filename[100] = "1GB.bin";
+{
+    struct sockaddr_storage addr_from;
+    struct sockaddr_storage addr_to;
+
+    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
+    (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("192.169.0.1");
+
+    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
+    (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
+    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("192.169.0.2");
+    char filename[100] = "bible.pdf";
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
-    memcpy(files[0], filename, strlen(filename) + 1);
-    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files);
 
+    
+
+    memcpy(files[0], filename, strlen(filename) + 1);
+    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files,addr_from,addr_to);
 }
 int main(int argc, char **argv)
 {
 
-	int ret;
-	ret = rte_eal_init(argc, argv);
-	if (ret < 0)
-		rte_panic("Cannot init EAL\n");
-	/* call lcore_hello() on every worker lcore */
-	// RTE_LCORE_FOREACH_WORKER(lcore_id)
-	// {
-	// 	rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
-	// }
+    int ret;
+    ret = rte_eal_init(argc, argv);
+    if (ret < 0)
+        rte_panic("Cannot init EAL\n");
+    /* call lcore_hello() on every worker lcore */
+    // RTE_LCORE_FOREACH_WORKER(lcore_id)
+    // {
+    // 	rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+    // }
 
-	/* call it on main lcore too */
-	lcore_hello2(NULL);
-	rte_eal_mp_wait_lcore();
+    /* call it on main lcore too */
+    lcore_hello2(NULL);
+    rte_eal_mp_wait_lcore();
 
-	/* clean up the EAL */
-	rte_eal_cleanup();
+    /* clean up the EAL */
+    rte_eal_cleanup();
 
-	return 0;
+    return 0;
 }

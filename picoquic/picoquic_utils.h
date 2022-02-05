@@ -344,6 +344,9 @@ typedef struct st_picoquic_event_t
 //DPDK
 void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
                               struct rte_udp_hdr *udp_hdr,
-                              uint16_t pkt_data_len, rte_be32_t tx_ip_src_addr, rte_be32_t tx_ip_dst_addr, rte_be16_t tx_udp_src_port, rte_be16_t tx_udp_dst_port);
+                              uint16_t pkt_data_len,
+                              struct sockaddr_storage local_addr,
+                              struct sockaddr_storage peer_addr);
+
 
 void copy_buf_to_pkt(void *buf, unsigned len, struct rte_mbuf *pkt, unsigned offset);
