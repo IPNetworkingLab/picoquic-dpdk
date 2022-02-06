@@ -633,14 +633,23 @@ int picoquic_sample_client(char const *server_name, int server_port, char const 
     return ret;
 }
 static int
-lcore_hello2(__rte_unused void *arg)
+lcore_hello(__rte_unused void *arg)
 {
+
+    unsigned lcore_id;
+	lcore_id = rte_lcore_id();
+
+    char c = lcore_id;
+    printf("mychar : %c\n",c);
     struct sockaddr_storage addr_from;
     struct sockaddr_storage addr_to;
 
+    char str_addr[20] = "198.18.0.1";
+    str_addr[7] = rte_lcore_id();
+
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.1");
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(str_addr);
 
     char filename[100] = "bible.pdf";
     char **files = (char **)malloc(1 * sizeof(char *));
@@ -650,6 +659,94 @@ lcore_hello2(__rte_unused void *arg)
     memcpy(files[0], filename, strlen(filename) + 1);
     picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files,addr_from);
 }
+
+
+int init_port(uint16_t nb_of_queues){
+
+    int portid = 0;
+    static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
+    static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
+    struct rte_eth_rxconf rxq_conf;
+    struct rte_eth_txconf txq_conf;
+
+    static struct rte_ether_addr eth_addr;
+    struct rte_eth_dev_info dev_info;
+
+    static struct rte_eth_conf port_conf = {
+        .rxmode = {
+            .split_hdr_size = 0,
+        },
+        .txmode = {
+            .mq_mode = ETH_MQ_TX_NONE,
+        },
+    };
+
+    unsigned lcore_id = rte_lcore_id();
+    
+    printf("after init\n");
+    ret = rte_eth_dev_info_get(0, &dev_info);
+    if (ret != 0)
+        rte_exit(EXIT_FAILURE,
+                 "Error during getting device (port %u) info: %s\n",
+                 0, strerror(-ret));
+
+    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+        local_port_conf.txmode.offloads |=
+            DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+    ret = rte_eth_dev_configure(portid, nb_of_queues, nb_of_queues, &port_conf);
+    if (ret != 0)
+    {
+        printf("error in dev_configure\n");
+        return 0;
+    }
+
+    ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
+                                           &nb_txd);
+    if (ret < 0)
+        rte_exit(EXIT_FAILURE,
+                 "Cannot adjust number of descriptors: err=%d, port=%u\n",
+                 ret, portid);
+
+    // init tx queue
+    txq_conf = dev_info.default_txconf;
+    txq_conf.offloads = local_port_conf.txmode.offloads;
+    ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
+                                 rte_eth_dev_socket_id(portid),
+                                 &txq_conf);
+    if (ret != 0)
+    {
+        printf("failed to init queue\n");
+        return 0;
+    }
+    ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST);
+    if (ret != 0)
+    {
+        printf("error in buffer_init\n");
+        return 0;
+    }
+    // init rx queue
+    rxq_conf = dev_info.default_rxconf;
+    rxq_conf.offloads = local_port_conf.rxmode.offloads;
+    ret = rte_eth_rx_queue_setup(0, 0, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pool);
+    if (ret != 0)
+    {
+        printf("failed to init rx_queue\n");
+    }
+
+    ret = rte_eth_dev_start(0);
+    if (ret != 0)
+    {
+        printf("failed to start device\n");
+    }
+    ret = rte_eth_promiscuous_enable(portid);
+    if (ret != 0)
+        rte_exit(EXIT_FAILURE,
+                 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
+                 rte_strerror(-ret), portid);
+    printf("after dpdk setup\n");
+}
+
+ 
 int main(int argc, char **argv)
 {
 
@@ -658,13 +755,16 @@ int main(int argc, char **argv)
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
     /* call lcore_hello() on every worker lcore */
-    // RTE_LCORE_FOREACH_WORKER(lcore_id)
-    // {
-    // 	rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
-    // }
+    unsigned lcore_id;
+	lcore_id = rte_lcore_id();
+    init_port(lcore_id);
+    RTE_LCORE_FOREACH_WORKER(lcore_id)
+    {
+    	rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+    }
 
     /* call it on main lcore too */
-    lcore_hello2(NULL);
+    lcore_hello(NULL);
     rte_eal_mp_wait_lcore();
 
     /* clean up the EAL */

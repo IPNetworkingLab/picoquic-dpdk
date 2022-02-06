@@ -422,7 +422,7 @@ static int
 lcore_hello(__rte_unused void *arg)
 {
     struct sockaddr_storage addr_from;
-
+    
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");

@@ -418,7 +418,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     mbuf_pool_name[10] = '\0';
 
     unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
-    mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
+    mb_pool = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
                                       MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
                                       rte_socket_id());
     if (mb_pool == NULL)
