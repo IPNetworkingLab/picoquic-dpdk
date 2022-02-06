@@ -37,14 +37,10 @@
 #include <picoquic_packet_loop.h>
 #include <autoqlog.h>
 
-
-
-
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
-
 
 #define PICOQUIC_SAMPLE_ALPN "picoquic_sample"
 #define PICOQUIC_SAMPLE_SNI "test.example.com"
@@ -61,11 +57,12 @@
 #define PICOQUIC_SAMPLE_CLIENT_QLOG_DIR ".";
 #define PICOQUIC_SAMPLE_SERVER_QLOG_DIR ".";
 
-typedef struct st_sample_server_stream_ctx_t {
-    struct st_sample_server_stream_ctx_t* next_stream;
-    struct st_sample_server_stream_ctx_t* previous_stream;
+typedef struct st_sample_server_stream_ctx_t
+{
+    struct st_sample_server_stream_ctx_t *next_stream;
+    struct st_sample_server_stream_ctx_t *previous_stream;
     uint64_t stream_id;
-    FILE* F;
+    FILE *F;
     uint8_t file_name[256];
     size_t name_length;
     size_t file_length;
@@ -75,25 +72,32 @@ typedef struct st_sample_server_stream_ctx_t {
     unsigned int is_stream_finished : 1;
 } sample_server_stream_ctx_t;
 
-typedef struct st_sample_server_ctx_t {
-    char const* default_dir;
+typedef struct st_sample_server_ctx_t
+{
+    char const *default_dir;
     size_t default_dir_len;
-    sample_server_stream_ctx_t* first_stream;
-    sample_server_stream_ctx_t* last_stream;
+    sample_server_stream_ctx_t *first_stream;
+    sample_server_stream_ctx_t *last_stream;
 } sample_server_ctx_t;
 
-sample_server_stream_ctx_t * sample_server_create_stream_context(sample_server_ctx_t* server_ctx, uint64_t stream_id)
-{
-    sample_server_stream_ctx_t* stream_ctx = (sample_server_stream_ctx_t*)malloc(sizeof(sample_server_stream_ctx_t));
+struct rte_mempool *mb_pools[10];
+struct rte_eth_dev_tx_buffer *tx_buffers[10];
 
-    if (stream_ctx != NULL) {
+sample_server_stream_ctx_t *sample_server_create_stream_context(sample_server_ctx_t *server_ctx, uint64_t stream_id)
+{
+    sample_server_stream_ctx_t *stream_ctx = (sample_server_stream_ctx_t *)malloc(sizeof(sample_server_stream_ctx_t));
+
+    if (stream_ctx != NULL)
+    {
         memset(stream_ctx, 0, sizeof(sample_server_stream_ctx_t));
 
-        if (server_ctx->last_stream == NULL) {
+        if (server_ctx->last_stream == NULL)
+        {
             server_ctx->last_stream = stream_ctx;
             server_ctx->first_stream = stream_ctx;
         }
-        else {
+        else
+        {
             stream_ctx->previous_stream = server_ctx->last_stream;
             server_ctx->last_stream->next_stream = stream_ctx;
             server_ctx->last_stream = stream_ctx;
@@ -104,7 +108,7 @@ sample_server_stream_ctx_t * sample_server_create_stream_context(sample_server_c
     return stream_ctx;
 }
 
-int sample_server_open_stream(sample_server_ctx_t* server_ctx, sample_server_stream_ctx_t* stream_ctx)
+int sample_server_open_stream(sample_server_ctx_t *server_ctx, sample_server_stream_ctx_t *stream_ctx)
 {
     int ret = 0;
     char file_path[1024];
@@ -113,16 +117,20 @@ int sample_server_open_stream(sample_server_ctx_t* server_ctx, sample_server_str
     stream_ctx->is_name_read = 1;
 
     /* Verify the name, then try to open the file */
-    if (server_ctx->default_dir_len + stream_ctx->name_length + 1 > sizeof(file_path)) {
+    if (server_ctx->default_dir_len + stream_ctx->name_length + 1 > sizeof(file_path))
+    {
         ret = PICOQUIC_SAMPLE_NAME_TOO_LONG_ERROR;
     }
-    else {
+    else
+    {
         /* Verify that the default path is empty of terminates with "/" or "\" depending on OS,
          * and format the file path */
         size_t dir_len = server_ctx->default_dir_len;
-        if (dir_len > 0) {
+        if (dir_len > 0)
+        {
             memcpy(file_path, server_ctx->default_dir, dir_len);
-            if (file_path[dir_len - 1] != PICOQUIC_FILE_SEPARATOR[0]) {
+            if (file_path[dir_len - 1] != PICOQUIC_FILE_SEPARATOR[0])
+            {
                 file_path[dir_len] = PICOQUIC_FILE_SEPARATOR[0];
                 dir_len++;
             }
@@ -133,20 +141,24 @@ int sample_server_open_stream(sample_server_ctx_t* server_ctx, sample_server_str
         /* Use the picoquic_file_open API for portability to Windows and Linux */
         stream_ctx->F = picoquic_file_open(file_path, "rb");
 
-        if (stream_ctx->F == NULL) {
+        if (stream_ctx->F == NULL)
+        {
             ret = PICOQUIC_SAMPLE_NO_SUCH_FILE_ERROR;
         }
-        else {
+        else
+        {
             /* Assess the file size, as this is useful for data planning */
             long sz;
             fseek(stream_ctx->F, 0, SEEK_END);
             sz = ftell(stream_ctx->F);
 
-            if (sz <= 0) {
+            if (sz <= 0)
+            {
                 stream_ctx->F = picoquic_file_close(stream_ctx->F);
                 ret = PICOQUIC_SAMPLE_FILE_READ_ERROR;
             }
-            else {
+            else
+            {
                 stream_ctx->file_length = (size_t)sz;
                 fseek(stream_ctx->F, 0, SEEK_SET);
                 ret = 0;
@@ -157,25 +169,30 @@ int sample_server_open_stream(sample_server_ctx_t* server_ctx, sample_server_str
     return ret;
 }
 
-void sample_server_delete_stream_context(sample_server_ctx_t* server_ctx, sample_server_stream_ctx_t* stream_ctx)
+void sample_server_delete_stream_context(sample_server_ctx_t *server_ctx, sample_server_stream_ctx_t *stream_ctx)
 {
     /* Close the file if it was open */
-    if (stream_ctx->F != NULL) {
+    if (stream_ctx->F != NULL)
+    {
         stream_ctx->F = picoquic_file_close(stream_ctx->F);
     }
 
     /* Remove the context from the server's list */
-    if (stream_ctx->previous_stream == NULL) {
+    if (stream_ctx->previous_stream == NULL)
+    {
         server_ctx->first_stream = stream_ctx->next_stream;
     }
-    else {
+    else
+    {
         stream_ctx->previous_stream->next_stream = stream_ctx->next_stream;
     }
 
-    if (stream_ctx->next_stream == NULL) {
+    if (stream_ctx->next_stream == NULL)
+    {
         server_ctx->last_stream = stream_ctx->previous_stream;
     }
-    else {
+    else
+    {
         stream_ctx->next_stream->previous_stream = stream_ctx->previous_stream;
     }
 
@@ -183,10 +200,11 @@ void sample_server_delete_stream_context(sample_server_ctx_t* server_ctx, sample
     free(stream_ctx);
 }
 
-void sample_server_delete_context(sample_server_ctx_t* server_ctx)
+void sample_server_delete_context(sample_server_ctx_t *server_ctx)
 {
     /* Delete any remaining stream context */
-    while (server_ctx->first_stream != NULL) {
+    while (server_ctx->first_stream != NULL)
+    {
         sample_server_delete_stream_context(server_ctx, server_ctx->first_stream);
     }
 
@@ -194,31 +212,36 @@ void sample_server_delete_context(sample_server_ctx_t* server_ctx)
     free(server_ctx);
 }
 
-int sample_server_callback(picoquic_cnx_t* cnx,
-    uint64_t stream_id, uint8_t* bytes, size_t length,
-    picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx)
+int sample_server_callback(picoquic_cnx_t *cnx,
+                           uint64_t stream_id, uint8_t *bytes, size_t length,
+                           picoquic_call_back_event_t fin_or_event, void *callback_ctx, void *v_stream_ctx)
 {
     int ret = 0;
-    sample_server_ctx_t* server_ctx = (sample_server_ctx_t*)callback_ctx;
-    sample_server_stream_ctx_t* stream_ctx = (sample_server_stream_ctx_t*)v_stream_ctx;
+    sample_server_ctx_t *server_ctx = (sample_server_ctx_t *)callback_ctx;
+    sample_server_stream_ctx_t *stream_ctx = (sample_server_stream_ctx_t *)v_stream_ctx;
 
     /* If this is the first reference to the connection, the application context is set
      * to the default value defined for the server. This default value contains the pointer
      * to the file directory in which all files are defined.
      */
-    if (callback_ctx == NULL || callback_ctx == picoquic_get_default_callback_context(picoquic_get_quic_ctx(cnx))) {
+    if (callback_ctx == NULL || callback_ctx == picoquic_get_default_callback_context(picoquic_get_quic_ctx(cnx)))
+    {
         server_ctx = (sample_server_ctx_t *)malloc(sizeof(sample_server_ctx_t));
-        if (server_ctx == NULL) {
+        if (server_ctx == NULL)
+        {
             /* cannot handle the connection */
             picoquic_close(cnx, PICOQUIC_ERROR_MEMORY);
             return -1;
         }
-        else {
-            sample_server_ctx_t* d_ctx = (sample_server_ctx_t*)picoquic_get_default_callback_context(picoquic_get_quic_ctx(cnx));
-            if (d_ctx != NULL) {
+        else
+        {
+            sample_server_ctx_t *d_ctx = (sample_server_ctx_t *)picoquic_get_default_callback_context(picoquic_get_quic_ctx(cnx));
+            if (d_ctx != NULL)
+            {
                 memcpy(server_ctx, d_ctx, sizeof(sample_server_ctx_t));
             }
-            else {
+            else
+            {
                 /* This really is an error case: the default connection context should never be NULL */
                 memset(server_ctx, 0, sizeof(sample_server_ctx_t));
                 server_ctx->default_dir = "";
@@ -227,40 +250,50 @@ int sample_server_callback(picoquic_cnx_t* cnx,
         }
     }
 
-    if (ret == 0) {
-        switch (fin_or_event) {
+    if (ret == 0)
+    {
+        switch (fin_or_event)
+        {
         case picoquic_callback_stream_data:
         case picoquic_callback_stream_fin:
             /* Data arrival on stream #x, maybe with fin mark */
-            if (stream_ctx == NULL) {
+            if (stream_ctx == NULL)
+            {
                 /* Create and initialize stream context */
                 stream_ctx = sample_server_create_stream_context(server_ctx, stream_id);
             }
 
-            if (stream_ctx == NULL) {
+            if (stream_ctx == NULL)
+            {
                 /* Internal error */
-                (void) picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_INTERNAL_ERROR);
-                return(-1);
+                (void)picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_INTERNAL_ERROR);
+                return (-1);
             }
-            else if (stream_ctx->is_name_read) {
+            else if (stream_ctx->is_name_read)
+            {
                 /* Write after fin? */
-                return(-1);
+                return (-1);
             }
-            else {
+            else
+            {
                 /* Accumulate data */
                 size_t available = sizeof(stream_ctx->file_name) - stream_ctx->name_length - 1;
 
-                if (length > available) {
+                if (length > available)
+                {
                     /* Name too long: reset stream! */
                     sample_server_delete_stream_context(server_ctx, stream_ctx);
-                    (void) picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_NAME_TOO_LONG_ERROR);
+                    (void)picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_NAME_TOO_LONG_ERROR);
                 }
-                else {
-                    if (length > 0) {
+                else
+                {
+                    if (length > 0)
+                    {
                         memcpy(stream_ctx->file_name + stream_ctx->name_length, bytes, length);
                         stream_ctx->name_length += length;
                     }
-                    if (fin_or_event == picoquic_callback_stream_fin) {
+                    if (fin_or_event == picoquic_callback_stream_fin)
+                    {
                         int stream_ret;
 
                         /* If fin, mark read, check the file, open it. Or reset if there is no such file */
@@ -268,14 +301,16 @@ int sample_server_callback(picoquic_cnx_t* cnx,
                         stream_ctx->is_name_read = 1;
                         stream_ret = sample_server_open_stream(server_ctx, stream_ctx);
 
-                        if (stream_ret == 0) {
+                        if (stream_ret == 0)
+                        {
                             /* If data needs to be sent, set the context as active */
                             ret = picoquic_mark_active_stream(cnx, stream_id, 1, stream_ctx);
                         }
-                        else {
+                        else
+                        {
                             /* If the file could not be read, reset the stream */
                             sample_server_delete_stream_context(server_ctx, stream_ctx);
-                            (void) picoquic_reset_stream(cnx, stream_id, stream_ret);
+                            (void)picoquic_reset_stream(cnx, stream_id, stream_ret);
                         }
                     }
                 }
@@ -283,54 +318,63 @@ int sample_server_callback(picoquic_cnx_t* cnx,
             break;
         case picoquic_callback_prepare_to_send:
             /* Active sending API */
-            if (stream_ctx == NULL) {
+            if (stream_ctx == NULL)
+            {
                 printf("inside stream_ctx == NULL\n");
                 /* This should never happen */
             }
-            else if (stream_ctx->F == NULL) {
+            else if (stream_ctx->F == NULL)
+            {
                 printf("inside stream_ctx->F == NULL\n");
                 /* Error, asking for data after end of file */
             }
-            else {
+            else
+            {
                 /* Implement the zero copy callback */
                 size_t available = stream_ctx->file_length - stream_ctx->file_sent;
                 int is_fin = 1;
-                uint8_t* buffer;
+                uint8_t *buffer;
 
-                if (available > length) {
+                if (available > length)
+                {
                     available = length;
                     is_fin = 0;
                 }
-                
+
                 buffer = picoquic_provide_stream_data_buffer(bytes, available, is_fin, !is_fin);
-                if (buffer != NULL) {
+                if (buffer != NULL)
+                {
                     size_t nb_read = fread(buffer, 1, available, stream_ctx->F);
 
-                    if (nb_read != available) {
+                    if (nb_read != available)
+                    {
                         /* Error while reading the file */
                         sample_server_delete_stream_context(server_ctx, stream_ctx);
                         (void)picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_FILE_READ_ERROR);
                     }
-                    else {
+                    else
+                    {
                         stream_ctx->file_sent += available;
                     }
                 }
-                else {
-                /* Should never happen according to callback spec. */
+                else
+                {
+                    /* Should never happen according to callback spec. */
                     ret = -1;
                 }
             }
             break;
         case picoquic_callback_stream_reset: /* Client reset stream #x */
         case picoquic_callback_stop_sending: /* Client asks server to reset stream #x */
-            if (stream_ctx != NULL) {
+            if (stream_ctx != NULL)
+            {
                 /* Mark stream as abandoned, close the file, etc. */
                 sample_server_delete_stream_context(server_ctx, stream_ctx);
                 picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_FILE_CANCEL_ERROR);
             }
             break;
-        case picoquic_callback_stateless_reset: /* Received an error message */
-        case picoquic_callback_close: /* Received connection close */
+        case picoquic_callback_stateless_reset:   /* Received an error message */
+        case picoquic_callback_close:             /* Received connection close */
         case picoquic_callback_application_close: /* Received application close */
             /* Delete the server application context */
             sample_server_delete_context(server_ctx);
@@ -364,17 +408,23 @@ int sample_server_callback(picoquic_cnx_t* cnx,
  *     - if a message arrives, process it.
  *     - else, check whether there is something to send.
  *       if there is, send it.
- * - The loop breaks if the socket return an error. 
+ * - The loop breaks if the socket return an error.
  */
 
-int picoquic_sample_server(int server_port, const char* server_cert, const char* server_key, const char* default_dir,struct sockaddr_storage addr_from)
+int picoquic_sample_server(int server_port,
+                           const char *server_cert,
+                           const char *server_key,
+                           const char *default_dir,
+                           struct sockaddr_storage addr_from,
+                           struct rte_mempool *mb_pool,
+                           struct rte_eth_dev_tx_buffer *tx_buffer)
 {
     /* Start: start the QUIC process with cert and key files */
     int ret = 0;
-    picoquic_quic_t* quic = NULL;
-    char const* qlog_dir = PICOQUIC_SAMPLE_SERVER_QLOG_DIR;
+    picoquic_quic_t *quic = NULL;
+    char const *qlog_dir = PICOQUIC_SAMPLE_SERVER_QLOG_DIR;
     uint64_t current_time = 0;
-    sample_server_ctx_t default_context = { 0 };
+    sample_server_ctx_t default_context = {0};
 
     default_context.default_dir = default_dir;
     default_context.default_dir_len = strlen(default_dir);
@@ -385,13 +435,15 @@ int picoquic_sample_server(int server_port, const char* server_cert, const char*
     current_time = picoquic_current_time();
     /* Create QUIC context */
     quic = picoquic_create(8, server_cert, server_key, NULL, PICOQUIC_SAMPLE_ALPN,
-        sample_server_callback, &default_context, NULL, NULL, NULL, current_time, NULL, NULL, NULL, 0);
+                           sample_server_callback, &default_context, NULL, NULL, NULL, current_time, NULL, NULL, NULL, 0);
 
-    if (quic == NULL) {
+    if (quic == NULL)
+    {
         fprintf(stderr, "Could not create server context\n");
         ret = -1;
     }
-    else {
+    else
+    {
         picoquic_set_cookie_mode(quic, 2);
 
         picoquic_set_default_congestion_algorithm(quic, picoquic_bbr_algorithm);
@@ -404,52 +456,174 @@ int picoquic_sample_server(int server_port, const char* server_cert, const char*
     }
 
     /* Wait for packets */
-    if (ret == 0) {
-        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL ,addr_from);
+    if (ret == 0)
+    {
+        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL, addr_from, mb_pool, tx_buffer);
     }
 
     /* And finish. */
     printf("Server exit, ret = %d\n", ret);
 
     /* Clean up */
-    if (quic != NULL) {
+    if (quic != NULL)
+    {
         picoquic_free(quic);
     }
 
     return ret;
 }
+
+int init_port(uint16_t nb_of_queues)
+{
+    int ret = 0;
+    int portid = 0;
+    static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
+    static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
+    struct rte_eth_rxconf rxq_conf;
+    struct rte_eth_txconf txq_conf;
+
+    static struct rte_ether_addr eth_addr;
+    struct rte_eth_dev_info dev_info;
+
+    static struct rte_eth_conf local_port_conf = {
+        .rxmode = {
+            .split_hdr_size = 0,
+        },
+        .txmode = {
+            .mq_mode = ETH_MQ_TX_NONE,
+        },
+    };
+
+    printf("after init\n");
+    ret = rte_eth_dev_info_get(0, &dev_info);
+    if (ret != 0)
+        rte_exit(EXIT_FAILURE,
+                 "Error during getting device (port %u) info: %s\n",
+                 0, strerror(-ret));
+
+    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+        local_port_conf.txmode.offloads |=
+            DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+    ret = rte_eth_dev_configure(portid, nb_of_queues, nb_of_queues, &local_port_conf);
+    if (ret != 0)
+    {
+        printf("error in dev_configure\n");
+        return 0;
+    }
+
+    ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
+                                           &nb_txd);
+    if (ret < 0)
+        rte_exit(EXIT_FAILURE,
+                 "Cannot adjust number of descriptors: err=%d, port=%u\n",
+                 ret, portid);
+
+    // init tx queue
+    txq_conf = dev_info.default_txconf;
+    txq_conf.offloads = local_port_conf.txmode.offloads;
+    ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
+                                 rte_eth_dev_socket_id(portid),
+                                 &txq_conf);
+    if (ret != 0)
+    {
+        printf("failed to init queue\n");
+        return 0;
+    }
+
+    // init rx queue
+    rxq_conf = dev_info.default_rxconf;
+    rxq_conf.offloads = local_port_conf.rxmode.offloads;
+
+    char mbuf_pool_name[20] = "mbuf_pool_X";
+    char tx_buffer_name[20] = "tx_buffer_X";
+    int index_of_X;
+    char char_i;
+    for (int i = 0; i < nb_of_queues; i++)
+    {
+        char_i = i;
+
+        index_of_X = strlen(mbuf_pool_name) - 1;
+        mbuf_pool_name[index_of_X] = char_i;
+        unsigned nb_mbufs = 8192U;
+        mb_pools[i] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
+                                              MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+                                              rte_socket_id());
+        if (mb_pools[i] == NULL)
+        {
+            printf("fail to init mb_pool\n");
+            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+            return 0;
+        }
+        ret = rte_eth_rx_queue_setup(0, i, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[i]);
+        if (ret != 0)
+        {
+            printf("failed to init rx_queue\n");
+        }
+
+        index_of_X = strlen(tx_buffer_name) - 1;
+        tx_buffer_name[index_of_X] = char_i;
+        tx_buffers[i] = rte_zmalloc_socket(tx_buffer_name,
+                                          RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
+                                          rte_eth_dev_socket_id(0));
+        if (tx_buffers[i] == NULL)
+        {
+            printf("fail to init buffer\n");
+            return 0;
+        }
+    }
+ 
+}
+
+
 static int
 lcore_hello(__rte_unused void *arg)
+
+
 {
+    unsigned lcore_id;
+    lcore_id = rte_lcore_id();
+
     struct sockaddr_storage addr_from;
     
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
 
-	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",addr_from);
+	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",addr_from,mb_pools[lcore_id],tx_buffers[lcore_id]);
    
 }
 
 int main(int argc, char **argv)
 {
-	int ret;
-	unsigned lcore_id;
-	lcore_id = rte_lcore_id();
-	ret = rte_eal_init(argc, argv);
-    rte_pdump_init();
-	if (ret < 0)
-		rte_panic("Cannot init EAL\n");
+    int ret;
+    unsigned lcore_id;
+    lcore_id = rte_lcore_id();
+    int portid = 0;
+    ret = rte_eal_init(argc, argv);
+    init_port(1);
+    ret = rte_eth_dev_start(portid);
+    if (ret != 0)
+    {
+        printf("failed to start device\n");
+    }
+    ret = rte_eth_promiscuous_enable(portid);
+    if (ret != 0)
+        rte_exit(EXIT_FAILURE,
+                 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
+                 rte_strerror(-ret), portid);
+    printf("after dpdk setup\n");
+    if (ret < 0)
+        rte_panic("Cannot init EAL\n");
 
-	/* call lcore_hello() on every worker lcore */
+    /* call lcore_hello() on every worker lcore */
 
-	/* call it on main lcore too */
-	lcore_hello(NULL);
+    /* call it on main lcore too */
+    lcore_hello(NULL);
 
-	rte_eal_mp_wait_lcore();
+    rte_eal_mp_wait_lcore();
 
-	/* clean up the EAL */
-	rte_eal_cleanup();
+    /* clean up the EAL */
+    rte_eal_cleanup();
 
-	return 0;
+    return 0;
 }

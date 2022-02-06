@@ -49,7 +49,9 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                          int do_not_use_gso,
                          picoquic_packet_loop_cb_fn loop_callback,
                          void *loop_callback_ctx,
-                         struct sockaddr_storage addr_from);
+                         struct sockaddr_storage addr_my_addr,
+                         struct rte_mempool *mb_pool,
+                         struct rte_eth_dev_tx_buffer *tx_buffer);
 int picoquic_packet_loop(picoquic_quic_t *quic,
                          int local_port,
                          int local_af,

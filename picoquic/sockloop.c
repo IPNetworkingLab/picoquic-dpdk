@@ -369,22 +369,16 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                          int do_not_use_gso,
                          picoquic_packet_loop_cb_fn loop_callback,
                          void *loop_callback_ctx,
-                         struct sockaddr_storage addr_my_addr)
+                         struct sockaddr_storage addr_my_addr,
+                         struct rte_mempool *mb_pool,
+                         struct rte_eth_dev_tx_buffer *tx_buffer)
 {
     //===================DPDK==========================//
     
-    struct rte_mempool *mb_pool;
     static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
     static struct rte_ether_addr eth_addr;
-    static struct rte_eth_conf port_conf = {
-        .rxmode = {
-            .split_hdr_size = 0,
-        },
-        .txmode = {
-            .mq_mode = ETH_MQ_TX_NONE,
-        },
-    };
+    
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     unsigned lcore_id = 1;
     struct lcore_queue_conf *qconf;
@@ -393,103 +387,10 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     struct rte_eth_rxconf rxq_conf;
     struct rte_eth_txconf txq_conf;
     struct rte_eth_dev_info dev_info;
-    struct rte_eth_dev_tx_buffer *tx_buffer;
-    struct rte_eth_conf local_port_conf = port_conf;
-    struct rte_rte_ether_hdr *eth;
     void *tmp;
-
-    // setup DPDK
-    lcore_id = rte_lcore_id();
-
-    char tx_buffer_name[10] = "tx_buffer";
-    tx_buffer_name[9] = lcore_id;
-    tx_buffer_name[10] = '\0';
-
-    tx_buffer = rte_zmalloc_socket(tx_buffer_name,
-                                   RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-                                   rte_eth_dev_socket_id(0));
-    if (tx_buffer == NULL)
-    {
-        printf("fail to init buffer\n");
-        return 0;
-    }
-    char mbuf_pool_name[] = "mbuf_pool";
-    mbuf_pool_name[9] = lcore_id;
-    mbuf_pool_name[10] = '\0';
-
-    unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
-    mb_pool = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
-                                      MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-                                      rte_socket_id());
-    if (mb_pool == NULL)
-    {
-        printf("fail to init mb_pool\n");
-        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-        return 0;
-    }
-    printf("after init\n");
-    ret = rte_eth_dev_info_get(0, &dev_info);
-    if (ret != 0)
-        rte_exit(EXIT_FAILURE,
-                 "Error during getting device (port %u) info: %s\n",
-                 0, strerror(-ret));
-
-    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
-        local_port_conf.txmode.offloads |=
-            DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-    ret = rte_eth_dev_configure(0, 1, 1, &local_port_conf);
-    if (ret != 0)
-    {
-        printf("error in dev_configure\n");
-        return 0;
-    }
-
-    ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
-                                           &nb_txd);
-    if (ret < 0)
-        rte_exit(EXIT_FAILURE,
-                 "Cannot adjust number of descriptors: err=%d, port=%u\n",
-                 ret, portid);
 
     ret = rte_eth_macaddr_get(portid, &eth_addr);
 
-    // init tx queue
-    txq_conf = dev_info.default_txconf;
-    txq_conf.offloads = local_port_conf.txmode.offloads;
-    ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
-                                 rte_eth_dev_socket_id(portid),
-                                 &txq_conf);
-    if (ret != 0)
-    {
-        printf("failed to init queue\n");
-        return 0;
-    }
-    ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST);
-    if (ret != 0)
-    {
-        printf("error in buffer_init\n");
-        return 0;
-    }
-    // init rx queue
-    rxq_conf = dev_info.default_rxconf;
-    rxq_conf.offloads = local_port_conf.rxmode.offloads;
-    ret = rte_eth_rx_queue_setup(0, 0, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pool);
-    if (ret != 0)
-    {
-        printf("failed to init rx_queue\n");
-    }
-
-    ret = rte_eth_dev_start(0);
-    if (ret != 0)
-    {
-        printf("failed to start device\n");
-    }
-    ret = rte_eth_promiscuous_enable(portid);
-    if (ret != 0)
-        rte_exit(EXIT_FAILURE,
-                 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
-                 rte_strerror(-ret), portid);
-    printf("after dpdk setup\n");
     //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
