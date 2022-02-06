@@ -469,7 +469,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             for (int i = 0; i < pkts_recv; i++)
             {
                 receiv_counter++;
-                printf("received packets : %d\n",receiv_counter);
+                // printf("received packets : %d\n",receiv_counter);
                 
                 /* access ethernet header of rcv'd pkt */
                 eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
@@ -485,10 +485,10 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                                         
                     char *addr_val = inet_ntoa(*(struct in_addr *)&src_addr);
-                    printf("src_addr_received : %s\n",addr_val);
+                    //printf("src_addr_received : %s\n",addr_val);
 
                     addr_val = inet_ntoa(*(struct in_addr *)&dst_addr);
-                    printf("dst_addr_received : %s\n",addr_val);
+                    //printf("dst_addr_received : %s\n",addr_val);
 
                     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
                     (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
@@ -560,10 +560,10 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                     
                         char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);                        
-                        printf("src_addr : %s\n",src_addr);
+                        //printf("src_addr : %s\n",src_addr);
 
                         char *dst_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_to)).sin_addr);                       
-                        printf("dst_addr : %s\n",dst_addr);
+                        //printf("dst_addr : %s\n",dst_addr);
 
                         (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
                         copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
@@ -577,7 +577,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         m->data_len = offset;
                         m->pkt_len = offset;
                         int sent = rte_eth_tx_buffer(0, 0, tx_buffer, m);
-                        printf("sending\n");
+                        // printf("sending\n");
                         send_counter += sent;
                         fprintf(fptr_send,"%d\n",send_counter);
                         

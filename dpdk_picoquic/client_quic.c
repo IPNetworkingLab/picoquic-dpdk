@@ -747,20 +747,21 @@ lcore_hello(__rte_unused void *arg)
 {
 
     unsigned lcore_id = rte_lcore_id();
-    char char_lcore_id = lcore_id;
+    char char_lcore_id = lcore_id + '0';
 
-    printf("mychar : %c\n", char_lcore_id);
+    // printf("mychar : %c\n", char_lcore_id);
     struct sockaddr_storage addr_from;
 
     char str_addr[20] = "198.18.X.1";
     int index_of_x = 7;
     str_addr[index_of_x] = char_lcore_id;
+    printf("str_addr %s\n",str_addr);
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(str_addr);
 
-    char filename[100] = "bible.pdf";
+    char filename[100] = "1GB.bin";
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
