@@ -369,8 +369,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                          int do_not_use_gso,
                          picoquic_packet_loop_cb_fn loop_callback,
                          void *loop_callback_ctx,
-                         struct sockaddr_storage addr_from,
-                         struct sockaddr_storage addr_to)
+                         struct sockaddr_storage addr_my_addr)
 {
     //===================DPDK==========================//
     
@@ -494,8 +493,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
-    struct sockaddr_storage addr_from2;
-    struct sockaddr_storage addr_to2;
+    struct sockaddr_storage addr_from;
+    struct sockaddr_storage addr_to;
 
     // handling packets
     struct rte_ether_hdr *eth_hdr;
@@ -590,20 +589,20 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     addr_val = inet_ntoa(*(struct in_addr *)&dst_addr);
                     printf("dst_addr_received : %s\n",addr_val);
 
-                    (*(struct sockaddr_in *)(&addr_from2)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_from2)).sin_port = src_port;
-                    (*(struct sockaddr_in *)(&addr_from2)).sin_addr.s_addr = src_addr;
+                    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
+                    (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
+                    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = src_addr;
 
-                    (*(struct sockaddr_in *)(&addr_to2)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_to2)).sin_port = dst_port;
-                    (*(struct sockaddr_in *)(&addr_to2)).sin_addr.s_addr = dst_addr;
+                    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
+                    (*(struct sockaddr_in *)(&addr_to)).sin_port = dst_port;
+                    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = dst_addr;
 
                     unsigned char *payload = (unsigned char *)(udp_hdr + 1);
                     rte_be16_t length = udp_hdr->dgram_len;
                     size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
                     (void)picoquic_incoming_packet_ex(quic, payload,
-                                                      payload_length, (struct sockaddr *)&addr_from2,
-                                                      (struct sockaddr *)&addr_to2, if_index_to, received_ecn,
+                                                      payload_length, (struct sockaddr *)&addr_from,
+                                                      (struct sockaddr *)&addr_to, if_index_to, received_ecn,
                                                       &last_cnx, current_time);
 
                     if (loop_callback != NULL)
@@ -655,7 +654,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
-                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,addr_from,addr_to);
+                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,addr_my_addr,peer_addr);
                         // setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
 
                     

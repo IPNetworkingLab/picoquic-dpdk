@@ -367,8 +367,7 @@ int sample_server_callback(picoquic_cnx_t* cnx,
  * - The loop breaks if the socket return an error. 
  */
 
-int picoquic_sample_server(int server_port, const char* server_cert, const char* server_key, const char* default_dir,struct sockaddr_storage addr_from,
-    struct sockaddr_storage addr_to)
+int picoquic_sample_server(int server_port, const char* server_cert, const char* server_key, const char* default_dir,struct sockaddr_storage addr_from)
 {
     /* Start: start the QUIC process with cert and key files */
     int ret = 0;
@@ -406,7 +405,7 @@ int picoquic_sample_server(int server_port, const char* server_cert, const char*
 
     /* Wait for packets */
     if (ret == 0) {
-        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL ,addr_from,addr_to);
+        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL ,addr_from);
     }
 
     /* And finish. */
@@ -423,16 +422,12 @@ static int
 lcore_hello(__rte_unused void *arg)
 {
     struct sockaddr_storage addr_from;
-    struct sockaddr_storage addr_to;
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
 
-    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("198.18.0.1");
-	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",addr_from,addr_to);
+	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",addr_from);
    
 }
 

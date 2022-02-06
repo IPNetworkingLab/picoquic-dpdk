@@ -497,8 +497,7 @@ static int sample_client_loop_cb(picoquic_quic_t *quic, picoquic_packet_loop_cb_
 
 int picoquic_sample_client(char const *server_name, int server_port, char const *default_dir,
                            int nb_files, char const **file_names, 
-                           struct sockaddr_storage addr_from, 
-                           struct sockaddr_storage addr_to)
+                           struct sockaddr_storage addr_from)
 {
     int ret = 0;
     struct sockaddr_storage server_address;
@@ -609,7 +608,7 @@ int picoquic_sample_client(char const *server_name, int server_port, char const 
 
     /* Wait for packets */
 
-    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx,addr_from,addr_to);
+    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx,addr_from);
 
     /* Done. At this stage, we could print out statistics, etc. */
     sample_client_report(&client_ctx);
@@ -643,17 +642,13 @@ lcore_hello2(__rte_unused void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.1");
 
-    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&addr_to)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = inet_addr("198.18.0.2");
     char filename[100] = "bible.pdf";
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
 
-
     memcpy(files[0], filename, strlen(filename) + 1);
-    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files,addr_from,addr_to);
+    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files,addr_from);
 }
 int main(int argc, char **argv)
 {
