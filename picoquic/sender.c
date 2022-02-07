@@ -4530,7 +4530,7 @@ int picoquic_prepare_next_packet_ex(picoquic_quic_t* quic,
             *send_length = 0;
         }
         else {
-            memcpy(send_buffer, sp->bytes, sp->length);
+            rte_memcpy(send_buffer, sp->bytes, sp->length);
             *send_length = sp->length;
             picoquic_store_addr(p_addr_to, (struct sockaddr*) & sp->addr_to);
             picoquic_store_addr(p_addr_from, (struct sockaddr*) & sp->addr_local);

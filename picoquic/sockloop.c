@@ -302,7 +302,6 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     uint16_t *ptr16;
     uint32_t ip_cksum;
     uint16_t pkt_len;
-    
 
     // printf("====================clean===============\n");
     // printf("src_adr %u\n",rte_cpu_to_be_32(tx_ip_src_addr));
@@ -360,25 +359,24 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     ip_hdr->hdr_checksum = (uint16_t)ip_cksum;
 }
 
-
 int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
-                         int local_port,
-                         int local_af,
-                         int dest_if,
-                         int socket_buffer_size,
-                         int do_not_use_gso,
-                         picoquic_packet_loop_cb_fn loop_callback,
-                         void *loop_callback_ctx,
-                         struct sockaddr_storage addr_my_addr,
-                         struct rte_mempool *mb_pool,
-                         struct rte_eth_dev_tx_buffer *tx_buffer)
+                              int local_port,
+                              int local_af,
+                              int dest_if,
+                              int socket_buffer_size,
+                              int do_not_use_gso,
+                              picoquic_packet_loop_cb_fn loop_callback,
+                              void *loop_callback_ctx,
+                              struct sockaddr_storage addr_my_addr,
+                              struct rte_mempool *mb_pool,
+                              struct rte_eth_dev_tx_buffer *tx_buffer)
 {
     //===================DPDK==========================//
-    
+
     static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
     static struct rte_ether_addr eth_addr;
-    
+
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     unsigned lcore_id = 1;
     struct lcore_queue_conf *qconf;
@@ -402,6 +400,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
     struct rte_mbuf *m;
+    int udp_payload_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
     // addresses
     rte_be32_t src_addr;
     rte_be32_t dst_addr;
@@ -426,13 +425,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     picoquic_cnx_t *last_cnx = NULL;
     int loop_immediate = 0;
     int pkts_recv;
-    //debugging
+    // debugging
     FILE *fptr_send;
     FILE *fptr_rcv;
     int receiv_counter = 0;
     int send_counter = 0;
-    fptr_send = fopen("send.txt","w");
-    fptr_rcv = fopen("rcv.txt","w");
+    fptr_send = fopen("send.txt", "w");
+    fptr_rcv = fopen("rcv.txt", "w");
 
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
@@ -470,7 +469,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             {
                 receiv_counter++;
                 // printf("received packets : %d\n",receiv_counter);
-                
+
                 /* access ethernet header of rcv'd pkt */
                 eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
@@ -483,12 +482,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     src_port = udp_hdr->src_port;
                     dst_port = udp_hdr->dst_port;
 
-                                        
                     char *addr_val = inet_ntoa(*(struct in_addr *)&src_addr);
-                    //printf("src_addr_received : %s\n",addr_val);
+                    // printf("src_addr_received : %s\n",addr_val);
+                    // printf("src_port %u\n",htons(src_port));
 
                     addr_val = inet_ntoa(*(struct in_addr *)&dst_addr);
-                    //printf("dst_addr_received : %s\n",addr_val);
+                    // printf("dst_addr_received : %s\n",addr_val);
+                    // printf("src_port %u\n",htons(dst_port));
 
                     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
                     (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
@@ -531,9 +531,18 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     send_length = 0;
                     struct sockaddr_storage peer_addr;
                     struct sockaddr_storage local_addr;
+                    m = rte_pktmbuf_alloc(mb_pool);
+                    if (m == NULL)
+                    {
+                        printf("fail to init pktmbuf\n");
+                        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+                        return 0;
+                    }
+                    
+                    uint8_t *payload_ptr = rte_pktmbuf_mtod_offset(m, char *, (size_t) udp_payload_offset);
 
                     ret = picoquic_prepare_next_packet_ex(quic, loop_time,
-                                                          send_buffer, send_buffer_size, &send_length,
+                                                          payload_ptr, send_buffer_size, &send_length,
                                                           &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
                                                           send_msg_ptr);
                     if (ret == 0 && send_length > 0)
@@ -544,26 +553,18 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
 
-                        m = rte_pktmbuf_alloc(mb_pool);
-                        if (m == NULL)
-                        {
-                            printf("fail to init pktmbuf\n");
-                            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-                            return 0;
-                        }
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
                         tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
-                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length,addr_my_addr,peer_addr);
+                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, addr_my_addr, peer_addr);
                         // setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
 
-                    
-                        char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);                        
-                        //printf("src_addr : %s\n",src_addr);
+                        char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);
+                        // printf("src_addr : %s\n",src_addr);
 
-                        char *dst_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_to)).sin_addr);                       
-                        //printf("dst_addr : %s\n",dst_addr);
+                        char *dst_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_to)).sin_addr);
+                        // printf("dst_addr : %s\n",dst_addr);
 
                         (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
                         copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
@@ -572,22 +573,26 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         offset += sizeof(struct rte_ipv4_hdr);
                         copy_buf_to_pkt(&udp_hdr_struct, sizeof(struct rte_udp_hdr), m, offset);
                         offset += sizeof(struct rte_udp_hdr);
-                        copy_buf_to_pkt(send_buffer, send_length, m, offset);
+                        // printf("offset : %d\n",offset);
+                        //payload already set
+
                         offset += send_length;
+                        // printf("offset : %d\n",offset);
+
                         m->data_len = offset;
                         m->pkt_len = offset;
                         int sent = rte_eth_tx_buffer(0, 0, tx_buffer, m);
                         // printf("sending\n");
                         send_counter += sent;
-                        fprintf(fptr_send,"%d\n",send_counter);
-                        
+                        // fprintf(fptr_send, "%d\n", send_counter);
                     }
 
                     else
                     {
+                        rte_pktmbuf_free(m);
                         int sent = rte_eth_tx_buffer_flush(0, 0, tx_buffer);
                         send_counter += sent;
-                        fprintf(fptr_send,"%d\n",send_counter);
+                        // fprintf(fptr_send, "%d\n", send_counter);
                         break;
                     }
                 }
