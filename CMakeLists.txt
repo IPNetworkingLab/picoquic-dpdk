@@ -10,9 +10,9 @@ set(CMAKE_C_STANDARD 11)
 
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(CMAKE_C_FLAGS "-std=gnu99 -g -Wall -O3 -fno-exceptions -fno-signed-zeros -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+    set(CMAKE_C_FLAGS "-std=gnu99 -g -Wall -O3 -fno-exceptions -fno-signed-zeros -fno-trapping-math -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
 else()
-    set(CMAKE_C_FLAGS "-std=gnu99 -g -Wall -O3 -fno-exceptions -fno-signed-zeros -frename-registers -fno-trapping-math -include rte_config.h -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
+    set(CMAKE_C_FLAGS "-std=gnu99 -g -Wall -O3 -fno-exceptions -fno-signed-zeros -frename-registers -fno-trapping-math -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
 endif()
 
 if(DISABLE_DEBUG_PRINTF)
@@ -191,17 +191,19 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBDPDK REQUIRED IMPORTED_TARGET libdpdk)
 
 target_link_libraries(picoquic-core PUBLIC
-    PkgConfig::LIBDPDK
-)
-
-target_link_libraries(picoquic-core PUBLIC
     ${PTLS_LIBRARIES}
     ${OPENSSL_LIBRARIES}
+    PkgConfig::LIBDPDK
 )
 
 add_library(picoquic-log
     ${LOGLIB_LIBRARY_FILES}
 )
+
+target_link_libraries(picoquic-log PUBLIC
+    PkgConfig::LIBDPDK
+)
+
 
 add_library(picohttp-core
     ${PICOHTTP_LIBRARY_FILES}
@@ -210,6 +212,7 @@ add_library(picohttp-core
 target_link_libraries(picohttp-core
     ${PTLS_LIBRARIES}
     ${OPENSSL_LIBRARIES}
+    PkgConfig::LIBDPDK
 )
 
 add_executable(picoquicdemo
@@ -225,6 +228,7 @@ target_link_libraries(picoquicdemo
     ${OPENSSL_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
 )
 
 target_include_directories(picoquicdemo PRIVATE loglib picohttp)
@@ -240,6 +244,7 @@ target_link_libraries(picolog_t
     ${OPENSSL_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
 )
 
 target_include_directories(picolog_t PRIVATE loglib)
@@ -255,6 +260,7 @@ target_link_libraries(picoquic_ct
     ${OPENSSL_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
 )
 
 target_include_directories(picoquic_ct PRIVATE loglib)
@@ -272,6 +278,7 @@ target_link_libraries(picohttp_ct
     ${OPENSSL_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
 )
 
 target_include_directories(picohttp_ct PRIVATE loglib picohttp)
@@ -295,6 +302,7 @@ target_link_libraries(picoquic_dpdk_client
     ${OPENSSL_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
 )
 target_link_libraries(picoquic_dpdk_server
     picoquic-log
@@ -303,6 +311,7 @@ target_link_libraries(picoquic_dpdk_server
     ${OPENSSL_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
 )
 
 target_link_libraries(picoquic_sample
@@ -312,6 +321,7 @@ target_link_libraries(picoquic_sample
     ${OPENSSL_LIBRARIES}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
 )
 
 target_include_directories(picoquic_sample PRIVATE loglib picoquic)

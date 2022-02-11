@@ -761,7 +761,7 @@ lcore_hello(__rte_unused void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(str_addr);
 
-    char filename[100] = "1GB.bin";
+    char filename[100] = "10MB.bin";
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
