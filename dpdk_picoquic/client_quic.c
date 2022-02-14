@@ -300,17 +300,17 @@ int sample_client_callback(picoquic_cnx_t *cnx,
 
                 if (ret == 0 && length > 0)
                 {
-                    /* write the received bytes to the file */
-                    if (fwrite(bytes, length, 1, stream_ctx->F) != 1)
-                    {
-                        /* Could not write file to disk */
-                        fprintf(stderr, "Could not write data to disk.\n");
-                        ret = -1;
-                    }
-                    else
-                    {
+                    // /* write the received bytes to the file */
+                    // if (fwrite(bytes, length, 1, stream_ctx->F) != 1)
+                    // {
+                    //     /* Could not write file to disk */
+                    //     fprintf(stderr, "Could not write data to disk.\n");
+                    //     ret = -1;
+                    // }
+                    // else
+                    // {
                         stream_ctx->bytes_received += length;
-                    }
+                    // }
                 }
 
                 if (ret == 0 && fin_or_event == picoquic_callback_stream_fin)
@@ -641,7 +641,7 @@ int picoquic_sample_client(char const *server_name,
     return ret;
 }
 
-int init_port(uint16_t nb_of_queues)
+int init_port(uint16_t nb_of_ports)
 {
     int ret = 0;
     int portid = 0;
@@ -706,7 +706,7 @@ int init_port(uint16_t nb_of_queues)
     char tx_buffer_name[20] = "tx_buffer_X";
     int index_of_X;
     char char_i;
-    for (int i = 0; i < nb_of_queues; i++)
+    for (int i = 0; i < nb_of_ports; i++)
     {
         char_i = i;
 
@@ -761,12 +761,12 @@ lcore_hello(__rte_unused void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(str_addr);
 
-    char filename[100] = "10MB.bin";
+    char filename[100] = "50MB.bin";
     char **files = (char **)malloc(1 * sizeof(char *));
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
     memcpy(files[0], filename, strlen(filename) + 1);
-    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files, addr_from, mb_pools[lcore_id], tx_buffers[lcore_id]);
+    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files, addr_from, mb_pools[0], tx_buffers[0]);
 }
 
 int main(int argc, char **argv)

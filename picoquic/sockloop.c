@@ -532,6 +532,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     struct sockaddr_storage peer_addr;
                     struct sockaddr_storage local_addr;
                     m = rte_pktmbuf_alloc(mb_pool);
+                    // printf("alloced\n");
                     if (m == NULL)
                     {
                         printf("fail to init pktmbuf\n");
@@ -554,8 +555,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_ether_hdr eth_hdr_struct;
 
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
-                        rte_ether_addr_copy(&eth_addr, &eth_ptr->s_addr);
-                        tmp = &eth_ptr->d_addr.addr_bytes[0];
+                        rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
+                        tmp = &eth_ptr->dst_addr.addr_bytes[0];
                         *((uint64_t *)tmp) = 0;
                         setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, addr_my_addr, peer_addr);
                         // setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);

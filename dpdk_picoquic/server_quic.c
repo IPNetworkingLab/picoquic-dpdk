@@ -589,7 +589,7 @@ lcore_hello(__rte_unused void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
 
-	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",addr_from,mb_pools[lcore_id],tx_buffers[lcore_id]);
+	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "/home/nikita/fast",addr_from,mb_pools[0],tx_buffers[0]);
    
 }
 
