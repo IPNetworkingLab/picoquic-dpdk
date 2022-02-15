@@ -42,16 +42,17 @@ typedef enum {
 typedef int (*picoquic_packet_loop_cb_fn)(picoquic_quic_t * quic, picoquic_packet_loop_cb_enum cb_mode, void * callback_ctx, void * callback_argv);
 
 int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
-                         int local_port,
-                         int local_af,
-                         int dest_if,
-                         int socket_buffer_size,
-                         int do_not_use_gso,
-                         picoquic_packet_loop_cb_fn loop_callback,
-                         void *loop_callback_ctx,
-                         struct sockaddr_storage addr_my_addr,
-                         struct rte_mempool *mb_pool,
-                         struct rte_eth_dev_tx_buffer *tx_buffer);
+                              int local_port,
+                              int local_af,
+                              int dest_if,
+                              int socket_buffer_size,
+                              int do_not_use_gso,
+                              picoquic_packet_loop_cb_fn loop_callback,
+                              void *loop_callback_ctx,
+                              struct sockaddr_storage addr_my_addr,
+                              struct rte_ether_addr *mac_dst,
+                              struct rte_mempool *mb_pool,
+                              struct rte_eth_dev_tx_buffer *tx_buffer);
 int picoquic_packet_loop(picoquic_quic_t *quic,
                          int local_port,
                          int local_af,

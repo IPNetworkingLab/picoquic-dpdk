@@ -458,7 +458,7 @@ int picoquic_sample_server(int server_port,
     /* Wait for packets */
     if (ret == 0)
     {
-        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL, addr_from, mb_pool, tx_buffer);
+        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL, addr_from,NULL,mb_pool, tx_buffer);
     }
 
     /* And finish. */
@@ -602,6 +602,18 @@ int main(int argc, char **argv)
     ret = rte_eal_init(argc, argv);
     init_port(1);
     ret = rte_eth_dev_start(portid);
+
+    static struct rte_ether_addr eth_addr;
+    ret = rte_eth_macaddr_get(portid, &eth_addr);
+    
+    printf("%x\n", eth_addr.addr_bytes[0]);
+    printf("%x\n", eth_addr.addr_bytes[1]);
+    printf("%x\n", eth_addr.addr_bytes[2]);
+    printf("%x\n", eth_addr.addr_bytes[3]);
+    printf("%x\n", eth_addr.addr_bytes[4]);
+    printf("%x\n", eth_addr.addr_bytes[5]);
+
+
     if (ret != 0)
     {
         printf("failed to start device\n");

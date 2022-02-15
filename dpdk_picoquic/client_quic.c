@@ -102,6 +102,10 @@ typedef struct st_sample_client_ctx_t
 struct rte_mempool *mb_pools[10];
 struct rte_eth_dev_tx_buffer *tx_buffers[10];
 
+//hardcoded server mac
+struct rte_ether_addr eth_addr;
+
+
 static int sample_client_create_stream(picoquic_cnx_t *cnx,
                                        sample_client_ctx_t *client_ctx, int file_rank)
 {
@@ -286,7 +290,13 @@ int sample_client_callback(picoquic_cnx_t *cnx,
                     {
                         memcpy(file_path + dir_len, client_ctx->file_names[stream_ctx->file_rank],
                                file_name_len);
+
+                        unsigned lcore_id = rte_lcore_id();
+                        char char_lcore_id = lcore_id + '0';
+
+                        file_path[dir_len + file_name_len] = char_lcore_id;
                         file_path[dir_len + file_name_len] = 0;
+
                         stream_ctx->F = picoquic_file_open(file_path, "wb");
 
                         if (stream_ctx->F == NULL)
@@ -309,7 +319,7 @@ int sample_client_callback(picoquic_cnx_t *cnx,
                     // }
                     // else
                     // {
-                        stream_ctx->bytes_received += length;
+                    stream_ctx->bytes_received += length;
                     // }
                 }
 
@@ -504,6 +514,7 @@ int picoquic_sample_client(char const *server_name,
                            int nb_files,
                            char const **file_names,
                            struct sockaddr_storage addr_from,
+                           struct rte_ether_addr *mac_dst,
                            struct rte_mempool *mb_pool,
                            struct rte_eth_dev_tx_buffer *tx_buffer)
 {
@@ -616,7 +627,7 @@ int picoquic_sample_client(char const *server_name,
 
     /* Wait for packets */
 
-    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, addr_from, mb_pool, tx_buffer);
+    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, addr_from, mac_dst,mb_pool, tx_buffer);
 
     /* Done. At this stage, we could print out statistics, etc. */
     sample_client_report(&client_ctx);
@@ -672,7 +683,7 @@ int init_port(uint16_t nb_of_ports)
     if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
         local_port_conf.txmode.offloads |=
             DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-    ret = rte_eth_dev_configure(portid, nb_of_queues, nb_of_queues, &local_port_conf);
+    ret = rte_eth_dev_configure(portid, nb_of_ports, nb_of_ports, &local_port_conf);
     if (ret != 0)
     {
         printf("error in dev_configure\n");
@@ -731,15 +742,14 @@ int init_port(uint16_t nb_of_ports)
         index_of_X = strlen(tx_buffer_name) - 1;
         tx_buffer_name[index_of_X] = char_i;
         tx_buffers[i] = rte_zmalloc_socket(tx_buffer_name,
-                                          RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-                                          rte_eth_dev_socket_id(0));
+                                           RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
+                                           rte_eth_dev_socket_id(0));
         if (tx_buffers[i] == NULL)
         {
             printf("fail to init buffer\n");
             return 0;
         }
     }
- 
 }
 
 static int
@@ -755,7 +765,7 @@ lcore_hello(__rte_unused void *arg)
     char str_addr[20] = "198.18.X.1";
     int index_of_x = 7;
     str_addr[index_of_x] = char_lcore_id;
-    printf("str_addr %s\n",str_addr);
+    printf("str_addr %s\n", str_addr);
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
@@ -766,40 +776,52 @@ lcore_hello(__rte_unused void *arg)
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
     memcpy(files[0], filename, strlen(filename) + 1);
-    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files, addr_from, mb_pools[0], tx_buffers[0]);
+    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files, addr_from, &eth_addr, mb_pools[lcore_id], tx_buffers[lcore_id]);
 }
 
 int main(int argc, char **argv)
 {
+    eth_addr.addr_bytes[0] = 0x50;
+    eth_addr.addr_bytes[1] = 0x6b;
+    eth_addr.addr_bytes[2] = 0x4b;
+    eth_addr.addr_bytes[3] = 0xf3;
+    eth_addr.addr_bytes[4] = 0x7c;
+    eth_addr.addr_bytes[5] = 0x70;
 
     int ret;
+    unsigned port_id;
+    unsigned lcore_id;
     ret = rte_eal_init(argc, argv);
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
+    int nbr_of_port = 4;
+    printf("before init\n");
+    init_port(4);
+    printf("before start\n");
 
-    init_port(1);
-    int portid = 0;
-    ret = rte_eth_dev_start(portid);
-    if (ret != 0)
-    {
-        printf("failed to start device\n");
-    }
-    ret = rte_eth_promiscuous_enable(portid);
-    if (ret != 0)
-        rte_exit(EXIT_FAILURE,
-                 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
-                 rte_strerror(-ret), portid);
-    printf("after dpdk setup\n");
-    if (ret < 0)
-        rte_panic("Cannot init EAL\n");
+    
+
     /* call lcore_hello() on every worker lcore */
-    // unsigned lcore_id;
-    // lcore_id = rte_lcore_id();
-    // init_port(lcore_id);
-    // RTE_LCORE_FOREACH_WORKER(lcore_id)
-    // {
-    // 	rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
-    // }
+    
+    RTE_ETH_FOREACH_DEV(port_id)
+    {
+        printf("portid : %zu\n",port_id);
+        ret = rte_eth_dev_start(port_id);
+        if (ret != 0)
+        {
+            printf("failed to start device\n");
+        }
+        ret = rte_eth_promiscuous_enable(port_id);
+        if (ret != 0)
+            fprintf(stderr,
+                    "Error during enabling promiscuous mode for port %u: %s - ignore\n",
+                    port_id, rte_strerror(-ret));
+    }
+    printf("after start\n");
+    RTE_LCORE_FOREACH_WORKER(lcore_id)
+    {
+        rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+    }
 
     /* call it on main lcore too */
     lcore_hello(NULL);
