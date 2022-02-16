@@ -409,9 +409,9 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 {
     //===================DPDK==========================//
 
-    static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
-    static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
-    static struct rte_ether_addr eth_addr;
+    uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
+    uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
+    struct rte_ether_addr eth_addr;
 
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     struct lcore_queue_conf *qconf;
@@ -423,12 +423,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     void *tmp;
 
     ret = rte_eth_macaddr_get(portid, &eth_addr);
-
-    printf("===============================\n");
-    printf("port ADDR : %u\n", portid);
-    printf("mac check: %x:%x:%x:%x:%x:%x\n", eth_addr.addr_bytes[0], eth_addr.addr_bytes[1], eth_addr.addr_bytes[2], eth_addr.addr_bytes[3], eth_addr.addr_bytes[4], eth_addr.addr_bytes[5]);
-
-    //===================DPDK==========================//
+    
+   //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
     struct sockaddr_storage addr_from;
@@ -621,38 +617,20 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
-                        // printf("========================\n");
-                        // printf("mac check before: %x:%x:%x:%x:%x:%x\n", eth_addr.addr_bytes[0], eth_addr.addr_bytes[1], eth_addr.addr_bytes[2], eth_addr.addr_bytes[3], eth_addr.addr_bytes[4], eth_addr.addr_bytes[5]);
-                        ret = rte_eth_macaddr_get(portid, &eth_addr);
+                        // ret = rte_eth_macaddr_get(portid, &eth_addr);
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
-                        // printf("mac check after: %x:%x:%x:%x:%x:%x\n", eth_addr.addr_bytes[0], eth_addr.addr_bytes[1], eth_addr.addr_bytes[2], eth_addr.addr_bytes[3], eth_addr.addr_bytes[4], eth_addr.addr_bytes[5]);
-                        // printf("portid : %u\n",portid);
-                        // printf("========================\n");
+                       
 
                         if (mac_dst != NULL)
                         {
                             rte_ether_addr_copy(mac_dst, &eth_ptr->dst_addr);
-                            // printf("===============================\n");
-                            // printf("%x\n", (eth_ptr->src_addr).addr_bytes[0]);
-                            // printf("%x\n", (eth_ptr->src_addr).addr_bytes[1]);
-                            // printf("%x\n", (eth_ptr->src_addr).addr_bytes[2]);
-                            // printf("%x\n", (eth_ptr->src_addr).addr_bytes[3]);
-                            // printf("%x\n", (eth_ptr->src_addr).addr_bytes[4]);
-                            // printf("%x\n", (eth_ptr->src_addr).addr_bytes[5]);
-                            // printf("===============================\n");
+                            
                         }
                         else
                         {
                             struct rte_ether_addr mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
                             rte_ether_addr_copy(&mac_addr, &eth_ptr->dst_addr);
-                            // printf("===============================\n");
-                            // printf("%x\n", mac_addr.addr_bytes[0]);
-                            // printf("%x\n", mac_addr.addr_bytes[1]);
-                            // printf("%x\n", mac_addr.addr_bytes[2]);
-                            // printf("%x\n", mac_addr.addr_bytes[3]);
-                            // printf("%x\n", mac_addr.addr_bytes[4]);
-                            // printf("%x\n", mac_addr.addr_bytes[5]);
-                            // printf("===============================\n");
+                            
                         }
 
                         setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, addr_my_addr, peer_addr);
