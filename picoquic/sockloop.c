@@ -360,27 +360,32 @@ void setup_pkt_udp_ip_headers_test(struct rte_ipv4_hdr *ip_hdr,
     ip_hdr->hdr_checksum = (uint16_t)ip_cksum;
 }
 
-struct rte_ether_addr find_mac_from_ip(uint32_t ip_addr, uint32_t *ip_addresses,struct rte_ether_addr *mac_addresses,int length){
-    for(int i = 0;i < length;i++){
-        if(ip_addresses[i] == ip_addr){
+struct rte_ether_addr find_mac_from_ip(uint32_t ip_addr, uint32_t *ip_addresses, struct rte_ether_addr *mac_addresses, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        if (ip_addresses[i] == ip_addr)
+        {
             return mac_addresses[i];
         }
     }
 }
 
-int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *ip_addresses,struct rte_ether_addr *mac_addresses,int length){
-    for(int i = 0;i < length;i++){
-        if(ip_addresses[i] == ip_addr){
+int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *ip_addresses, struct rte_ether_addr *mac_addresses, int length)
+{
+    // printf("ip_addr : %u\n",ip_addr);
+    for (int i = 0; i < length; i++)
+    {
+        if (ip_addresses[i] == ip_addr)
+        {
+            // printf("i : %d\n",i);
+            // printf("already present\n");
             return 0;
         }
-        if(ip_addresses[i] == 0){
-            // printf("%x\n", mac_addr.addr_bytes[0]);
-            // printf("%x\n", mac_addr.addr_bytes[1]);
-            // printf("%x\n", mac_addr.addr_bytes[2]);
-            // printf("%x\n", mac_addr.addr_bytes[3]);
-            // printf("%x\n", mac_addr.addr_bytes[4]);
-            // printf("%x\n", mac_addr.addr_bytes[5]);  
-            // printf("added\n");
+        if (ip_addresses[i] == 0)
+        {
+            printf("ip : %u\n",ip_addr);
+            printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
             ip_addresses[i] = ip_addr;
             mac_addresses[i] = mac_addr;
             return 0;
@@ -419,6 +424,10 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
     ret = rte_eth_macaddr_get(portid, &eth_addr);
 
+    printf("===============================\n");
+    printf("port ADDR : %u\n", portid);
+    printf("mac check: %x:%x:%x:%x:%x:%x\n", eth_addr.addr_bytes[0], eth_addr.addr_bytes[1], eth_addr.addr_bytes[2], eth_addr.addr_bytes[3], eth_addr.addr_bytes[4], eth_addr.addr_bytes[5]);
+
     //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
@@ -426,7 +435,6 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     struct sockaddr_storage addr_to;
 
     // handling packets
-    struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
     struct rte_mbuf *m;
@@ -463,9 +471,16 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     fptr_send = fopen("send.txt", "w");
     fptr_rcv = fopen("rcv.txt", "w");
 
-    uint32_t ip_addresses[20];
-    struct rte_ether_addr mac_addresses[20];
-
+    uint32_t ip_addresses[IP_MAC_ARRAYS_LENGTH];
+    struct rte_ether_addr mac_addresses[IP_MAC_ARRAYS_LENGTH];
+    memset(ip_addresses,0,sizeof(ip_addresses));
+    memset(mac_addresses,0,sizeof(mac_addresses));
+    // printf("are they empty?\n");
+    // for (int i; i < IP_MAC_ARRAYS_LENGTH; i++)
+    // {
+    //     printf("ip : %u\n", ip_addresses[i]);
+    //     printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addresses[i].addr_bytes[0], mac_addresses[i].addr_bytes[1], mac_addresses[i].addr_bytes[2], mac_addresses[i].addr_bytes[3], mac_addresses[i].addr_bytes[4], mac_addresses[i].addr_bytes[5]);
+    // }
 
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
@@ -502,10 +517,10 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             for (int i = 0; i < pkts_recv; i++)
             {
                 receiv_counter++;
-                // printf("received packets : %d\n",receiv_counter);
+                // printf("received packets : %u\n",portid);
 
                 /* access ethernet header of rcv'd pkt */
-                eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
+                struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 // printf("%x\n", (eth_hdr->dst_addr).addr_bytes[0]);
                 // printf("%x\n", (eth_hdr->dst_addr).addr_bytes[1]);
                 // printf("%x\n", (eth_hdr->dst_addr).addr_bytes[2]);
@@ -523,14 +538,15 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     src_port = udp_hdr->src_port;
                     dst_port = udp_hdr->dst_port;
 
-                    if(mac_dst == NULL){
-                        add_mac_ip_pair(src_addr,eth_hdr->src_addr, ip_addresses, mac_addresses,IP_MAC_ARRAYS_LENGTH);
+                    if (mac_dst == NULL)
+                    {
+                        add_mac_ip_pair(src_addr, (*eth_hdr).src_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
                         // printf("%x\n", eth_hdr->src_addr.addr_bytes[0]);
                         // printf("%x\n", eth_hdr->src_addr.addr_bytes[1]);
                         // printf("%x\n", eth_hdr->src_addr.addr_bytes[2]);
                         // printf("%x\n", eth_hdr->src_addr.addr_bytes[3]);
                         // printf("%x\n", eth_hdr->src_addr.addr_bytes[4]);
-                        // printf("%x\n", eth_hdr->src_addr.addr_bytes[5]); 
+                        // printf("%x\n", eth_hdr->src_addr.addr_bytes[5]);
                     }
 
                     char *addr_val = inet_ntoa(*(struct in_addr *)&src_addr);
@@ -590,8 +606,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
                         return 0;
                     }
-                    
-                    uint8_t *payload_ptr = rte_pktmbuf_mtod_offset(m, char *, (size_t) udp_payload_offset);
+
+                    uint8_t *payload_ptr = rte_pktmbuf_mtod_offset(m, char *, (size_t)udp_payload_offset);
 
                     ret = picoquic_prepare_next_packet_ex(quic, loop_time,
                                                           payload_ptr, send_buffer_size, &send_length,
@@ -605,11 +621,17 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
+                        // printf("========================\n");
+                        // printf("mac check before: %x:%x:%x:%x:%x:%x\n", eth_addr.addr_bytes[0], eth_addr.addr_bytes[1], eth_addr.addr_bytes[2], eth_addr.addr_bytes[3], eth_addr.addr_bytes[4], eth_addr.addr_bytes[5]);
+                        ret = rte_eth_macaddr_get(portid, &eth_addr);
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
+                        // printf("mac check after: %x:%x:%x:%x:%x:%x\n", eth_addr.addr_bytes[0], eth_addr.addr_bytes[1], eth_addr.addr_bytes[2], eth_addr.addr_bytes[3], eth_addr.addr_bytes[4], eth_addr.addr_bytes[5]);
+                        // printf("portid : %u\n",portid);
+                        // printf("========================\n");
 
-                        
-                        if(mac_dst != NULL){
-                            rte_ether_addr_copy(mac_dst,&eth_ptr->dst_addr);
+                        if (mac_dst != NULL)
+                        {
+                            rte_ether_addr_copy(mac_dst, &eth_ptr->dst_addr);
                             // printf("===============================\n");
                             // printf("%x\n", (eth_ptr->src_addr).addr_bytes[0]);
                             // printf("%x\n", (eth_ptr->src_addr).addr_bytes[1]);
@@ -618,11 +640,11 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                             // printf("%x\n", (eth_ptr->src_addr).addr_bytes[4]);
                             // printf("%x\n", (eth_ptr->src_addr).addr_bytes[5]);
                             // printf("===============================\n");
-                            
                         }
-                        else{
-                            struct rte_ether_addr mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses,mac_addresses,IP_MAC_ARRAYS_LENGTH);  
-                            rte_ether_addr_copy(&mac_addr,&eth_ptr->dst_addr);
+                        else
+                        {
+                            struct rte_ether_addr mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+                            rte_ether_addr_copy(&mac_addr, &eth_ptr->dst_addr);
                             // printf("===============================\n");
                             // printf("%x\n", mac_addr.addr_bytes[0]);
                             // printf("%x\n", mac_addr.addr_bytes[1]);
@@ -630,9 +652,9 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                             // printf("%x\n", mac_addr.addr_bytes[3]);
                             // printf("%x\n", mac_addr.addr_bytes[4]);
                             // printf("%x\n", mac_addr.addr_bytes[5]);
-                            // printf("===============================\n");  
+                            // printf("===============================\n");
                         }
-                        
+
                         setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, addr_my_addr, peer_addr);
                         // setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
 
@@ -650,7 +672,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         copy_buf_to_pkt(&udp_hdr_struct, sizeof(struct rte_udp_hdr), m, offset);
                         offset += sizeof(struct rte_udp_hdr);
                         // printf("offset : %d\n",offset);
-                        //payload already set
+                        // payload already set
 
                         offset += send_length;
                         // printf("offset : %d\n",offset);

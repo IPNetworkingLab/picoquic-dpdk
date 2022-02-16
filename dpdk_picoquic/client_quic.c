@@ -672,9 +672,6 @@ int init_port(uint16_t nb_of_ports)
         },
     };
 
-    // init rx queue
-    
-
     char mbuf_pool_name[20] = "mbuf_pool_X";
     char tx_buffer_name[20] = "tx_buffer_X";
     int index_of_X;
@@ -799,23 +796,24 @@ int main(int argc, char **argv)
     int nbr_of_port = 4;
     printf("before init\n");
     init_port(4);
-    printf("before start\n");
-
+    
     static struct rte_ether_addr eth_addr;
-    ret = rte_eth_macaddr_get(0, &eth_addr);
-
-    printf("%x\n", eth_addr.addr_bytes[0]);
-    printf("%x\n", eth_addr.addr_bytes[1]);
-    printf("%x\n", eth_addr.addr_bytes[2]);
-    printf("%x\n", eth_addr.addr_bytes[3]);
-    printf("%x\n", eth_addr.addr_bytes[4]);
-    printf("%x\n", eth_addr.addr_bytes[5]);
+    
 
     /* call lcore_hello() on every worker lcore */
 
     RTE_ETH_FOREACH_DEV(port_id)
     {
-        printf("portid : %zu\n", port_id);
+        // printf("==============================\n");
+        // printf("portid : %zu\n", port_id);
+        // ret = rte_eth_macaddr_get(port_id, &eth_addr);
+        // printf("%x\n", eth_addr.addr_bytes[0]);
+        // printf("%x\n", eth_addr.addr_bytes[1]);
+        // printf("%x\n", eth_addr.addr_bytes[2]);
+        // printf("%x\n", eth_addr.addr_bytes[3]);
+        // printf("%x\n", eth_addr.addr_bytes[4]);
+        // printf("%x\n", eth_addr.addr_bytes[5]);
+        // printf("==============================\n");
         ret = rte_eth_dev_start(port_id);
         if (ret != 0)
         {
