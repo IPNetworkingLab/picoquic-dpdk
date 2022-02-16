@@ -102,9 +102,8 @@ typedef struct st_sample_client_ctx_t
 struct rte_mempool *mb_pools[10];
 struct rte_eth_dev_tx_buffer *tx_buffers[10];
 
-//hardcoded server mac
+// hardcoded server mac
 struct rte_ether_addr eth_addr;
-
 
 static int sample_client_create_stream(picoquic_cnx_t *cnx,
                                        sample_client_ctx_t *client_ctx, int file_rank)
@@ -627,7 +626,7 @@ int picoquic_sample_client(char const *server_name,
 
     /* Wait for packets */
 
-    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, addr_from, mac_dst,mb_pool, tx_buffer);
+    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, addr_from, mac_dst, mb_pool, tx_buffer);
 
     /* Done. At this stage, we could print out statistics, etc. */
     sample_client_report(&client_ctx);
@@ -673,67 +672,69 @@ int init_port(uint16_t nb_of_ports)
         },
     };
 
-    printf("after init\n");
-    ret = rte_eth_dev_info_get(0, &dev_info);
-    if (ret != 0)
-        rte_exit(EXIT_FAILURE,
-                 "Error during getting device (port %u) info: %s\n",
-                 0, strerror(-ret));
-
-    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
-        local_port_conf.txmode.offloads |=
-            DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-    ret = rte_eth_dev_configure(portid, nb_of_ports, nb_of_ports, &local_port_conf);
-    if (ret != 0)
-    {
-        printf("error in dev_configure\n");
-        return 0;
-    }
-
-    ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
-                                           &nb_txd);
-    if (ret < 0)
-        rte_exit(EXIT_FAILURE,
-                 "Cannot adjust number of descriptors: err=%d, port=%u\n",
-                 ret, portid);
-
-    // init tx queue
-    txq_conf = dev_info.default_txconf;
-    txq_conf.offloads = local_port_conf.txmode.offloads;
-    ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
-                                 rte_eth_dev_socket_id(portid),
-                                 &txq_conf);
-    if (ret != 0)
-    {
-        printf("failed to init queue\n");
-        return 0;
-    }
-
     // init rx queue
-    rxq_conf = dev_info.default_rxconf;
-    rxq_conf.offloads = local_port_conf.rxmode.offloads;
+    
 
     char mbuf_pool_name[20] = "mbuf_pool_X";
     char tx_buffer_name[20] = "tx_buffer_X";
     int index_of_X;
     char char_i;
-    for (int i = 0; i < nb_of_ports; i++)
+
+    for (int portid = 0; portid < nb_of_ports; portid++)
     {
-        char_i = i;
+        
+        ret = rte_eth_dev_info_get(portid, &dev_info);
+        rxq_conf = dev_info.default_rxconf;
+        rxq_conf.offloads = local_port_conf.rxmode.offloads;
+        if (ret != 0)
+            rte_exit(EXIT_FAILURE,
+                     "Error during getting device (port %u) info: %s\n",
+                     0, strerror(-ret));
+
+        if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+            local_port_conf.txmode.offloads |=
+                DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+        ret = rte_eth_dev_configure(portid, nb_of_ports, nb_of_ports, &local_port_conf);
+        if (ret != 0)
+        {
+            printf("error in dev_configure\n");
+            return 0;
+        }
+
+        ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
+                                               &nb_txd);
+        if (ret < 0)
+            rte_exit(EXIT_FAILURE,
+                     "Cannot adjust number of descriptors: err=%d, port=%u\n",
+                     ret, portid);
+
+        // init tx queue
+        txq_conf = dev_info.default_txconf;
+        txq_conf.offloads = local_port_conf.txmode.offloads;
+        ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
+                                     rte_eth_dev_socket_id(portid),
+                                     &txq_conf);
+        if (ret != 0)
+        {
+            printf("failed to init queue\n");
+            return 0;
+        }
+
+        char_i = portid;
 
         index_of_X = strlen(mbuf_pool_name) - 1;
         mbuf_pool_name[index_of_X] = char_i;
         unsigned nb_mbufs = 8192U;
-        mb_pools[i] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
+        mb_pools[portid] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
                                               MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
                                               rte_socket_id());
-        if (mb_pools[i] == NULL)
+        if (mb_pools[portid] == NULL)
         {
             printf("fail to init mb_pool\n");
             rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
             return 0;
         }
-        ret = rte_eth_rx_queue_setup(0, i, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[i]);
+        ret = rte_eth_rx_queue_setup(portid, 0, nb_rxd, rte_eth_dev_socket_id(portid), &rxq_conf, mb_pools[portid]);
         if (ret != 0)
         {
             printf("failed to init rx_queue\n");
@@ -741,15 +742,16 @@ int init_port(uint16_t nb_of_ports)
 
         index_of_X = strlen(tx_buffer_name) - 1;
         tx_buffer_name[index_of_X] = char_i;
-        tx_buffers[i] = rte_zmalloc_socket(tx_buffer_name,
+        tx_buffers[portid] = rte_zmalloc_socket(tx_buffer_name,
                                            RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-                                           rte_eth_dev_socket_id(0));
-        if (tx_buffers[i] == NULL)
+                                           rte_eth_dev_socket_id(portid));
+        if (tx_buffers[portid] == NULL)
         {
             printf("fail to init buffer\n");
             return 0;
         }
     }
+    printf("init function finished\n");
 }
 
 static int
@@ -799,10 +801,9 @@ int main(int argc, char **argv)
     init_port(4);
     printf("before start\n");
 
-
     static struct rte_ether_addr eth_addr;
     ret = rte_eth_macaddr_get(0, &eth_addr);
-    
+
     printf("%x\n", eth_addr.addr_bytes[0]);
     printf("%x\n", eth_addr.addr_bytes[1]);
     printf("%x\n", eth_addr.addr_bytes[2]);
@@ -810,13 +811,11 @@ int main(int argc, char **argv)
     printf("%x\n", eth_addr.addr_bytes[4]);
     printf("%x\n", eth_addr.addr_bytes[5]);
 
-    
-
     /* call lcore_hello() on every worker lcore */
-    
+
     RTE_ETH_FOREACH_DEV(port_id)
     {
-        printf("portid : %zu\n",port_id);
+        printf("portid : %zu\n", port_id);
         ret = rte_eth_dev_start(port_id);
         if (ret != 0)
         {

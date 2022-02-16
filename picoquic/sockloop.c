@@ -409,9 +409,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     static struct rte_ether_addr eth_addr;
 
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
-    unsigned lcore_id = 1;
     struct lcore_queue_conf *qconf;
-    uint16_t portid = 0;
+    uint16_t portid = (uint16_t)rte_lcore_id();
     int ret;
     struct rte_eth_rxconf rxq_conf;
     struct rte_eth_txconf txq_conf;
@@ -488,7 +487,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
         if_index_to = 0;
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
         // printf("receiving\n");
-        pkts_recv = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
+        pkts_recv = rte_eth_rx_burst(portid, 0, pkts_burst, MAX_PKT_BURST);
 
         current_time = picoquic_current_time();
 
@@ -658,7 +657,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                         m->data_len = offset;
                         m->pkt_len = offset;
-                        int sent = rte_eth_tx_buffer(0, 0, tx_buffer, m);
+                        int sent = rte_eth_tx_buffer(portid, 0, tx_buffer, m);
                         // printf("sending\n");
                         send_counter += sent;
                         // fprintf(fptr_send, "%d\n", send_counter);
@@ -667,7 +666,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     else
                     {
                         rte_pktmbuf_free(m);
-                        int sent = rte_eth_tx_buffer_flush(0, 0, tx_buffer);
+                        int sent = rte_eth_tx_buffer_flush(portid, 0, tx_buffer);
                         send_counter += sent;
                         // fprintf(fptr_send, "%d\n", send_counter);
                         break;
