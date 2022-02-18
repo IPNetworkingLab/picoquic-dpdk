@@ -402,6 +402,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                               int do_not_use_gso,
                               picoquic_packet_loop_cb_fn loop_callback,
                               void *loop_callback_ctx,
+                              unsigned portid,
                               struct sockaddr_storage addr_my_addr,
                               struct rte_ether_addr *mac_dst,
                               struct rte_mempool *mb_pool,
@@ -415,7 +416,6 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     struct lcore_queue_conf *qconf;
-    uint16_t portid = (uint16_t)rte_lcore_id();
     int ret;
     struct rte_eth_rxconf rxq_conf;
     struct rte_eth_txconf txq_conf;

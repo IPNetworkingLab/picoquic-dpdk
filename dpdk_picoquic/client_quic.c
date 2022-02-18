@@ -55,6 +55,7 @@
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
+#define MAX_NB_OF_PORTS_AND_LCORES 32
 
 #define PICOQUIC_SAMPLE_ALPN "picoquic_sample"
 #define PICOQUIC_SAMPLE_SNI "test.example.com"
@@ -99,8 +100,8 @@ typedef struct st_sample_client_ctx_t
     int is_disconnected;
 } sample_client_ctx_t;
 
-struct rte_mempool *mb_pools[10];
-struct rte_eth_dev_tx_buffer *tx_buffers[10];
+struct rte_mempool *mb_pools[MAX_NB_OF_PORTS_AND_LCORES];
+struct rte_eth_dev_tx_buffer *tx_buffers[MAX_NB_OF_PORTS_AND_LCORES];
 
 // hardcoded server mac
 struct rte_ether_addr eth_addr;
@@ -512,6 +513,7 @@ int picoquic_sample_client(char const *server_name,
                            char const *default_dir,
                            int nb_files,
                            char const **file_names,
+                           unsigned portid,
                            struct sockaddr_storage addr_from,
                            struct rte_ether_addr *mac_dst,
                            struct rte_mempool *mb_pool,
@@ -626,7 +628,7 @@ int picoquic_sample_client(char const *server_name,
 
     /* Wait for packets */
 
-    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, addr_from, mac_dst, mb_pool, tx_buffer);
+    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, portid, addr_from, mac_dst, mb_pool, tx_buffer);
 
     /* Done. At this stage, we could print out statistics, etc. */
     sample_client_report(&client_ctx);
@@ -651,12 +653,46 @@ int picoquic_sample_client(char const *server_name,
     return ret;
 }
 
-int init_port(uint16_t nb_of_ports)
-{
-    int ret = 0;
-    int portid = 0;
+
+int init_mbuf_txbuffer(uint16_t portid,int index){
+
     static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
+    char char_i = portid;
+    index_of_X = strlen(mbuf_pool_name) - 1;
+    mbuf_pool_name[index_of_X] = char_i;
+    unsigned nb_mbufs = 8192U;
+    mb_pools[index] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
+                                            MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+                                            rte_socket_id());
+    if (mb_pools[index] == NULL)
+    {
+        printf("fail to init mb_pool\n");
+        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+        return 0;
+    }
+    ret = rte_eth_rx_queue_setup(portid, 0, nb_rxd, rte_eth_dev_socket_id(portid), &rxq_conf, mb_pools[index]);
+    if (ret != 0)
+    {
+        printf("failed to init rx_queue\n");
+    }
+
+    index_of_X = strlen(tx_buffer_name) - 1;
+    tx_buffer_name[index_of_X] = char_i;
+    tx_buffers[index] = rte_zmalloc_socket(tx_buffer_name,
+                                        RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
+                                        rte_eth_dev_socket_id(portid));
+    if (tx_buffers[index] == NULL)
+    {
+        printf("fail to init buffer\n");
+        return 0;
+    }
+}
+
+int init_port(uint16_t portid)
+{
+    int ret = 0;
+    
     struct rte_eth_rxconf rxq_conf;
     struct rte_eth_txconf txq_conf;
 
@@ -677,83 +713,74 @@ int init_port(uint16_t nb_of_ports)
     int index_of_X;
     char char_i;
 
-    for (int portid = 0; portid < nb_of_ports; portid++)
+  
+    ret = rte_eth_dev_info_get(portid, &dev_info);
+    rxq_conf = dev_info.default_rxconf;
+    rxq_conf.offloads = local_port_conf.rxmode.offloads;
+    if (ret != 0)
+        rte_exit(EXIT_FAILURE,
+                    "Error during getting device (port %u) info: %s\n",
+                    0, strerror(-ret));
+
+    if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
+        local_port_conf.txmode.offloads |=
+            DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+    ret = rte_eth_dev_configure(portid, 1, 1, &local_port_conf);
+    if (ret != 0)
     {
-        
-        ret = rte_eth_dev_info_get(portid, &dev_info);
-        rxq_conf = dev_info.default_rxconf;
-        rxq_conf.offloads = local_port_conf.rxmode.offloads;
-        if (ret != 0)
-            rte_exit(EXIT_FAILURE,
-                     "Error during getting device (port %u) info: %s\n",
-                     0, strerror(-ret));
-
-        if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
-            local_port_conf.txmode.offloads |=
-                DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-        ret = rte_eth_dev_configure(portid, nb_of_ports, nb_of_ports, &local_port_conf);
-        if (ret != 0)
-        {
-            printf("error in dev_configure\n");
-            return 0;
-        }
-
-        ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
-                                               &nb_txd);
-        if (ret < 0)
-            rte_exit(EXIT_FAILURE,
-                     "Cannot adjust number of descriptors: err=%d, port=%u\n",
-                     ret, portid);
-
-        // init tx queue
-        txq_conf = dev_info.default_txconf;
-        txq_conf.offloads = local_port_conf.txmode.offloads;
-        ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
-                                     rte_eth_dev_socket_id(portid),
-                                     &txq_conf);
-        if (ret != 0)
-        {
-            printf("failed to init queue\n");
-            return 0;
-        }
-
-        char_i = portid;
-
-        index_of_X = strlen(mbuf_pool_name) - 1;
-        mbuf_pool_name[index_of_X] = char_i;
-        unsigned nb_mbufs = 8192U;
-        mb_pools[portid] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
-                                              MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-                                              rte_socket_id());
-        if (mb_pools[portid] == NULL)
-        {
-            printf("fail to init mb_pool\n");
-            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-            return 0;
-        }
-        ret = rte_eth_rx_queue_setup(portid, 0, nb_rxd, rte_eth_dev_socket_id(portid), &rxq_conf, mb_pools[portid]);
-        if (ret != 0)
-        {
-            printf("failed to init rx_queue\n");
-        }
-
-        index_of_X = strlen(tx_buffer_name) - 1;
-        tx_buffer_name[index_of_X] = char_i;
-        tx_buffers[portid] = rte_zmalloc_socket(tx_buffer_name,
-                                           RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-                                           rte_eth_dev_socket_id(portid));
-        if (tx_buffers[portid] == NULL)
-        {
-            printf("fail to init buffer\n");
-            return 0;
-        }
+        printf("error in dev_configure\n");
+        return 0;
     }
-    printf("init function finished\n");
+
+    ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd,
+                                            &nb_txd);
+    if (ret < 0)
+        rte_exit(EXIT_FAILURE,
+                    "Cannot adjust number of descriptors: err=%d, port=%u\n",
+                    ret, portid);
+
+    // init tx queue
+    txq_conf = dev_info.default_txconf;
+    txq_conf.offloads = local_port_conf.txmode.offloads;
+    ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
+                                    rte_eth_dev_socket_id(portid),
+                                    &txq_conf);
+    if (ret != 0)
+    {
+        printf("failed to init queue\n");
+        return 0;
+    }
+
+}
+
+int check_ports_lcores_numbers(){
+    int nbr_of_ports = 0;
+    int nbr_of_lcores = 0;
+    unsigned portid;
+    unsigned lcore_id;
+
+    RTE_ETH_FOREACH_DEV(portid)
+    {   
+        nbr_of_ports++;
+    }
+    
+    RTE_LCORE_FOREACH_WORKER(lcore_id)
+    {
+        nbr_of_lcores++;
+    }
+    if(nbr_of_lcores != nbr_of_ports){
+        return -1;
+    }
+    return 0;
+
 }
 
 static int
-lcore_hello(__rte_unused void *arg)
+lcore_hello(void *arg)
 {
+    unsigned *tab = (unsigned *) arg;
+    unsigned portid = tab[0];
+    unsigned index = tab[1];
 
     unsigned lcore_id = rte_lcore_id();
     char char_lcore_id = lcore_id + '0';
@@ -775,7 +802,7 @@ lcore_hello(__rte_unused void *arg)
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
     memcpy(files[0], filename, strlen(filename) + 1);
-    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files, addr_from, &eth_addr, mb_pools[lcore_id], tx_buffers[lcore_id]);
+    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files, portid, addr_from, &eth_addr, mb_pools[index], tx_buffers[index]);
 }
 
 int main(int argc, char **argv)
@@ -788,51 +815,47 @@ int main(int argc, char **argv)
     eth_addr.addr_bytes[5] = 0x70;
 
     int ret;
-    unsigned port_id;
+    unsigned portid;
     unsigned lcore_id;
     ret = rte_eal_init(argc, argv);
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
-    int nbr_of_port = 4;
-    printf("before init\n");
-    init_port(4);
     
-    static struct rte_ether_addr eth_addr;
-    
+    if(check_ports_lcores_numbers != 0){
+        printf("mismatch between the number of lcore and ports\n");
+        return -1;
 
-    /* call lcore_hello() on every worker lcore */
-
-    RTE_ETH_FOREACH_DEV(port_id)
-    {
-        // printf("==============================\n");
-        // printf("portid : %zu\n", port_id);
-        // ret = rte_eth_macaddr_get(port_id, &eth_addr);
-        // printf("%x\n", eth_addr.addr_bytes[0]);
-        // printf("%x\n", eth_addr.addr_bytes[1]);
-        // printf("%x\n", eth_addr.addr_bytes[2]);
-        // printf("%x\n", eth_addr.addr_bytes[3]);
-        // printf("%x\n", eth_addr.addr_bytes[4]);
-        // printf("%x\n", eth_addr.addr_bytes[5]);
-        // printf("==============================\n");
-        ret = rte_eth_dev_start(port_id);
+    }
+    unsigned portids[MAX_NB_OF_PORTS_AND_LCORES];
+    int index_port = 0;
+    RTE_ETH_FOREACH_DEV(portid)
+    {   
+        portids[index_port] = portid;
+        init_port(portid);
+        init_mbuf_txbuffer(portid,index_port);
+        ret = rte_eth_dev_start(portid);
         if (ret != 0)
         {
             printf("failed to start device\n");
         }
-        ret = rte_eth_promiscuous_enable(port_id);
-        if (ret != 0)
-            fprintf(stderr,
-                    "Error during enabling promiscuous mode for port %u: %s - ignore\n",
-                    port_id, rte_strerror(-ret));
+        index_port++;
     }
-    printf("after start\n");
+    unsigned index_lcore = 0;
+    unsigned args[2];
     RTE_LCORE_FOREACH_WORKER(lcore_id)
     {
-        rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+        args[0] = index_lcore;
+        args[1] = portids[index_lcore];
+        rte_eal_remote_launch(lcore_hello, args, lcore_id);
+        index_lcore++;
     }
 
     /* call it on main lcore too */
-    lcore_hello(NULL);
+    args[0] = index_lcore;
+    args[1] = portids[index_lcore];
+
+    lcore_hello(args);
+
     rte_eal_mp_wait_lcore();
 
     /* clean up the EAL */

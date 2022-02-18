@@ -415,6 +415,7 @@ int picoquic_sample_server(int server_port,
                            const char *server_cert,
                            const char *server_key,
                            const char *default_dir,
+                           unsigned portid,
                            struct sockaddr_storage addr_from,
                            struct rte_mempool *mb_pool,
                            struct rte_eth_dev_tx_buffer *tx_buffer)
@@ -458,7 +459,7 @@ int picoquic_sample_server(int server_port,
     /* Wait for packets */
     if (ret == 0)
     {
-        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL, addr_from,NULL,mb_pool, tx_buffer);
+        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL, portid, addr_from,NULL,mb_pool, tx_buffer);
     }
 
     /* And finish. */
@@ -589,7 +590,7 @@ lcore_hello(__rte_unused void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
 
-	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "/home/nikita/fast",addr_from,mb_pools[0],tx_buffers[0]);
+	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",0,addr_from,mb_pools[0],tx_buffers[0]);
    
 }
 
@@ -600,6 +601,8 @@ int main(int argc, char **argv)
     lcore_id = rte_lcore_id();
     int portid = 0;
     ret = rte_eal_init(argc, argv);
+    if (ret < 0)
+        rte_panic("Cannot init EAL\n");
     init_port(1);
     ret = rte_eth_dev_start(portid);
 
@@ -619,13 +622,12 @@ int main(int argc, char **argv)
         printf("failed to start device\n");
     }
     ret = rte_eth_promiscuous_enable(portid);
-    if (ret != 0)
-        rte_exit(EXIT_FAILURE,
-                 "rte_eth_promiscuous_enable:err=%s, port=%u\n",
-                 rte_strerror(-ret), portid);
+    // if (ret != 0)
+    //     rte_exit(EXIT_FAILURE,
+    //              "rte_eth_promiscuous_enable:err=%s, port=%u\n",
+    //              rte_strerror(-ret), portid);
     printf("after dpdk setup\n");
-    if (ret < 0)
-        rte_panic("Cannot init EAL\n");
+    
 
     /* call lcore_hello() on every worker lcore */
 
