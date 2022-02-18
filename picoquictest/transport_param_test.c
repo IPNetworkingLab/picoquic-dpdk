@@ -74,42 +74,42 @@
 
 static picoquic_tp_t transport_param_test1 = {
     65535, 0, 0, 0x400000, 65533, 65535, 30, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT,
-    PICOQUIC_NB_PATH_TARGET, 3, 0,  TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, 0
+    PICOQUIC_NB_PATH_TARGET, 3, 0,  TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test2 = {
     0x1000000, 0, 0, 0x1000000, 1, 0, 255, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 3, 0, 
-    TRANSPORT_PREFERED_ADDRESS_NULL, 1480, 2, 3, 0, 0, 1, 0
+    TRANSPORT_PREFERED_ADDRESS_NULL, 1480, 2, 3, 0, 0, 2, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test3 = {
     0x1000000, 0, 0, 0x1000000, 1, 0, 255, 0, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 3, 0, 
-    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 3, 0x3e8, 0, 0, 1
+    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 3, 0x3e8, 0, 1, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test4 = {
     65535, 0, 0, 0x400000, 65532, 0, 30, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 3, 0,
-    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, 0
+    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test5 = {
     0x1000000, 0, 0, 0x1000000, 4, 0, 255, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 3, 0, 
-    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, 0
+    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test6 = {
     0x10000, 0, 0, 0xffffffff, 0, 0, 30, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 3, 0,
-    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, 0
+    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test7 = {
     8192, 0, 0, 16384, 5, 0, 10, 1472, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 17, 0, 
-    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, 0
+    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test8 = {
     65535, 0, 0, 0x400000, 0, 0, 30, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 3, 0, 
-    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, 0
+    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test9 = {
@@ -117,17 +117,17 @@ static picoquic_tp_t transport_param_test9 = {
     { 1, { 10, 0, 0, 1}, 4433, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0,
     {{1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },4},
         { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }},
-        0, 0, 0, 0, 0, 0, 0
+        0, 0, 0, 0, 0, 0, { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test10 = {
     65535, 0, 0, 0x400000, 65533, 65535, 30, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT, 0, 3, 1, 
-    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0, 0
+    TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 0, 0,  { 0 }, 0
 };
 
 static picoquic_tp_t transport_param_test11 = {
     65535, 0, 0, 0x400000, 65533, 65535, 30, 1480, PICOQUIC_ACK_DELAY_MAX_DEFAULT,
-    PICOQUIC_NB_PATH_TARGET, 3, 0,  TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 1, 0, 0
+    PICOQUIC_NB_PATH_TARGET, 3, 0,  TRANSPORT_PREFERED_ADDRESS_NULL, 0, 0, 0, 0, 1, 0, { 0 }, 0
 };
 
 #define LOCAL_CONNECTION_ID  2, 3, 4, 5, 6, 7, 8, 9
@@ -155,7 +155,8 @@ uint8_t client_param2[] = {
     0x50, 0x57, 0x01, 0x01,
     0x80, 0, 0x71, 0x58, 0x01, 0x03,
     0x80, (uint8_t)((picoquic_tp_enable_multipath >> 16) & 0xFF),
-    (uint8_t)((picoquic_tp_enable_multipath>>8) & 0xFF), (uint8_t)(picoquic_tp_enable_multipath&0xFF), 1, 0x01,
+    (uint8_t)((picoquic_tp_enable_multipath>>8) & 0xFF),
+    (uint8_t)(picoquic_tp_enable_multipath&0xFF), 1, 0x02,
 };
 
 uint8_t client_param3[] = {
@@ -166,9 +167,9 @@ uint8_t client_param3[] = {
     picoquic_tp_handshake_connection_id, 8, LOCAL_CONNECTION_ID,
     0xC0, 0, 0, 0, 0xFF, 0x02, 0xDE, 0x1A, 2, 0x43, 0xE8, /* min ack delay */
     0x80, 0, 0x71, 0x58, 0x01, 0x03,
-    0x80, (uint8_t)((picoquic_tp_enable_simple_multipath >> 16) & 0xFF),
-    (uint8_t)((picoquic_tp_enable_simple_multipath >> 8) & 0xFF),
-    (uint8_t)(picoquic_tp_enable_simple_multipath & 0xFF), 1, 0x01,
+    0x80, (uint8_t)((picoquic_tp_enable_multipath >> 16) & 0xFF),
+    (uint8_t)((picoquic_tp_enable_multipath >> 8) & 0xFF),
+    (uint8_t)(picoquic_tp_enable_multipath & 0xFF), 1, 0x01,
 };
 
 uint8_t client_param4[] = {
@@ -1163,128 +1164,86 @@ int vn_tp_test_one(size_t len, const uint8_t* t, int mode, uint32_t envelop_vn, 
     return ret;
 }
 
-#define VN_TP_V2_DRAFT 0xff, 0x01, 0x00, 0x00
+#define VN_TP_V1 0x0, 0x0, 0x0, 0x1
+#define VN_TP_V2_DRAFT 0xff, 0x02, 0x00, 0x00
 
 uint8_t vn_tp_client_0[] = {
-    0x0, 0x0, 0x0, 0x1,
-    0x0, 0x0, 0x0, 0x0,
-    0,
-    1,
-    VN_TP_V2_DRAFT
+    VN_TP_V1,
+    VN_TP_V2_DRAFT,
+    VN_TP_V1
 };
 
 uint8_t vn_tp_client_1[] = {
-    0x0, 0x0, 0x0, 0x1,
+    VN_TP_V1,
     0x0a, 0x0a, 0x0a, 0x0a,
-    0,
-    1,
     VN_TP_V2_DRAFT
 };
 
 uint8_t vn_tp_client_2[] = {
-    0x0, 0x0, 0x0, 0x1,
+    VN_TP_V1,
     0x0a, 0x0a, 0x0a, 0x0a,
-    2,
+    VN_TP_V1,
     VN_TP_V2_DRAFT,
-    0xfa, 0x0a, 0x0a, 0x0a,
-    2,
-    0xaa, 0x0a, 0x0a, 0x0a,
-    VN_TP_V2_DRAFT
+    0xfa, 0x0a, 0x0a, 0x0a
 };
 
 uint8_t vn_tp_client_3[] = {
-    0x0, 0x0, 0x0, 0x1,
-    0x0a, 0x0a, 0x0a, 0x0a,
-    2,
-    VN_TP_V2_DRAFT,
-    0xfa, 0x0a, 0x0a, 0x0a,
-    0
+    VN_TP_V1
 };
 
-uint8_t vn_tp_client_bad_evn[] = {
-    0x0, 0x0, 0x0, 0x1,
-    0x50, 0x43, 0x51, 0x30,
-    2,
-    VN_TP_V2_DRAFT,
-    0xfa, 0x0a, 0x0a, 0x0a,
-    2,
-    0xaa, 0x0a, 0x0a, 0x0a,
-    VN_TP_V2_DRAFT
-};
 
 uint8_t vn_tp_client_bad_1[] = {
-    0x0, 0x0, 0x0, 0x1,
-    0x0a, 0x0a, 0x0a, 0x0a,
-    0x3F,
-    VN_TP_V2_DRAFT,
-    0xfa, 0x0a, 0x0a, 0x0a,
-    2,
-    0xaa, 0x0a, 0x0a, 0x0a,
-    VN_TP_V2_DRAFT
+    0x0, 0x0, 0x0,
 };
 
 uint8_t vn_tp_client_bad_2[] = {
-    0x0, 0x0, 0x0, 0x1,
-    0x0a, 0x0a, 0x0a, 0x0a,
-    2,
-    VN_TP_V2_DRAFT,
-    0xfa, 0x0a, 0x0a, 0x0a,
-    0x3f,
-    0xaa, 0x0a, 0x0a, 0x0a,
-    VN_TP_V2_DRAFT
+    VN_TP_V1,
+    0x0a, 0x0a, 0x0a, 
 };
 
 uint8_t vn_tp_client_bad_3[] = {
-    0x0, 0x0, 0x0, 0x1,
-    0x0a, 0x0a, 0x0a, 0x0a,
-    2,
-    VN_TP_V2_DRAFT,
-    0xfa, 0x0a, 0x0a, 0x0a,
-    0x3f,
-    0xaa, 0x0a, 0x0a, 0x0a,
-    0x0, 0x0
+    0x0
 };
 
 uint8_t vn_tp_client_bad_4[] = {
-    0x0, 0x0, 0x0, 0x1,
+    VN_TP_V1,
+    0x0, 0x0, 0x0, 0x2,
+    0x0, 0x0, 0x0, 0x3,
     0x50, 0x43
 };
 
 uint8_t vn_tp_server_0[] = {
-    VN_TP_V2_DRAFT,
-    0
+    VN_TP_V2_DRAFT
 };
 
 uint8_t vn_tp_server_1[] = {
     VN_TP_V2_DRAFT,
-    3,
-    0x0, 0x0, 0x0, 0x1,
-    VN_TP_V2_DRAFT,
-    0x50, 0x43, 0x51, 0x30
+    VN_TP_V1,
+    0x0, 0x0, 0x0, 0x2,
+    0x0, 0x0, 0x0, 0x3,
 };
 
 uint8_t vn_tp_server_bad_1[] = {
     VN_TP_V2_DRAFT,
-    3,
-    0x0, 0x0, 0x0, 0x1,
+    VN_TP_V1,
     VN_TP_V2_DRAFT,
     0x50, 0x43
 };
 
 uint8_t vn_tp_server_bad_2[] = {
     VN_TP_V2_DRAFT,
-    63,
-    0x0, 0x0, 0x0, 0x1,
-    VN_TP_V2_DRAFT,
-    0x50, 0x43, 0x51, 0x30
+    0x0, 
 };
 
 uint8_t vn_tp_server_bad_3[] = {
     VN_TP_V2_DRAFT,
+    0x0, 0x0
 };
 
 uint8_t vn_tp_server_bad_4[] = {
-    0x0, 0x0, 0x0
+    VN_TP_V2_DRAFT,
+    0x0, 0x0, 0x0,
+    VN_TP_V1
 };
 
 typedef struct st_vn_tp_test_t {
@@ -1299,19 +1258,18 @@ typedef struct st_vn_tp_test_t {
 #define VN_TP_TEST_CASE(mode, ve, vx, ex, vn_tp) { (mode), (ve), (vx), (ex), vn_tp, sizeof(vn_tp)}
 
 vn_tp_test_t vn_tp_test_case[] = {
-    VN_TP_TEST_CASE(0, 0x00000001, PICOQUIC_V2_VERSION_DRAFT, 0, vn_tp_client_0),
-    VN_TP_TEST_CASE(0, 0x00000001, PICOQUIC_V2_VERSION_DRAFT, 0, vn_tp_client_1),
-    VN_TP_TEST_CASE(0, 0x00000001, PICOQUIC_V2_VERSION_DRAFT, 0, vn_tp_client_2),
-    VN_TP_TEST_CASE(0, 0x00000001, 0x00000000, 0, vn_tp_client_3),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, PICOQUIC_V2_VERSION_DRAFT, 0, vn_tp_client_0),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, PICOQUIC_V2_VERSION_DRAFT, 0, vn_tp_client_1),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, PICOQUIC_V1_VERSION, 0, vn_tp_client_2),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, 0x00000000, 0, vn_tp_client_3),
     VN_TP_TEST_CASE(0, PICOQUIC_V2_VERSION_DRAFT, 0, PICOQUIC_TRANSPORT_VERSION_NEGOTIATION_ERROR, vn_tp_client_3),
-    VN_TP_TEST_CASE(0, 0x00000001, 0, PICOQUIC_TRANSPORT_VERSION_NEGOTIATION_ERROR, vn_tp_client_bad_evn),
-    VN_TP_TEST_CASE(0, 0x00000001, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_1),
-    VN_TP_TEST_CASE(0, 0x00000001, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_2),
-    VN_TP_TEST_CASE(0, 0x00000001, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_3),
-    VN_TP_TEST_CASE(0, 0x00000001, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_4),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_1),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_2),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_3),
+    VN_TP_TEST_CASE(0, PICOQUIC_V1_VERSION, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_client_bad_4),
     VN_TP_TEST_CASE(1, PICOQUIC_V2_VERSION_DRAFT, 0, 0, vn_tp_server_0),
     VN_TP_TEST_CASE(1, PICOQUIC_V2_VERSION_DRAFT, 0, 0, vn_tp_server_1),
-    VN_TP_TEST_CASE(1, 0x00000001, 0, PICOQUIC_TRANSPORT_VERSION_NEGOTIATION_ERROR, vn_tp_server_0),
+    VN_TP_TEST_CASE(1, PICOQUIC_V1_VERSION, 0, PICOQUIC_TRANSPORT_VERSION_NEGOTIATION_ERROR, vn_tp_server_0),
     VN_TP_TEST_CASE(1, PICOQUIC_V2_VERSION_DRAFT, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_server_bad_1),
     VN_TP_TEST_CASE(1, PICOQUIC_V2_VERSION_DRAFT, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_server_bad_2),
     VN_TP_TEST_CASE(1, PICOQUIC_V2_VERSION_DRAFT, 0, PICOQUIC_TRANSPORT_PARAMETER_ERROR, vn_tp_server_bad_3),

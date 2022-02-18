@@ -489,47 +489,6 @@ int quic_client(const char* ip_address_text, int server_port,
 
     memset(&loop_cb, 0, sizeof(client_loop_cb_t));
 
-    if (config->alpn != NULL && (strcmp(config->alpn, "siduck") == 0 || strcmp(config->alpn, "siduck-00") == 0)) {
-        /* Set a siduck client */
-        is_siduck = 1;
-        siduck_ctx = siduck_create_ctx(stdout);
-        if (siduck_ctx == NULL) {
-            fprintf(stdout, "Could not get ready to quack\n");
-            return -1;
-        }
-        fprintf(stdout, "Getting ready to quack\n");
-    }
-    else if (config->alpn != NULL && strcmp(config->alpn, QUICPERF_ALPN) == 0) {
-        /* Set a QUICPERF client */
-        is_quicperf = 1;
-        quicperf_ctx = quicperf_create_ctx(client_scenario_text);
-        if (quicperf_ctx == NULL) {
-            fprintf(stdout, "Could not get ready to run QUICPERF\n");
-            return -1;
-        }
-        fprintf(stdout, "Getting ready to run QUICPERF\n");
-    }
-    else {
-        if (config->no_disk) {
-            fprintf(stdout, "Files not saved to disk (-D, no_disk)\n");
-        }
-
-        if (client_scenario_text == NULL) {
-            client_scenario_text = test_scenario_default;
-        }
-
-        fprintf(stdout, "Testing scenario: <%s>\n", client_scenario_text);
-        ret = demo_client_parse_scenario_desc(client_scenario_text, &client_sc_nb, &client_sc);
-        if (ret != 0) {
-            fprintf(stdout, "Cannot parse the specified scenario.\n");
-            return -1;
-        }
-        else {
-            ret = picoquic_demo_client_initialize_context(&callback_ctx, client_sc, client_sc_nb, config->alpn, config->no_disk, 0);
-            callback_ctx.out_dir = config->out_dir;
-        }
-    }
-
     if (ret == 0) {
         ret = picoquic_get_server_address(ip_address_text, server_port, &loop_cb.server_address, &is_name);
         if (sni == NULL && is_name != 0) {
@@ -569,6 +528,68 @@ int quic_client(const char* ip_address_text, int server_port,
         }
     }
 
+    /* If needed, set ALPN and proposed version from tickets */
+    if (config->alpn == NULL || config->proposed_version == 0) {
+        char const* ticket_alpn;
+        uint32_t ticket_version;
+
+        if (picoquic_demo_client_get_alpn_and_version_from_tickets(qclient,  sni, config->alpn,
+            config->proposed_version, current_time, &ticket_alpn, &ticket_version) == 0) {
+            if (ticket_alpn != NULL) {
+                fprintf(stdout, "Set ALPN to %s based on stored ticket\n", ticket_alpn);
+                picoquic_config_set_option(config, picoquic_option_ALPN, ticket_alpn);
+            }
+            
+            if (ticket_version != 0) {
+                fprintf(stdout, "Set version to 0x%08x based on stored ticket\n", ticket_version);
+                config->proposed_version = ticket_version;
+            }
+        }
+    }
+
+    if (ret == 0) {
+        if (config->alpn != NULL && (strcmp(config->alpn, "siduck") == 0 || strcmp(config->alpn, "siduck-00") == 0)) {
+            /* Set a siduck client */
+            is_siduck = 1;
+            siduck_ctx = siduck_create_ctx(stdout);
+            if (siduck_ctx == NULL) {
+                fprintf(stdout, "Could not get ready to quack\n");
+                return -1;
+            }
+            fprintf(stdout, "Getting ready to quack\n");
+        }
+        else if (config->alpn != NULL && strcmp(config->alpn, QUICPERF_ALPN) == 0) {
+            /* Set a QUICPERF client */
+            is_quicperf = 1;
+            quicperf_ctx = quicperf_create_ctx(client_scenario_text);
+            if (quicperf_ctx == NULL) {
+                fprintf(stdout, "Could not get ready to run QUICPERF\n");
+                return -1;
+            }
+            fprintf(stdout, "Getting ready to run QUICPERF\n");
+        }
+        else {
+            if (config->no_disk) {
+                fprintf(stdout, "Files not saved to disk (-D, no_disk)\n");
+            }
+
+            if (client_scenario_text == NULL) {
+                client_scenario_text = test_scenario_default;
+            }
+
+            fprintf(stdout, "Testing scenario: <%s>\n", client_scenario_text);
+            ret = demo_client_parse_scenario_desc(client_scenario_text, &client_sc_nb, &client_sc);
+            if (ret != 0) {
+                fprintf(stdout, "Cannot parse the specified scenario.\n");
+                return -1;
+            }
+            else {
+                ret = picoquic_demo_client_initialize_context(&callback_ctx, client_sc, client_sc_nb, config->alpn, config->no_disk, 0);
+                callback_ctx.out_dir = config->out_dir;
+            }
+        }
+    }
+
     /* Create the client connection */
     if (ret == 0) {
         /* Create a client connection */
@@ -589,15 +610,6 @@ int quic_client(const char* ip_address_text, int server_port,
             }
             else {
                 picoquic_set_callback(cnx_client, picoquic_demo_client_callback, &callback_ctx);
-
-                if (cnx_client->alpn == NULL) {
-                    picoquic_demo_client_set_alpn_from_tickets(cnx_client, &callback_ctx, current_time);
-                    if (cnx_client->alpn != NULL) {
-                        fprintf(stdout, "Set ALPN to %s based on stored ticket\n", cnx_client->alpn);
-                        picoquic_log_app_message(cnx_client,
-                            "Set ALPN to %s based on stored ticket", cnx_client->alpn);
-                    }
-                }
 
                 /* Requires TP grease, for interop tests */
                 cnx_client->grease_transport_parameters = 1;
@@ -729,6 +741,17 @@ int quic_client(const char* ip_address_text, int server_port,
             fprintf(stdout, "ECN was not acknowledged.\n");
         }
 
+        if (config->desired_version != 0) {
+            uint32_t v = picoquic_supported_versions[cnx_client->version_index].version;
+            if (v == config->desired_version) {
+                fprintf(stdout, "Successfully negotiated version 0x%" PRIx32 ".\n", v);
+            }
+            else {
+                fprintf(stdout, "Could not negotiate version 0x%" PRIx32 ", used version 0x%" PRIu32 ".\n", 
+                    config->desired_version, v);
+            }
+        }
+
         if (loop_cb.force_migration){
             if (!loop_cb.migration_started) {
                 fprintf(stdout, "Could not start testing migration.\n");
@@ -827,7 +850,7 @@ int quic_client(const char* ip_address_text, int server_port,
         uint16_t ticket_length;
 
         if (sni != NULL && loop_cb.saved_alpn != NULL && 0 == picoquic_get_ticket(qclient->p_first_ticket, current_time, sni, (uint16_t)strlen(sni), loop_cb.saved_alpn,
-            (uint16_t)strlen(loop_cb.saved_alpn), &ticket, &ticket_length, NULL, 0)) {
+            (uint16_t)strlen(loop_cb.saved_alpn), 0, &ticket, &ticket_length, NULL, 0)) {
             fprintf(stdout, "Received ticket from %s (%s):\n", sni, loop_cb.saved_alpn);
             picoquic_log_picotls_ticket(stdout, picoquic_null_connection_id, ticket, ticket_length);
         }

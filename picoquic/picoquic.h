@@ -96,6 +96,7 @@ extern "C" {
 #define PICOQUIC_ERROR_SOCKET_ERROR (PICOQUIC_ERROR_CLASS + 54)
 #define PICOQUIC_ERROR_VERSION_NEGOTIATION (PICOQUIC_ERROR_CLASS + 55)
 #define PICOQUIC_ERROR_PACKET_TOO_LONG (PICOQUIC_ERROR_CLASS + 56)
+#define PICOQUIC_ERROR_PACKET_WRONG_VERSION (PICOQUIC_ERROR_CLASS + 57)
 
 /*
  * Protocol errors defined in the QUIC spec
@@ -229,7 +230,10 @@ typedef enum {
     picoquic_callback_request_alpn_list, /* Provide the list of supported ALPN */
     picoquic_callback_set_alpn, /* Set ALPN to negotiated value */
     picoquic_callback_pacing_changed, /* Pacing rate for the connection changed */
-    picoquic_callback_prepare_datagram /* Prepare the next datagram */
+    picoquic_callback_prepare_datagram, /* Prepare the next datagram */
+    picoquic_callback_datagram_acked, /* Ack for packet carrying datagram-frame received from peer */
+    picoquic_callback_datagram_lost, /* Packet carrying datagram-frame probably lost */
+    picoquic_callback_datagram_spurious /* Packet carrying datagram-frame was not really lost */
 } picoquic_call_back_event_t;
 
 typedef struct st_picoquic_tp_prefered_address_t {
@@ -271,7 +275,6 @@ typedef struct st_picoquic_tp_t {
     uint64_t min_ack_delay;
     int do_grease_quic_bit;
     int enable_multipath;
-    int enable_simple_multipath;
     picoquic_tp_version_negotiation_t version_negotiation;
     int enable_bdp_frame;
 } picoquic_tp_t;
@@ -519,6 +522,14 @@ int picoquic_set_verify_certificate_callback(picoquic_quic_t* quic,
 /* Set client authentication in TLS (if enabled, client is required to send certificates). */
 void picoquic_set_client_authentication(picoquic_quic_t* quic, int client_authentication);
 
+/* By default, a quic context authorizes incoming connections if the certificate and
+ * private key are provided, but if client authentication is required the client context
+ * will also have certificaye and key. In that case, the function "enforce_client_only"
+ * can be used to specify a pure client (do_enforce=1). For peer-to-peer application
+ * that expect both incoming connections, there is no need to call that API, but it
+ * could be used with "do_enforce = 0". */
+void picoquic_enforce_client_only(picoquic_quic_t* quic, int do_enforce);
+
 /* Set default padding policy for the context */
 void picoquic_set_default_padding(picoquic_quic_t* quic, uint32_t padding_multiple, uint32_t padding_minsize);
 
@@ -633,9 +644,18 @@ void picoquic_set_rejected_version(picoquic_cnx_t* cnx, uint32_t rejected_versio
 /* Support for encrypted SNI*/
 int picoquic_esni_client_from_file(picoquic_cnx_t * cnx, char const * esni_rr_file_name);
 
-/* Connection events */
+/* Connection events.
+ * The "probe new path" API attempts to validate a new path. If multipath is enabled,
+ * the new path will come in addition to the set of existing paths; if not,
+ * the new path when validated will replace the default path.
+ * The "abandon path" should only be used if multipath is enabled, and if more than
+ * one path is available -- otherwise, just close the connection. If the command
+ * is accepted, the peer will be informed of the need to close the path, and the
+ * path will be demoted after a short delay.
+ */
 int picoquic_probe_new_path(picoquic_cnx_t* cnx, const struct sockaddr* addr_from,
     const struct sockaddr* addr_to, uint64_t current_time);
+int picoquic_abandon_path(picoquic_cnx_t* cnx, int path_id, uint64_t reason, char const* phrase);
 
 int picoquic_renew_connection_id(picoquic_cnx_t* cnx, int path_id);
 

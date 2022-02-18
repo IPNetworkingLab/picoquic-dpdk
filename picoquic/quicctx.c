@@ -83,68 +83,116 @@ static uint8_t picoquic_cleartext_v2_salt[] = {
     0x7a, 0xe3, 0xe5, 0xd3
 };
 
+uint8_t picoquic_retry_protection_v2[32] = {
+    0x34, 0x25, 0xc2, 0x0c, 0xf8, 0x87, 0x79, 0xdf, 0x2f, 0xf7, 0x1e, 0x8a, 0xbf, 0xa7, 0x82, 0x49,
+    0x89, 0x1e, 0x76, 0x3b, 0xbe, 0xd2, 0xf1, 0x3c, 0x04, 0x83, 0x43, 0xd3, 0x48, 0xc0, 0x60, 0xe2
+};
 
 const picoquic_version_parameters_t picoquic_supported_versions[] = {
     { PICOQUIC_V1_VERSION,
         sizeof(picoquic_cleartext_v1_salt),
         picoquic_cleartext_v1_salt,
         sizeof(picoquic_retry_protection_v1),
-        picoquic_retry_protection_v1 },
+        picoquic_retry_protection_v1,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION},
+    { PICOQUIC_V2_VERSION_DRAFT_01,
+        sizeof(picoquic_cleartext_v2_salt),
+        picoquic_cleartext_v2_salt,
+        sizeof(picoquic_retry_protection_v2),
+        picoquic_retry_protection_v2,
+        PICOQUIC_LABEL_QUIC_V2_KEY_BASE,
+        PICOQUIC_LABEL_V2_TRAFFIC_UPDATE,
+        PICOQUIC_V2_VERSION},
     { PICOQUIC_V2_VERSION_DRAFT,
         sizeof(picoquic_cleartext_v2_salt),
         picoquic_cleartext_v2_salt,
-        sizeof(picoquic_retry_protection_v1),
-        picoquic_retry_protection_v1 },
+        sizeof(picoquic_retry_protection_v2),
+        picoquic_retry_protection_v2,
+        PICOQUIC_LABEL_QUIC_V2_KEY_BASE,
+        PICOQUIC_LABEL_V2_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION},
     { PICOQUIC_POST_IESG_VERSION,
         sizeof(picoquic_cleartext_v1_salt),
         picoquic_cleartext_v1_salt,
         sizeof(picoquic_retry_protection_v1),
-        picoquic_retry_protection_v1 },
+        picoquic_retry_protection_v1,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION},
     { PICOQUIC_TWENTYFIRST_INTEROP_VERSION,
         sizeof(picoquic_cleartext_v1_salt),
         picoquic_cleartext_v1_salt,
         sizeof(picoquic_retry_protection_v1),
-        picoquic_retry_protection_v1 },
+        picoquic_retry_protection_v1,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_TWENTIETH_INTEROP_VERSION,
         sizeof(picoquic_cleartext_draft_29_salt),
         picoquic_cleartext_draft_29_salt,
         sizeof(picoquic_retry_protection_key_29),
-        picoquic_retry_protection_key_29 },
+        picoquic_retry_protection_key_29,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_TWENTIETH_PRE_INTEROP_VERSION,
         sizeof(picoquic_cleartext_draft_29_salt),
         picoquic_cleartext_draft_29_salt,
         sizeof(picoquic_retry_protection_key_29),
-        picoquic_retry_protection_key_29 },
+        picoquic_retry_protection_key_29,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_NINETEENTH_INTEROP_VERSION,
         sizeof(picoquic_cleartext_draft_29_salt),
         picoquic_cleartext_draft_29_salt,
         sizeof(picoquic_retry_protection_key_29),
-        picoquic_retry_protection_key_29 },
+        picoquic_retry_protection_key_29,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_NINETEENTH_BIS_INTEROP_VERSION,
         sizeof(picoquic_cleartext_draft_29_salt),
         picoquic_cleartext_draft_29_salt,
         sizeof(picoquic_retry_protection_key_29),
-        picoquic_retry_protection_key_29 },
+        picoquic_retry_protection_key_29,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_EIGHTEENTH_INTEROP_VERSION,
         sizeof(picoquic_cleartext_draft_23_salt),
         picoquic_cleartext_draft_23_salt,
         sizeof(picoquic_retry_protection_key_25),
-        picoquic_retry_protection_key_25 },
+        picoquic_retry_protection_key_25,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_SEVENTEENTH_INTEROP_VERSION,
         sizeof(picoquic_cleartext_draft_23_salt),
         picoquic_cleartext_draft_23_salt,
         sizeof(picoquic_retry_protection_key_25),
-        picoquic_retry_protection_key_25 },
+        picoquic_retry_protection_key_25,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_INTERNAL_TEST_VERSION_2,
         sizeof(picoquic_cleartext_internal_test_1_salt),
         picoquic_cleartext_internal_test_1_salt,
         sizeof(picoquic_retry_protection_key_25),
-        picoquic_retry_protection_key_25},
+        picoquic_retry_protection_key_25,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
     { PICOQUIC_INTERNAL_TEST_VERSION_1,
         sizeof(picoquic_cleartext_internal_test_1_salt),
         picoquic_cleartext_internal_test_1_salt,
         sizeof(picoquic_retry_protection_key_25),
-        picoquic_retry_protection_key_25 }
+        picoquic_retry_protection_key_25,
+        PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
+        PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
+        PICOQUIC_V1_VERSION },
 };
 
 const size_t picoquic_nb_supported_versions = sizeof(picoquic_supported_versions) / sizeof(picoquic_version_parameters_t);
@@ -584,6 +632,8 @@ picoquic_quic_t* picoquic_create(uint32_t max_nb_connections,
                 DBG_PRINTF("%s", "Cannot create TLS context \n");
             }
             else {
+                /* In the absence of certificate or key, we assume that this is a client only context */
+                quic->enforce_client_only = (cert_file_name == NULL || key_file_name == NULL);
                 /* the random generator was initialized as part of the TLS context.
                  * Use it to create the seed for generating the per context stateless
                  * resets and the retry tokens */
@@ -669,8 +719,7 @@ void picoquic_set_default_multipath_option(picoquic_quic_t* quic, int multipath_
 {
     quic->default_multipath_option = multipath_option;
     if (quic->default_tp != NULL) {
-        quic->default_tp->enable_multipath = multipath_option&1;
-        quic->default_tp->enable_simple_multipath = (multipath_option>>1)&1;
+        quic->default_tp->enable_multipath = multipath_option;
     }
 }
 
@@ -1442,6 +1491,69 @@ static void picoquic_clear_path_data(picoquic_cnx_t* cnx, picoquic_path_t * path
     free(path_x);
 }
 
+void picoquic_enqueue_packet_with_path(picoquic_packet_t* p)
+{
+    /* Add at last position of packet per path list
+     */
+    if (p->send_path != NULL) {
+        p->path_packet_previous = p->send_path->path_packet_last;
+        p->path_packet_next = NULL;
+        if (p->send_path->path_packet_last == NULL) {
+            p->send_path->path_packet_first = p;
+        }
+        else {
+            p->send_path->path_packet_last->path_packet_next = p;
+        }
+        p->send_path->path_packet_last = p;
+        p->is_queued_to_path = 1;
+    }
+}
+
+void picoquic_dequeue_packet_from_path(picoquic_packet_t* p)
+{
+    if (p->send_path != NULL && p->is_queued_to_path) {
+        if (p->path_packet_previous == NULL && p->path_packet_next == NULL) {
+            /* verify that the packet was not already dequeued before making any correction. */
+            if (p->send_path->path_packet_first == p) {
+                p->send_path->path_packet_first = NULL;
+            }
+            if (p->send_path->path_packet_last == p) {
+                p->send_path->path_packet_last = NULL;
+            }
+        }
+        else {
+            if (p->path_packet_previous == NULL) {
+                p->send_path->path_packet_first = p->path_packet_next;
+            }
+            else {
+                p->path_packet_previous->path_packet_next = p->path_packet_next;
+            }
+
+            if (p->path_packet_next == NULL) {
+                p->send_path->path_packet_last = p->path_packet_previous;
+            }
+            else {
+                p->path_packet_next->path_packet_previous = p->path_packet_previous;
+            }
+            p->path_packet_previous = NULL;
+            p->path_packet_next = NULL;
+        }
+        p->is_queued_to_path = 0;
+    }
+}
+
+void picoquic_empty_path_packet_queue(picoquic_path_t* path_x)
+{
+    picoquic_packet_t* p = path_x->path_packet_first;
+
+    while (p != NULL) {
+        picoquic_packet_t* p_next = p->path_packet_next;
+        picoquic_dequeue_packet_from_path(p);
+        p->send_path = NULL;
+        p = p_next;
+    }
+}
+
 void picoquic_delete_path(picoquic_cnx_t* cnx, int path_index)
 {
     picoquic_path_t * path_x = cnx->path[path_index];
@@ -1450,20 +1562,13 @@ void picoquic_delete_path(picoquic_cnx_t* cnx, int path_index)
     if (cnx->quic->F_log != NULL) {
         fflush(cnx->quic->F_log);
     }
-        
+
     /* Remove old path data from retransmit queue */
+    picoquic_empty_path_packet_queue(path_x);
+    /* Remove old path data from retransmitted queue */
+    /* TODO: what if using multiple number spaces? */
     for (picoquic_packet_context_enum pc = 0; pc < picoquic_nb_packet_context; pc++)
     {
-        p = cnx->pkt_ctx[pc].retransmit_newest;
-
-        while (p != NULL) {
-            if (p->send_path == path_x) {
-                DBG_PRINTF("Erase path for packet pc: %d, seq:%" PRIu64 "\n", pc, p->sequence_number);
-                p->send_path = NULL;
-            }
-            p = p->next_packet;
-        }
-
         p = cnx->pkt_ctx[pc].retransmitted_newest;
         while (p != NULL) {
             if (p->send_path == path_x) {
@@ -1473,6 +1578,7 @@ void picoquic_delete_path(picoquic_cnx_t* cnx, int path_index)
             p = p->previous_packet;
         }
     }
+
     /* Free the data */
     picoquic_clear_path_data(cnx, path_x);
 
@@ -1688,6 +1794,49 @@ int picoquic_find_path_by_address(picoquic_cnx_t* cnx, const struct sockaddr* ad
     return path_id;
 }
 
+/* Find path by path-ID. This is designed for 
+ */
+int picoquic_find_path_by_id(picoquic_cnx_t* cnx, picoquic_path_t* path_x, int is_incoming,
+    uint64_t path_id_type, uint64_t path_id_value)
+{
+    int path_id = -1;
+
+    if (!is_incoming) {
+        path_id_type ^= 1;
+    }
+    if (path_id_type == 0)
+
+        switch (path_id_type) {
+        case 0:
+            for (int i = 0; i < cnx->nb_paths; i++) {
+                if (cnx->path[i]->p_local_cnxid->sequence == path_id_value) {
+                    path_id = i;
+                    break;
+                }
+            }
+            break;
+        case 1:
+            for (int i = 0; i < cnx->nb_paths; i++) {
+                if (cnx->path[i]->p_remote_cnxid->sequence == path_id_value) {
+                    path_id = i;
+                    break;
+                }
+            }
+            break;
+        case 2:
+            for (int i = 0; i < cnx->nb_paths; i++) {
+                if (cnx->path[i] == path_x) {
+                    path_id = i;
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+    return path_id;
+}
+
 /* Process a destination unreachable notification. */
 void picoquic_notify_destination_unreachable(picoquic_cnx_t* cnx, uint64_t current_time,
     struct sockaddr* addr_peer, struct sockaddr* addr_local, int if_index, int socket_err)
@@ -1808,6 +1957,51 @@ int picoquic_probe_new_path(picoquic_cnx_t* cnx, const struct sockaddr* addr_fro
     return picoquic_probe_new_path_ex(cnx, addr_from, addr_to, current_time, 0);
 }
 
+int picoquic_abandon_path(picoquic_cnx_t* cnx, int path_id, uint64_t reason, char const * phrase)
+{
+    int ret = 0;
+
+    if (path_id < 0 || path_id >= cnx->nb_paths || cnx->nb_paths == 1 ||
+        (!cnx->is_multipath_enabled && !cnx->is_simple_multipath_enabled)) {
+        ret = -1;
+    }
+    else if (!cnx->path[path_id]->path_is_demoted) {
+        /* if demotion is not already in progress, demote the path,
+         * and if the path can be properly identified, post a path abandon frame.
+         */
+        uint64_t path_id_type = 2;
+        uint64_t path_id_value = 0;
+
+        picoquic_demote_path(cnx, path_id, picoquic_get_quic_time(cnx->quic));
+        if (cnx->path[path_id]->p_remote_cnxid->cnx_id.id_len > 0) {
+            path_id_type = 0;
+            path_id_value = cnx->path[path_id]->p_remote_cnxid->sequence;
+        }
+        else if (cnx->path[path_id]->p_local_cnxid->cnx_id.id_len > 0) {
+            path_id_type = 1;
+            path_id_value = cnx->path[path_id]->p_local_cnxid->sequence;
+        }
+        if (path_id_type < 2) {
+            /* Identifier type 2 means "the path over which this is transmitted.
+             * We cannot support that now, because we cannot really steer an abandon frame
+             * or its repetition request to a specific transmission path.
+             */
+            uint8_t buffer[512];
+            int more_data = 0;
+            uint8_t* end_bytes = picoquic_format_path_abandon_frame(buffer, buffer + sizeof(buffer), &more_data,
+                path_id_type, path_id_value, reason, phrase);
+            if (end_bytes != NULL) {
+                ret = picoquic_queue_misc_frame(cnx, buffer, end_bytes - buffer, 0);
+                if (ret == 0) {
+                    picoquic_log_app_message(cnx, "Abandon path %d, reason %" PRIu64, path_id, reason);
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
 /* Reset the path MTU, for example if too many packet losses are detected */
 void picoquic_reset_path_mtu(picoquic_path_t* path_x)
 {
@@ -1822,12 +2016,14 @@ void picoquic_reset_path_mtu(picoquic_path_t* path_x)
 /* Manage ACK context and Packet context */
 void picoquic_init_ack_ctx(picoquic_cnx_t* cnx, picoquic_ack_context_t* ack_ctx)
 {
-    picoquic_sack_list_init(&ack_ctx->first_sack_item);
-
-    ack_ctx->highest_ack_sent = 0;
-    ack_ctx->highest_ack_sent_time = cnx->start_time;
+    picoquic_sack_list_init(&ack_ctx->sack_list);
     ack_ctx->time_stamp_largest_received = UINT64_MAX;
-    ack_ctx->ack_needed = 0;
+    ack_ctx->act[0].highest_ack_sent = 0;
+    ack_ctx->act[0].highest_ack_sent_time = cnx->start_time;
+    ack_ctx->act[0].ack_needed = 0;
+    ack_ctx->act[1].highest_ack_sent = 0;
+    ack_ctx->act[1].highest_ack_sent_time = cnx->start_time;
+    ack_ctx->act[1].ack_needed = 0;
 }
 
 void picoquic_init_packet_ctx(picoquic_cnx_t* cnx, picoquic_packet_context_t* pkt_ctx)
@@ -2139,7 +2335,8 @@ int picoquic_renew_path_connection_id(picoquic_cnx_t* cnx, picoquic_path_t* path
         if (stashed == NULL) {
             ret = PICOQUIC_ERROR_CNXID_NOT_AVAILABLE;
         }
-        else if (stashed->sequence == path_x->p_remote_cnxid->sequence) {
+        else if (path_x->p_remote_cnxid != NULL &&
+            stashed->sequence == path_x->p_remote_cnxid->sequence) {
             /* If the available cnx_id is same as old one, we do nothing */
             ret = PICOQUIC_ERROR_CNXID_NOT_AVAILABLE;
         } else {
@@ -2269,12 +2466,7 @@ void picoquic_clear_stream(picoquic_stream_head_t* stream)
     }
 
     picosplay_empty_tree(&stream->stream_data_tree);
-
-    while (stream->first_sack_item.next_sack != NULL) {
-        picoquic_sack_item_t * sack = stream->first_sack_item.next_sack;
-        stream->first_sack_item.next_sack = sack->next_sack;
-        free(sack);
-    }
+    picoquic_sack_list_free(&stream->sack_list);
 }
 
 
@@ -2400,8 +2592,15 @@ picoquic_stream_head_t* picoquic_create_stream(picoquic_cnx_t* cnx, uint64_t str
 {
     picoquic_stream_head_t* stream = (picoquic_stream_head_t*)malloc(sizeof(picoquic_stream_head_t));
     if (stream != NULL) {
-        int is_output_stream = 0;
         memset(stream, 0, sizeof(picoquic_stream_head_t));
+        if (picoquic_sack_list_init(&stream->sack_list) != 0) {
+            free(stream);
+            stream = NULL;
+        }
+    }
+
+    if (stream != NULL){
+        int is_output_stream = 0;
         stream->stream_id = stream_id;
 
         if (IS_LOCAL_STREAM_ID(stream_id, cnx->client_mode)) {
@@ -2802,8 +3001,7 @@ picoquic_cnx_t* picoquic_create_cnx(picoquic_quic_t* quic,
         if (quic->default_tp == NULL) {
             picoquic_init_transport_parameters(&cnx->local_parameters, cnx->client_mode);
             cnx->local_parameters.enable_loss_bit = quic->default_lossbit_policy;
-            cnx->local_parameters.enable_multipath = quic->default_multipath_option & 1;
-            cnx->local_parameters.enable_simple_multipath = (quic->default_multipath_option >> 1) & 1;
+            cnx->local_parameters.enable_multipath = quic->default_multipath_option;
             /* Apply the defined MTU MAX instead of default, if specified */
             if (cnx->quic->mtu_max > 0)
             {
@@ -3441,11 +3639,7 @@ void picoquic_delete_misc_or_dg(picoquic_misc_frame_header_t** first, picoquic_m
 
 void picoquic_clear_ack_ctx(picoquic_ack_context_t* ack_ctx)
 {
-    while (ack_ctx->first_sack_item.next_sack != NULL) {
-        picoquic_sack_item_t* next = ack_ctx->first_sack_item.next_sack;
-        ack_ctx->first_sack_item.next_sack = next->next_sack;
-        free(next);
-    }
+    picoquic_sack_list_free(&ack_ctx->sack_list);
 }
 
 void picoquic_reset_packet_context(picoquic_cnx_t* cnx,
@@ -3466,7 +3660,7 @@ void picoquic_reset_packet_context(picoquic_cnx_t* cnx,
     pkt_ctx->retransmitted_oldest = NULL;
 
     picoquic_clear_ack_ctx(ack_ctx);
-    picoquic_sack_list_init(&ack_ctx->first_sack_item);
+    picoquic_sack_list_init(&ack_ctx->sack_list);
 
     /* Reset the ECN data */
     ack_ctx->ecn_ect0_total_local = 0;
@@ -3595,7 +3789,7 @@ int picoquic_start_key_rotation(picoquic_cnx_t* cnx)
     /* Verify that a packet of the previous rotation was acked */
     if (cnx->cnx_state != picoquic_state_ready ||
         cnx->crypto_epoch_sequence >
-        picoquic_sack_list_last(&cnx->ack_ctx[picoquic_packet_context_application].first_sack_item)) {
+        picoquic_sack_list_last(&cnx->ack_ctx[picoquic_packet_context_application].sack_list)) {
         ret = PICOQUIC_ERROR_KEY_ROTATION_NOT_READY;
     }
     else {
@@ -4028,4 +4222,45 @@ uint64_t picoquic_get_data_received(picoquic_cnx_t* cnx)
 
 void picoquic_set_client_authentication(picoquic_quic_t* quic, int client_authentication) {
     picoquic_tls_set_client_authentication(quic, client_authentication);
+}
+
+void picoquic_enforce_client_only(picoquic_quic_t* quic, int do_enforce)
+{
+    quic->enforce_client_only = (do_enforce)?1:0;
+}
+
+/* Supported version upgrade.
+ * Upgrades are only supported between compatible versions.
+ * 
+ * When upgrading, there may be a need to update more than the version field. For example,
+ * there may be a need to update encryption contexts if they were computed differently,
+ * or to revisit some default options.
+ * 
+ * The function takes three arguments: connection context, old version_index and new version.
+ * The return code is zero if the upgrade was done, -1 if it could not be.
+ * If the function is called with a null connection context, it returns 0 if the
+ * upgrade is possible, -1 if it is not.
+ */
+
+int picoquic_process_version_upgrade(picoquic_cnx_t* cnx, int old_version_index, int new_version_index)
+{
+    int ret = -1;
+    /* Check whether upgrade is supported */
+    if (new_version_index == old_version_index) {
+        /* not an upgrade, nothing to do. */
+        ret = 0;
+    } else if (picoquic_supported_versions[new_version_index].version == PICOQUIC_V2_VERSION_DRAFT || 
+        picoquic_supported_versions[new_version_index].version == PICOQUIC_V2_VERSION_DRAFT_01 ) {
+        if (picoquic_supported_versions[old_version_index].version == PICOQUIC_V1_VERSION) {
+            /* Supported */
+            ret = 0;
+            if (cnx != NULL) {
+                /* Install the new keys */
+                cnx->version_index = new_version_index;
+                picoquic_crypto_context_free(&cnx->crypto_context[picoquic_epoch_initial]);
+                ret = picoquic_setup_initial_traffic_keys(cnx);
+            }
+        }
+    }
+    return ret;
 }

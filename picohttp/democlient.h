@@ -32,6 +32,10 @@
  * the initial tests, and HTTP 3 for the full stack tests.
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     picoquic_alpn_undef = 0,
 	picoquic_alpn_http_0_9,
@@ -96,7 +100,15 @@ typedef struct st_picoquic_demo_client_callback_ctx_t {
 picoquic_alpn_enum picoquic_parse_alpn(char const * alpn);
 picoquic_alpn_enum picoquic_parse_alpn_nz(char const* alpn, size_t len);
 
-void picoquic_demo_client_set_alpn_from_tickets(picoquic_cnx_t* cnx, picoquic_demo_callback_ctx_t* ctx, uint64_t current_time);
+/* Tickets are specific to SNI, ALPN and QUIC version. 
+ * - If ALPN is unspecified (e.g. use either hq-interop or h3), ALPN will be set from best suitable ticket.
+ * - If version is specified, only tickets for the specific version will be used.
+ * - if version is not specified, version will be set from available ticket.
+ */
+
+int picoquic_demo_client_get_alpn_and_version_from_tickets(picoquic_quic_t* quic,
+    char const* sni, char const* alpn, uint32_t proposed_version, uint64_t current_time,
+    char const** ticket_alpn, uint32_t* ticket_version);
 
 int h3zero_client_init(picoquic_cnx_t* cnx);
 int demo_client_prepare_to_send(void * context, size_t space, size_t echo_length, size_t * echo_sent, FILE * F);
@@ -121,5 +133,9 @@ void picoquic_demo_client_delete_context(picoquic_demo_callback_ctx_t* ctx);
 
 int demo_client_parse_scenario_desc(char const * text, size_t * nb_streams, picoquic_demo_stream_desc_t ** desc);
 void demo_client_delete_scenario_desc(size_t nb_streams, picoquic_demo_stream_desc_t * desc);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DEMO_CLIENT_H */

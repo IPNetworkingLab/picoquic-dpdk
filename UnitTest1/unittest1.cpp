@@ -146,7 +146,7 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
-        TEST_METHOD(test_sack)
+        TEST_METHOD(ack_sack)
         {
             int ret = sacktest();
 
@@ -235,21 +235,35 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
-		TEST_METHOD(test_sendack)
+		TEST_METHOD(ack_send)
 		{
 			int ret = sendacktest();
 
 			Assert::AreEqual(ret, 0);
 		}
 
-        TEST_METHOD(test_ackrange)
+        TEST_METHOD(ack_range)
         {
             int ret = ackrange_test();
 
             Assert::AreEqual(ret, 0);
         }
 
-        TEST_METHOD(test_ack_of_ack)
+        TEST_METHOD(ack_disorder)
+        {
+            int ret = ack_disorder_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ack_horizon)
+        {
+            int ret = ack_horizon_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ack_of_ack)
         {
             int ret = ack_of_ack_test();
 
@@ -398,6 +412,20 @@ namespace UnitTest1
         TEST_METHOD(datagram_rt)
         {
             int ret = datagram_rt_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(datagram_loss)
+        {
+            int ret = datagram_loss_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(datagram_size)
+        {
+            int ret = datagram_size_test();
 
             Assert::AreEqual(ret, 0);
         }
@@ -942,6 +970,13 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
+        TEST_METHOD(nat_rebinding_latency)
+        {
+            int ret = nat_rebinding_latency_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(nat_rebinding_fast)
         {
             int ret = fast_nat_rebinding_test();
@@ -966,6 +1001,13 @@ namespace UnitTest1
         TEST_METHOD(test_client_error)
         {
             int ret = client_error_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(client_only)
+        {
+            int ret = client_only_test();
 
             Assert::AreEqual(ret, 0);
         }
@@ -1263,6 +1305,13 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
+        TEST_METHOD(path_packet_queue)
+        {
+            int ret = path_packet_queue_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(perflog)
         {
             int ret = perflog_test();
@@ -1297,6 +1346,27 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
         
+        TEST_METHOD(ready_to_skip)
+        {
+            int ret = ready_to_skip_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ready_to_zero)
+        {
+            int ret = ready_to_zero_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ready_to_zfin)
+        {
+            int ret= ready_to_zfin_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(cubic)
         {
             int ret = cubic_test();
@@ -1397,6 +1467,34 @@ namespace UnitTest1
         TEST_METHOD(long_rtt)
         {
             int ret = long_rtt_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(high_latency_basic)
+        {
+            int ret = high_latency_basic_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(high_latency_bbr)
+        {
+            int ret = high_latency_bbr_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(high_latency_cubic)
+        {
+            int ret = high_latency_cubic_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(high_latency_probeRTT)
+        {
+            int ret = high_latency_probeRTT_test();
 
             Assert::AreEqual(ret, 0);
         }
@@ -1634,6 +1732,12 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
+        TEST_METHOD(multipath_abandon) {
+            int ret = multipath_abandon_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(multipath_back1) {
             int ret = multipath_back1_test();
 
@@ -1696,6 +1800,12 @@ namespace UnitTest1
 
         TEST_METHOD(simple_multipath_break1) {
             int ret = simple_multipath_break1_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(simple_multipath_abandon) {
+            int ret = simple_multipath_abandon_test();
 
             Assert::AreEqual(ret, 0);
         }

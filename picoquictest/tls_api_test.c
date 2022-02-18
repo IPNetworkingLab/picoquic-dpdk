@@ -289,12 +289,19 @@ static int test_api_stream0_prepare(picoquic_cnx_t* cnx, picoquic_test_tls_api_c
 {
     int ret = -1;
 
-    if (ctx->stream0_sent < ctx->stream0_target) {
+    if (ctx->stream0_test_option == 3 && ctx->stream0_sent > 5000) {
+        ret = 0;
+        ctx->stream0_test_option = 1;
+    }
+    else if (ctx->stream0_sent < ctx->stream0_target) {
         uint8_t * buffer;
         size_t available = ctx->stream0_target - ctx->stream0_sent;
         int is_fin = 1;
 
-        if (available > space) {
+        if (ctx->stream0_test_option == 4 && ctx->stream0_sent > 5000) {
+            available = 0;
+            ctx->stream0_test_option = 1;
+        } else if (available > space) {
             available = space;
             
             if (ctx->stream0_test_option == 1 && space > 1) {
@@ -672,16 +679,25 @@ int test_api_callback(picoquic_cnx_t* cnx,
     {
         int ret = -1;
         if (ctx->datagram_send_fn != NULL) {
-            ret = ctx->datagram_send_fn(cnx, bytes, length, ctx->datagram_send_ctx);
+            ret = ctx->datagram_send_fn(cnx, bytes, length, ctx->datagram_ctx);
         }
         return ret;
-    }
-
-    if (fin_or_event == picoquic_callback_datagram)
+    } else if (fin_or_event == picoquic_callback_datagram)
     {
         int ret = -1;
         if (ctx->datagram_recv_fn != NULL) {
-            ret = ctx->datagram_recv_fn(cnx, bytes, length, ctx->datagram_recv_ctx);
+            ret = ctx->datagram_recv_fn(cnx, bytes, length, ctx->datagram_ctx);
+        }
+        return ret;
+    }
+    else if (fin_or_event == picoquic_callback_datagram_acked ||
+        fin_or_event == picoquic_callback_datagram_lost ||
+        fin_or_event == picoquic_callback_datagram_spurious)
+    {
+        int ret = -1;
+        if (ctx->datagram_ack_fn != NULL) {
+            ret = ctx->datagram_ack_fn(cnx, fin_or_event,
+                bytes, length, ctx->datagram_ctx);
         }
         return ret;
     }
@@ -2170,7 +2186,7 @@ int vn_compat_test()
 
     if (ret == 0) {
         /* Set the desired version */
-        picoquic_set_desired_version(test_ctx->cnx_client, PICOQUIC_V2_VERSION_DRAFT);
+        picoquic_set_desired_version(test_ctx->cnx_client, PICOQUIC_V2_VERSION_DRAFT_01);
         /* Start the client connection */
         ret = picoquic_start_client_cnx(test_ctx->cnx_client);
     }
@@ -2186,12 +2202,12 @@ int vn_compat_test()
 
 
     if (ret == 0) {
-        if (picoquic_supported_versions[test_ctx->cnx_client->version_index].version != PICOQUIC_V2_VERSION_DRAFT) {
+        if (picoquic_supported_versions[test_ctx->cnx_client->version_index].version != PICOQUIC_V2_VERSION_DRAFT_01) {
             DBG_PRINTF("Client remained to version 0x%8x",
                 picoquic_supported_versions[test_ctx->cnx_client->version_index].version);
             ret = -1;
         }
-        else if (picoquic_supported_versions[test_ctx->cnx_server->version_index].version != PICOQUIC_V2_VERSION_DRAFT) {
+        else if (picoquic_supported_versions[test_ctx->cnx_server->version_index].version != PICOQUIC_V2_VERSION_DRAFT_01) {
             DBG_PRINTF("Server remained to version 0x%8x",
                 picoquic_supported_versions[test_ctx->cnx_client->version_index].version);
             ret = -1;
@@ -4454,6 +4470,7 @@ int set_certificate_and_key_test()
 
     /* Proceed with the connection loop. */
     if (ret == 0) {
+        picoquic_enforce_client_only(test_ctx->qserver, 0);
         ret = tls_api_connection_loop(test_ctx, &loss_mask, 0, &simulated_time);
     }
 
@@ -4513,6 +4530,10 @@ int request_client_authentication_test()
 
         if (test_ctx->qclient == NULL) {
             ret = -1;
+        }
+        else {
+            /* Enforce client only mode on the client side. */
+            picoquic_enforce_client_only(test_ctx->qclient, 1);
         }
     }
 
@@ -4654,7 +4675,19 @@ int bad_client_certificate_test()
 * response, and that the connection completes.
 */
 
-int nat_rebinding_test_one(uint64_t loss_mask_data, int zero_cid)
+int nat_rebinding_count_r_cid(picoquic_cnx_t* cnx) {
+    int nb_cid = 0;
+    picoquic_remote_cnxid_t* r_cid = cnx->cnxid_stash_first;
+
+    while (r_cid) {
+        nb_cid++;
+        r_cid = r_cid->next;
+    }
+
+    return nb_cid;
+}
+
+int nat_rebinding_test_one(uint64_t loss_mask_data, int zero_cid, uint64_t latency)
 {
     int ret;
     uint64_t simulated_time = 0;
@@ -4680,6 +4713,10 @@ int nat_rebinding_test_one(uint64_t loss_mask_data, int zero_cid)
         ret = PICOQUIC_ERROR_MEMORY;
     }
     else {
+        if (latency > 0) {
+            test_ctx->c_to_s_link->microsec_latency = latency;
+            test_ctx->s_to_c_link->microsec_latency = latency;
+        }
         picoquic_set_log_level(test_ctx->qserver, 1);
         ret = picoquic_set_binlog(test_ctx->qserver, ".");
         picoquic_set_log_level(test_ctx->qclient, 1);
@@ -4706,7 +4743,7 @@ int nat_rebinding_test_one(uint64_t loss_mask_data, int zero_cid)
         test_ctx->client_addr_natted = test_ctx->client_addr;
         test_ctx->client_addr_natted.sin_port += 17;
         test_ctx->client_use_nat = 1;
-        
+
         /* Prepare to send data */
         ret = test_api_init_send_recv_scenario(test_ctx, test_scenario_q_and_r, sizeof(test_scenario_q_and_r));
     }
@@ -4725,8 +4762,11 @@ int nat_rebinding_test_one(uint64_t loss_mask_data, int zero_cid)
     next_time = simulated_time + 3000000;
     loss_mask = 0;
     while (ret == 0 && simulated_time < next_time && TEST_CLIENT_READY 
-        && TEST_SERVER_READY
-        && test_ctx->cnx_server->path[0]->challenge_verified != 1) {
+        && TEST_SERVER_READY && !zero_cid
+        && (test_ctx->cnx_server->path[0]->challenge_verified != 1 ||
+            test_ctx->cnx_server->nb_paths > 1 ||
+            test_ctx->cnx_server->cnxid_stash_first->sequence == 0 ||
+            nat_rebinding_count_r_cid(test_ctx->cnx_server) < 8 )) {
         int was_active = 0;
 
         ret = tls_api_one_sim_round(test_ctx, &simulated_time, next_time, &was_active);
@@ -4772,14 +4812,14 @@ int nat_rebinding_test()
 {
     uint64_t loss_mask = 0;
 
-    return nat_rebinding_test_one(loss_mask, 0);
+    return nat_rebinding_test_one(loss_mask, 0, 0);
 }
 
 int nat_rebinding_loss_test()
 {
     uint64_t loss_mask = 0x2012;
 
-    return nat_rebinding_test_one(loss_mask, 0);
+    return nat_rebinding_test_one(loss_mask, 0, 0);
 }
 
 int nat_rebinding_zero_test()
@@ -4787,7 +4827,15 @@ int nat_rebinding_zero_test()
     /* Test of NAT rebinding with zero-length client CID */
     uint64_t loss_mask = 0;
 
-    return nat_rebinding_test_one(loss_mask, 1);
+    return nat_rebinding_test_one(loss_mask, 1, 0);
+}
+
+int nat_rebinding_latency_test()
+{
+    /* Test of NAT rebinding with zero-length client CID */
+    uint64_t loss_mask = 0;
+
+    return nat_rebinding_test_one(loss_mask, 0, 100000);
 }
 
 
@@ -5201,6 +5249,45 @@ int client_error_test()
             DBG_PRINTF("Client error test mode(%s) failed.\n", mode_name[mode]);
             ret = -1;
         }
+    }
+
+    return ret;
+}
+
+/*
+* Client only test. Verify that if "client only" is set on the server context,
+* then connections are refused.
+*/
+
+int client_only_test()
+{
+    uint64_t simulated_time = 0;
+    uint64_t loss_mask = 0;
+    picoquic_test_tls_api_ctx_t* test_ctx = NULL;
+    picoquic_connection_id_t initial_cid = { {0xc1, 0x10, 0, 0, 0, 0, 0, 0}, 8 };
+    int ret;
+
+    ret = tls_api_init_ctx_ex(&test_ctx, PICOQUIC_INTERNAL_TEST_VERSION_1,
+        PICOQUIC_TEST_SNI, PICOQUIC_TEST_ALPN, &simulated_time, NULL, NULL, 0, 0, 0, &initial_cid);
+
+    if (ret == 0) {
+        /* First, try enforcement. We do set log on the server side, but it is expected to be empty */
+        int connection_ret = 0;
+        picoquic_enforce_client_only(test_ctx->qserver, 1);
+        picoquic_set_binlog(test_ctx->qserver, ".");
+        picoquic_set_binlog(test_ctx->qclient, ".");
+        binlog_new_connection(test_ctx->cnx_client);
+        connection_ret = tls_api_connection_loop(test_ctx, &loss_mask, 0, &simulated_time);
+        if (connection_ret == 0) {
+            DBG_PRINTF("Connection unexpectedly succeeds, state=%d, ret=%d (0x%x)",
+                test_ctx->cnx_client->cnx_state, connection_ret, connection_ret);
+            ret = -1;
+        }
+    }
+
+    if (test_ctx != NULL) {
+        tls_api_delete_ctx(test_ctx);
+        test_ctx = NULL;
     }
 
     return ret;
@@ -6544,9 +6631,9 @@ static int key_rotation_test_one(int inject_bad_packet)
         }
 
         if (test_ctx->cnx_server->pkt_ctx[picoquic_packet_context_application].send_sequence > rotation_sequence &&
-            picoquic_sack_list_last(&test_ctx->cnx_server->ack_ctx[picoquic_packet_context_application].first_sack_item) >
+            picoquic_sack_list_last(&test_ctx->cnx_server->ack_ctx[picoquic_packet_context_application].sack_list) >
             test_ctx->cnx_server->crypto_epoch_sequence &&
-            picoquic_sack_list_last(&test_ctx->cnx_client->ack_ctx[picoquic_packet_context_application].first_sack_item) >
+            picoquic_sack_list_last(&test_ctx->cnx_client->ack_ctx[picoquic_packet_context_application].sack_list) >
             test_ctx->cnx_client->crypto_epoch_sequence &&
             test_ctx->cnx_server->key_phase_enc == test_ctx->cnx_server->key_phase_dec &&
             test_ctx->cnx_client->key_phase_enc == test_ctx->cnx_client->key_phase_dec) {
@@ -7795,10 +7882,14 @@ int perflog_test()
 
 
 /*
- * Testing the flow controlled sending scenario 
+ * Testing the flow controlled sending scenario, or "direct sending".
+ * Data is sent through the "prepare to send" callback.
+ * The "ready to send" test checks the normal operation.
+ * The "ready to skip" test checks what happens if at some point the application
+ * does not provide any data.
  */
 
-int ready_to_send_test()
+int ready_to_send_test_one(int test_option)
 {
     int ret = 0;
 
@@ -7829,6 +7920,29 @@ int ready_to_send_test()
     return ret;
 }
 
+int ready_to_send_test()
+{
+    int ret = ready_to_send_test_one(1);
+    return ret;
+}
+
+int ready_to_skip_test()
+{
+    int ret = ready_to_send_test_one(3);
+    return ret;
+}
+
+int ready_to_zero_test()
+{
+    int ret = ready_to_send_test_one(4);
+    return ret;
+}
+
+int ready_to_zfin_test()
+{
+    int ret = ready_to_send_test_one(2);
+    return ret;
+}
 
 static int congestion_control_test(picoquic_congestion_algorithm_t * ccalgo, uint64_t max_completion_time, uint64_t jitter, uint8_t jitter_id)
 {

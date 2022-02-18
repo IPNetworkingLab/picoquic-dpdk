@@ -257,29 +257,19 @@ size_t picoquic_decode_transport_param_prefered_address(uint8_t * bytes, size_t 
 
 /* Version negotiation. This is an implementation of:
  *     https://quicwg.org/version-negotiation/draft-ietf-quic-version-negotiation.html
- * On the client side, we can have the following scenarios:
- *   1- Proposal of a compatible versions. The parameter encodes the selected version,
- *      and the compatible versions
- *   2- Response to incoming VN. Same parameters, plus encoding of incoming VN. The incoming
- *      VN proposal is passed as a parameter of the connection context.
- * Client Handshake Version Information {
- *   Currently Attempted Version (32),
- *   Previously Attempted Version (32),
- *   Received Negotiation Version Count (i),
- *   Received Negotiation Version (32) ...,
- *   Compatible Version Count (i),
- *   Compatible Version (32) ...,
+ * 
+ * The version information parameter is defined as:
+ * 
+ * Version Information {
+ *   Chosen Version (32),
+ *   Other Versions (32) ...,
  * }
- * On the server side:
- * Server Handshake Version Information {
- *   Negotiated Version (32),
- *   Supported Version Count (i),
- *   Supported Version (32) ...,
- * }
- * Server processing of incoming client message:
- * - If VN is present, verify that VN matches what sender would send???
- * - If VN is present, verify that initial proposal is not 
- *
+ * 
+ * On the client side, the other version include the versions that the client will want
+ * to upgrade to, in order of preference. Somewhere in the list is the currently chosen
+ * version, to indidcate its order of preference.
+ * 
+ * On the server side, the other version provides the list of versions supported by the server.
  */
 uint8_t* picoquic_encode_transport_param_version_negotiation(uint8_t* bytes, uint8_t* bytes_max,
     int extension_mode, picoquic_cnx_t* cnx)
@@ -294,19 +284,15 @@ uint8_t* picoquic_encode_transport_param_version_negotiation(uint8_t* bytes, uin
         (bytes = picoquic_frames_uint32_encode(bytes, bytes_max,
             picoquic_supported_versions[cnx->version_index].version)) != NULL) {
         if (extension_mode == 0) {
-            if ((bytes = picoquic_frames_uint32_encode(bytes, bytes_max, cnx->rejected_version)) != NULL &&
-                (bytes = picoquic_frames_varint_encode(bytes, bytes_max, 0)) != NULL) {
-                if (cnx->desired_version == 0) {
-                    bytes = picoquic_frames_varint_encode(bytes, bytes_max, 0);
-                }
-                else {
-                    if ((bytes = picoquic_frames_varint_encode(bytes, bytes_max, 1)) != NULL) {
-                        bytes = picoquic_frames_uint32_encode(bytes, bytes_max, cnx->desired_version);
-                    }
-                }
+            if (cnx->desired_version != 0 && cnx->desired_version != picoquic_supported_versions[cnx->version_index].version) {
+                bytes = picoquic_frames_uint32_encode(bytes, bytes_max, cnx->desired_version);
+            }
+            if (bytes != NULL) {
+                bytes = picoquic_frames_uint32_encode(bytes, bytes_max,
+                    picoquic_supported_versions[cnx->version_index].version);
             }
         }
-        else if ((bytes = picoquic_frames_varint_encode(bytes, bytes_max, picoquic_nb_supported_versions)) != NULL) {
+        else {
             for (size_t i = 0; i < picoquic_nb_supported_versions; i++) {
                 if ((bytes = picoquic_frames_uint32_encode(bytes, bytes_max,
                     picoquic_supported_versions[i].version)) == NULL) {
@@ -335,63 +321,92 @@ const uint8_t * picoquic_process_tp_version_negotiation(const uint8_t* bytes, co
     int extension_mode, uint32_t envelop_vn, uint32_t *negotiated_vn, int * negotiated_index, uint64_t * vn_error)
 {
     uint32_t current;
-    uint32_t previous = 0;
-    uint64_t nb_received = 0;
-    uint64_t nb_compatible;
-    uint32_t compatible;
 
     *negotiated_vn = 0;
     *negotiated_index = -1;
     *vn_error = 0;
 
-    if ((bytes = picoquic_frames_uint32_decode(bytes, bytes_max, &current)) != NULL) {
+    if ((bytes = picoquic_frames_uint32_decode(bytes, bytes_max, &current)) == NULL) {
+        *vn_error = PICOQUIC_TRANSPORT_PARAMETER_ERROR;
+    } else {
         if (current != envelop_vn) {
             /* Packet was tempered with */
             *vn_error = PICOQUIC_TRANSPORT_VERSION_NEGOTIATION_ERROR;
             bytes = NULL;
-        } else if (extension_mode == 0) {
+        }
+        else if (extension_mode == 0) {
             /* Processing the client extensions */
-            if ((bytes = picoquic_frames_uint32_decode(bytes, bytes_max, &previous)) != NULL &&
-                (bytes = picoquic_frames_varint_decode(bytes, bytes_max, &nb_received)) != NULL &&
-                (bytes = picoquic_frames_fixed_skip(bytes, bytes_max, nb_received * 4)) != NULL &&
-                (bytes = picoquic_frames_varint_decode(bytes, bytes_max, &nb_compatible)) != NULL) {
-                /* Check that previous is OK */
-                if (previous != 0 && picoquic_get_version_index(previous) != -1) {
-                    /* VN was not justified, was tempered with */
-                    *vn_error = PICOQUIC_TRANSPORT_VERSION_NEGOTIATION_ERROR;
-                    bytes = NULL;
+            while (bytes < bytes_max) {
+                uint32_t proposed;
+                if ((bytes = picoquic_frames_uint32_decode(bytes, bytes_max, &proposed)) == NULL) {
+                    /* Decoding error */
+                    *vn_error = PICOQUIC_TRANSPORT_PARAMETER_ERROR;
+                    break;
                 }
                 else {
-                    for (uint64_t i = 0; i < nb_compatible; i++) {
-                        if ((bytes = picoquic_frames_uint32_decode(bytes, bytes_max, &compatible)) == NULL) {
-                            break;
-                        }
-                        else {
-                            int this_rank = picoquic_get_version_index(compatible);
-                            if (this_rank >= 0 && (*negotiated_index < 0 || *negotiated_index > this_rank)) {
-                                *negotiated_vn = compatible;
-                                *negotiated_index = this_rank;
-                            }
-                        }
+                    /* Select the first version proposed by the client that is locally supported,
+                     * and is deemed compatible with the current version
+                     */
+                    int this_rank = picoquic_get_version_index(proposed);
+                    if (this_rank >= 0) {
+                        *negotiated_vn = proposed;
+                        *negotiated_index = this_rank;
+                        break;
                     }
                 }
             }
         }
-        else if ((bytes = picoquic_frames_varint_decode(bytes, bytes_max, &nb_compatible)) != NULL) {
-            /* Skipping the server extensions */
-            bytes = picoquic_frames_fixed_skip(bytes, bytes_max, nb_compatible * 4);
+        else {
+            /* Processing the server extensions */
+            /* TODO: Check whether the chosen version corresponds to something the client wanted */
+            /* TODO: Check whether the chosen version is officially supported, could be reused in 0-RTT */
+            while (bytes < bytes_max) {
+                uint32_t proposed;
+                if ((bytes = picoquic_frames_uint32_decode(bytes, bytes_max, &proposed)) == NULL) {
+                    /* Decoding error */
+                    *vn_error = PICOQUIC_TRANSPORT_PARAMETER_ERROR;
+                    break;
+                }
+            }
         }
     }
 
-    if (bytes == NULL && *vn_error == 0) {
-        *vn_error = PICOQUIC_TRANSPORT_PARAMETER_ERROR;
-    }
-    else if (bytes != NULL && bytes != bytes_max) {
-        *vn_error = PICOQUIC_TRANSPORT_PARAMETER_ERROR;
-        bytes = NULL;
-    }
-
     return bytes;
+}
+
+int picoquic_negotiate_multipath_option(picoquic_cnx_t* cnx)
+{
+    int ret = 0;
+    int negotiated_multipath = cnx->remote_parameters.enable_multipath & cnx->local_parameters.enable_multipath;
+
+    switch (negotiated_multipath) {
+    case 0:
+        break;
+    case 1:
+        cnx->is_simple_multipath_enabled = 1;
+        break;
+    case 2:
+        cnx->is_multipath_enabled = 1;
+        break;
+    case 3:
+        /* Peer and local have been programmed to support either simple or full multipath.
+         * The default response is to do full multipath, but full multipath degrades to
+         * simple multipath is the client uses null length CID. 
+         */
+        if (!cnx->client_mode && cnx->path[0]->p_remote_cnxid->cnx_id.id_len == 0) {
+            cnx->is_simple_multipath_enabled = 1;
+            cnx->local_parameters.enable_multipath = 1;
+        }
+        else {
+            cnx->is_multipath_enabled = 1;
+        }
+        break;
+    default:
+        /* error */
+        ret = -1;
+        break;
+    }
+    return ret;
 }
 
 int picoquic_prepare_transport_extensions(picoquic_cnx_t* cnx, int extension_mode,
@@ -542,12 +557,6 @@ int picoquic_prepare_transport_extensions(picoquic_cnx_t* cnx, int extension_mod
         bytes = picoquic_transport_param_type_varint_encode(bytes, bytes_max, picoquic_tp_enable_multipath,
             (uint64_t)cnx->local_parameters.enable_multipath);
     }
-
-    if (cnx->local_parameters.enable_simple_multipath > 0 && bytes != NULL) {
-        bytes = picoquic_transport_param_type_varint_encode(bytes, bytes_max, picoquic_tp_enable_simple_multipath,
-            (uint64_t)cnx->local_parameters.enable_simple_multipath);
-    }
-
     if (cnx->do_version_negotiation && bytes != NULL) {
         bytes = picoquic_encode_transport_param_version_negotiation(bytes, bytes_max, extension_mode, cnx);
     }
@@ -848,24 +857,11 @@ int picoquic_receive_transport_extensions(picoquic_cnx_t* cnx, int extension_mod
                     uint64_t enable_multipath =
                         picoquic_transport_param_varint_decode(cnx, bytes + byte_index, extension_length, &ret);
                     if (ret == 0) {
-                        if (enable_multipath > 1) {
+                        if (enable_multipath > 3) {
                             ret = picoquic_connection_error_ex(cnx, PICOQUIC_TRANSPORT_PARAMETER_ERROR, 0, "Multipath TP");
                         }
                         else {
                             cnx->remote_parameters.enable_multipath = (int)enable_multipath;
-                        }
-                    }
-                    break;
-                }
-                case picoquic_tp_enable_simple_multipath: {
-                    uint64_t enable_simple_multipath =
-                        picoquic_transport_param_varint_decode(cnx, bytes + byte_index, extension_length, &ret);
-                    if (ret == 0) {
-                        if (enable_simple_multipath > 1) {
-                            ret = picoquic_connection_error_ex(cnx, PICOQUIC_TRANSPORT_PARAMETER_ERROR, 0, "Simple multipath TP");
-                        }
-                        else {
-                            cnx->remote_parameters.enable_simple_multipath = (int)enable_simple_multipath;
                         }
                     }
                     break;
@@ -883,8 +879,8 @@ int picoquic_receive_transport_extensions(picoquic_cnx_t* cnx, int extension_mod
                     }
                     else {
                         cnx->do_version_negotiation = 1;
-                        if (negotiated_vn != 0) {
-                            cnx->version_index = negotiated_index;
+                        if (negotiated_vn != 0 && cnx->version_index != negotiated_index){
+                            ret = picoquic_process_version_upgrade(cnx, cnx->version_index, negotiated_index);
                         }
                     }
                     break;
@@ -1006,6 +1002,11 @@ int picoquic_receive_transport_extensions(picoquic_cnx_t* cnx, int extension_mod
         }
     }
 
+    if (ret == 0) {
+        /* Negotiate the multipath option */
+        ret = picoquic_negotiate_multipath_option(cnx);
+    }
+
     /* Loss bit is only enabled if negotiated by both parties */
     cnx->is_loss_bit_enabled_outgoing = (cnx->local_parameters.enable_loss_bit > 1) && (cnx->remote_parameters.enable_loss_bit > 0);
     cnx->is_loss_bit_enabled_incoming = (cnx->local_parameters.enable_loss_bit > 0) && (cnx->remote_parameters.enable_loss_bit > 1);
@@ -1014,17 +1015,12 @@ int picoquic_receive_transport_extensions(picoquic_cnx_t* cnx, int extension_mod
     cnx->send_receive_bdp_frame = (cnx->local_parameters.enable_bdp_frame > 0) && (cnx->remote_parameters.enable_bdp_frame > 0);
 
     /* One way delay, Quic_bit_grease and Multipath only enabled if asked by client and accepted by server */
-    /* If both multipath options proposed by server, retain "complete" multipath. */
     if (cnx->client_mode) {
         cnx->is_time_stamp_enabled = 
             (cnx->local_parameters.enable_time_stamp&1) && (cnx->remote_parameters.enable_time_stamp&2);
         cnx->is_time_stamp_sent =
             (cnx->local_parameters.enable_time_stamp & 2) && (cnx->remote_parameters.enable_time_stamp & 1);
         cnx->do_grease_quic_bit = cnx->local_parameters.do_grease_quic_bit && cnx->remote_parameters.do_grease_quic_bit;
-        cnx->is_multipath_enabled = cnx->local_parameters.enable_multipath && cnx->remote_parameters.enable_multipath;
-        cnx->is_simple_multipath_enabled = cnx->local_parameters.enable_simple_multipath &&
-            cnx->remote_parameters.enable_simple_multipath && !cnx->is_multipath_enabled;
-
     }
     else
     {
@@ -1046,19 +1042,6 @@ int picoquic_receive_transport_extensions(picoquic_cnx_t* cnx, int extension_mod
          * but will not announce support of the grease quic bit, thus asking the client to not set it */
         cnx->local_parameters.do_grease_quic_bit = cnx->remote_parameters.do_grease_quic_bit && !cnx->quic->one_way_grease_quic_bit;
         cnx->do_grease_quic_bit = cnx->remote_parameters.do_grease_quic_bit;
-        /* Similarly, servers only announce multipath support if clients request it.
-         * enable only one of multipath and simple multipath
-         */
-        cnx->local_parameters.enable_simple_multipath &= cnx->remote_parameters.enable_simple_multipath;
-        cnx->is_simple_multipath_enabled = cnx->local_parameters.enable_simple_multipath;
-        if (cnx->is_simple_multipath_enabled) {
-            cnx->local_parameters.enable_multipath = 0;
-            cnx->is_multipath_enabled = 0;
-        }
-        else {
-            cnx->local_parameters.enable_multipath &= cnx->remote_parameters.enable_multipath;
-            cnx->is_multipath_enabled = cnx->local_parameters.enable_multipath;
-        }
     }
 
     /* ACK Frequency is only enabled on server if negotiated by client */

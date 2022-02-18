@@ -211,6 +211,39 @@ void qlog_preferred_address(FILE* f, bytestream* s, uint64_t len)
     s->size = old_size;
 }
 
+void qlog_tp_version_negotiation(FILE* f, bytestream* s, uint64_t len)
+{
+    size_t old_size = s->size;
+
+    s->size = s->ptr + (size_t)len;
+    fprintf(f, "{ ");
+    if ((len & 3) != 0 || len == 0) {
+        fprintf(f, "\"bad_length\": \"%" PRIu64, len);
+    } else {
+        fprintf(f, "\"chosen\": \"");
+        for (int i = 0; i < 4 && s->ptr < s->size; i++, s->ptr++) {
+            fprintf(f, "%02x", s->data[s->ptr]);
+        }
+        fprintf(f, "\"");
+        if (s->ptr < s->size) {
+            int is_first = 1;
+            fprintf(f, ", \"others\": [");
+            do {
+                fprintf(f, "%s", (is_first)?"\"":", \"");
+                is_first = 0;
+                for (int i = 0; i < 4 && s->ptr < s->size; i++, s->ptr++) {
+                    fprintf(f, "%02x", s->data[s->ptr]);
+                }
+                fprintf(f, "\"");
+            } while (s->ptr < s->size);
+            fprintf(f, "]");
+        }
+    }
+    fprintf(f, "}");
+    s->size = old_size;
+}
+
+
 int qlog_transport_extensions(FILE* f, bytestream* s, size_t tp_length)
 {
     int ret = 0;
@@ -315,10 +348,11 @@ int qlog_transport_extensions(FILE* f, bytestream* s, size_t tp_length)
                     qlog_boolean_transport_extension(f, "grease_quic_bit", s, extension_length);
                     break;
                 case picoquic_tp_enable_multipath:
-                    qlog_boolean_transport_extension(f, "enable_multipath", s, extension_length);
+                    qlog_vint_transport_extension(f, "enable_multipath", s, extension_length);
                     break;
-                case picoquic_tp_enable_simple_multipath:
-                    qlog_boolean_transport_extension(f, "enable_simple_multipath", s, extension_length);
+                case picoquic_tp_version_negotiation:
+                    fprintf(f, "\"version_negotiation\": ");
+                    qlog_tp_version_negotiation(f, s, extension_length);
                     break;
                 case picoquic_tp_enable_bdp_frame:
                     qlog_vint_transport_extension(f, "enable_bdp_frame", s, extension_length);
@@ -730,26 +764,36 @@ void qlog_time_stamp_frame(FILE* f, bytestream* s)
     fprintf(f, ", \"time_stamp\": %"PRIu64"", time_stamp);
 }
 
-void qlog_qoe_frame(FILE* f, bytestream* s)
+void qlog_path_abandon_frame(FILE* f, bytestream* s)
 {
-    uint64_t path_id = 0;
-    uint64_t length = 0;
+    uint64_t path_id_type;
+    uint64_t path_id_value = 0;
+    uint64_t reason;
+    size_t phrase_length;
 
-    byteread_vint(s, &path_id);
-    byteread_vint(s, &length);
-    fprintf(f, ", \"path_id\": %"PRIu64", \"length\": %"PRIu64"", path_id, length);
-}
+    byteread_vint(s, &path_id_type);
+    if (path_id_type != 2) {
+        byteread_vint(s, &path_id_value);
+    }
+    byteread_vint(s, &reason);
+    byteread_vlen(s, &phrase_length);
+    fprintf(f, ", \"path_id_type\": %"PRIu64, path_id_type);
+    if (path_id_type != 2) {
+        fprintf(f, ", \"path_id_value\": %"PRIu64, path_id_value);
+    }
+    fprintf(f, ", \"reason\": %"PRIu64, reason);
+    if (phrase_length > 0) {
+        fprintf(f, ", \"phrase\": \"");
+        for (uint64_t i = 0; i < phrase_length && s->ptr < s->size; i++) {
+            int c = s->data[s->ptr++];
 
-void qlog_path_status_frame(FILE* f, bytestream* s)
-{
-    uint64_t path_id = 0;
-    uint64_t status = 0;
-    uint64_t priority = 0;
-
-    byteread_vint(s, &path_id);
-    byteread_vint(s, &status);
-    byteread_vint(s, &priority);
-    fprintf(f, ", \"path_id\": %"PRIu64", \"status\": %"PRIu64", \"priority\": %"PRIu64"", path_id, status, priority);
+            if (c < 0x20 || c > 0x7E) {
+                c = '.';
+            }
+            fprintf(f, "%c", c);
+        }
+        fprintf(f, "\"");
+    }
 }
 
 void qlog_reset_stream_frame(FILE* f, bytestream* s)
@@ -940,7 +984,7 @@ void qlog_datagram_frame(uint64_t ftype, FILE* f, bytestream* s)
 
     if (has_length) {
         byteread_vint(s, &length);
-        fprintf(f, ", length: %"PRIu64"", length);
+        fprintf(f, ", \"length\": %"PRIu64"", length);
     }
 }
 
@@ -1005,7 +1049,7 @@ void qlog_erroring_frame(FILE* f, bytestream* s, uint64_t ftype)
 {
     size_t extra_bytes = s->size - s->ptr;
 
-    fprintf(f, "\"unknown_type\": %" PRIu64 ",", ftype);
+    fprintf(f, ",\"unknown_type\": %" PRIu64 ",", ftype);
 
     fprintf(f, "\"begins_with\": ");
 
@@ -1168,11 +1212,8 @@ int qlog_packet_frame(bytestream * s, void * ptr)
     case picoquic_frame_type_time_stamp:
         qlog_time_stamp_frame(f, s);
         break;
-    case picoquic_frame_type_qoe:
-        qlog_qoe_frame(f, s);
-        break;
-    case picoquic_frame_type_path_status:
-        qlog_path_status_frame(f, s);
+    case picoquic_frame_type_path_abandon:
+        qlog_path_abandon_frame(f, s);
         break;
     case picoquic_frame_type_bdp:
         qlog_bdp_frame(f, s);

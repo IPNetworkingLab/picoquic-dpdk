@@ -219,16 +219,33 @@ static uint8_t test_frame_type_time_stamp[] = {
     0x44, 0
 };
 
-static uint8_t test_frame_type_qoe[] = {
-    (uint8_t)(0x80 | (picoquic_frame_type_qoe >> 24)), (uint8_t)(picoquic_frame_type_qoe >> 16),
-    (uint8_t)(picoquic_frame_type_qoe >> 8), (uint8_t)(picoquic_frame_type_qoe & 0xFF),
-    0x11, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+static uint8_t test_frame_type_path_abandon_0[] = {
+    (uint8_t)(0x80 | (picoquic_frame_type_path_abandon >> 24)), (uint8_t)(picoquic_frame_type_path_abandon >> 16),
+    (uint8_t)(picoquic_frame_type_path_abandon >> 8), (uint8_t)(picoquic_frame_type_path_abandon & 0xFF),
+    0x00, /* type 0 */
+    0x01,
+    0x00, /* No error */
+    0x00 /* No phrase */
 };
 
-static uint8_t test_frame_type_path_status[] = {
-    (uint8_t)(0x80 | (picoquic_frame_type_path_status >> 24)), (uint8_t)(picoquic_frame_type_path_status >> 16),
-    (uint8_t)(picoquic_frame_type_path_status >> 8), (uint8_t)(picoquic_frame_type_path_status & 0xFF),
-    0x11, 0x01, 0x01
+static uint8_t test_frame_type_path_abandon_1[] = {
+    (uint8_t)(0x80 | (picoquic_frame_type_path_abandon >> 24)), (uint8_t)(picoquic_frame_type_path_abandon >> 16),
+    (uint8_t)(picoquic_frame_type_path_abandon >> 8), (uint8_t)(picoquic_frame_type_path_abandon & 0xFF),
+    0x01, /* type 1 */
+    0x01,
+    0x11, /* Some new error */
+    0x03, 
+    (uint8_t)'b',
+    (uint8_t)'a',
+    (uint8_t)'d',
+};
+
+static uint8_t test_frame_type_path_abandon_2[] = {
+    (uint8_t)(0x80 | (picoquic_frame_type_path_abandon >> 24)), (uint8_t)(picoquic_frame_type_path_abandon >> 16),
+    (uint8_t)(picoquic_frame_type_path_abandon >> 8), (uint8_t)(picoquic_frame_type_path_abandon & 0xFF),
+    0x02, /* type 2, this path */
+    0x00, /* No error */
+    0x00 /* No phrase */
 };
 
 static uint8_t test_frame_type_bdp[] = {
@@ -269,13 +286,14 @@ test_skip_frames_t test_skip_list[] = {
     TEST_SKIP_ITEM("stream_max", test_frame_type_stream_range_max, 0, 0, 3),
     TEST_SKIP_ITEM("crypto_hs", test_frame_type_crypto_hs, 0, 0, 2),
     TEST_SKIP_ITEM("retire_connection_id", test_frame_type_retire_connection_id, 0, 0, 3),
-    TEST_SKIP_ITEM("datagram", test_frame_type_datagram, 1, 1, 3),
-    TEST_SKIP_ITEM("datagram_l", test_frame_type_datagram_l, 1, 0, 3),
+    TEST_SKIP_ITEM("datagram", test_frame_type_datagram, 0, 1, 3),
+    TEST_SKIP_ITEM("datagram_l", test_frame_type_datagram_l, 0, 0, 3),
     TEST_SKIP_ITEM("handshake_done", test_frame_type_handshake_done, 0, 0, 3),
     TEST_SKIP_ITEM("ack_frequency", test_frame_type_ack_frequency, 0, 0, 3),
     TEST_SKIP_ITEM("time_stamp", test_frame_type_time_stamp, 1, 0, 3),
-    TEST_SKIP_ITEM("qoe", test_frame_type_qoe, 1, 0, 3),
-    TEST_SKIP_ITEM("path_status", test_frame_type_path_status, 0, 0, 3),
+    TEST_SKIP_ITEM("path_abandon_0", test_frame_type_path_abandon_0, 0, 0, 3),
+    TEST_SKIP_ITEM("path_abandon_1", test_frame_type_path_abandon_1, 0, 0, 3),
+    TEST_SKIP_ITEM("path_abandon_2", test_frame_type_path_abandon_2, 0, 0, 3),
     TEST_SKIP_ITEM("bdp", test_frame_type_bdp, 0, 0, 3)
 };
 
@@ -392,14 +410,14 @@ static uint8_t test_frame_type_bad_ack_blocks[] = {
 static uint8_t test_frame_type_bad_crypto_hs[] = {
     picoquic_frame_type_crypto_hs,
     0,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x8F, 0xFF, 0xFF, 0xFF,
     0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
     0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF
 };
 
 static uint8_t test_frame_type_bad_datagram[] = {
     picoquic_frame_type_datagram_l,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0x8F, 0xFF, 0xFF, 0xFF, 
     0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
     0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF
 };
@@ -410,17 +428,38 @@ static uint8_t test_frame_stream_hang[] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
 
-static uint8_t test_frame_type_qoe_bad[] = {
-    (uint8_t)(0x80 | (picoquic_frame_type_qoe >> 24)), (uint8_t)(picoquic_frame_type_qoe >> 16),
-    (uint8_t)(picoquic_frame_type_qoe >> 8), (uint8_t)(picoquic_frame_type_qoe & 0xFF),
-    0x11, 0x80, 0xff, 0xff, 0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+static uint8_t test_frame_type_path_abandon_bad_0[] = {
+    (uint8_t)(0x80 | (picoquic_frame_type_path_abandon >> 24)), (uint8_t)(picoquic_frame_type_path_abandon >> 16),
+    (uint8_t)(picoquic_frame_type_path_abandon >> 8), (uint8_t)(picoquic_frame_type_path_abandon & 0xFF),
+    0x00, /* type 0 */
+    /* 0x01, missing type */
+    0x00, /* No error */
+    0x00 /* No phrase */
 };
 
-static uint8_t test_frame_type_path_status_bad[] = {
-    (uint8_t)(0x80 | (picoquic_frame_type_path_status >> 24)), (uint8_t)(picoquic_frame_type_path_status >> 16),
-    (uint8_t)(picoquic_frame_type_path_status >> 8), (uint8_t)(picoquic_frame_type_path_status & 0xFF),
-    0x11, 0x01, 0x80
+static uint8_t test_frame_type_path_abandon_bad_1[] = {
+    (uint8_t)(0x80 | (picoquic_frame_type_path_abandon >> 24)),
+    (uint8_t)(picoquic_frame_type_path_abandon >> 16),
+    (uint8_t)(picoquic_frame_type_path_abandon >> 8), 
+    (uint8_t)(picoquic_frame_type_path_abandon & 0xFF),
+    0x01, /* type 1 */
+    0x01,
+    0x11, /* Some new error */
+    0x4f,
+    0xff, /* bad length */
+    (uint8_t)'b',
+    (uint8_t)'a',
+    (uint8_t)'d',
 };
+
+static uint8_t test_frame_type_path_abandon_bad_2[] = {
+    (uint8_t)(0x80 | (picoquic_frame_type_path_abandon >> 24)), (uint8_t)(picoquic_frame_type_path_abandon >> 16),
+    (uint8_t)(picoquic_frame_type_path_abandon >> 8), (uint8_t)(picoquic_frame_type_path_abandon & 0xFF),
+    0x03, /* unknown type */
+    0x00, /* No error */
+    0x00 /* No phrase */
+};
+
 
 static uint8_t test_frame_type_bdp_bad[] = {
     (uint8_t)(0x80 | (picoquic_frame_type_bdp >> 24)), (uint8_t)(picoquic_frame_type_bdp >> 16),
@@ -437,6 +476,11 @@ static uint8_t test_frame_type_bdp_bad_addr[] = {
 static uint8_t test_frame_type_bdp_bad_length[] = {
     (uint8_t)(0x80 | (picoquic_frame_type_bdp >> 24)), (uint8_t)(picoquic_frame_type_bdp >> 16),
     (uint8_t)(picoquic_frame_type_bdp >> 8), (uint8_t)(picoquic_frame_type_bdp & 0xFF),
+    0x08, 0x02, 0x04, 0x8F, 0xFF, 0xFF, 0xFF, 1, 2, 3, 4
+};
+
+static uint8_t test_frame_type_bad_frame_id[] = {
+    0xbf, 0xff, 0xff, 0xff,
     0x08, 0x02, 0x04, 0x8F, 0xFF, 0xFF, 0xFF, 1, 2, 3, 4
 };
 
@@ -458,12 +502,13 @@ test_skip_frames_t test_frame_error_list[] = {
     TEST_SKIP_ITEM("bad_crypto_hs", test_frame_type_bad_crypto_hs, 0, 0, 2),
     TEST_SKIP_ITEM("bad_datagram", test_frame_type_bad_datagram, 1, 0, 3),
     TEST_SKIP_ITEM("stream_hang", test_frame_stream_hang, 1, 0, 3),
-    TEST_SKIP_ITEM("bad_qoe", test_frame_type_qoe_bad, 1, 0, 3),
-    TEST_SKIP_ITEM("bad_path_status", test_frame_type_path_status_bad, 0, 1, 3),
+    TEST_SKIP_ITEM("bad_abandon_0", test_frame_type_path_abandon_bad_0, 0, 1, 3),
+    TEST_SKIP_ITEM("bad_abandon_1", test_frame_type_path_abandon_bad_1, 0, 0, 3),
+    TEST_SKIP_ITEM("bad_abandon_2", test_frame_type_path_abandon_bad_2, 0, 0, 3),
     TEST_SKIP_ITEM("bad_bdp", test_frame_type_bdp_bad, 1, 0, 3),
     TEST_SKIP_ITEM("bad_bdp", test_frame_type_bdp_bad_addr, 1, 0, 3),
-    TEST_SKIP_ITEM("bad_bdp", test_frame_type_bdp_bad_length, 1, 0, 3)
-
+    TEST_SKIP_ITEM("bad_bdp", test_frame_type_bdp_bad_length, 1, 0, 3),
+    TEST_SKIP_ITEM("bad_frame_id", test_frame_type_bad_frame_id, 1, 0, 3)
 };
 
 size_t nb_test_frame_error_list = sizeof(test_frame_error_list) / sizeof(test_skip_frames_t);
@@ -580,7 +625,6 @@ int skip_frame_test()
             size_t byte_max = 0;
             int pure_ack;
             int t_ret = 0;
-
             memcpy(buffer, test_frame_error_list[i].val, test_frame_error_list[i].len);
             byte_max = test_frame_error_list[i].len;
             if (test_frame_error_list[i].must_be_last == 0 && sharp_end == 0) {
@@ -653,12 +697,18 @@ int parse_test_packet(picoquic_quic_t* qclient, struct sockaddr* saddr, uint64_t
         /* enable time stamp so it can be used in test */
         cnx->is_time_stamp_enabled = 1;
 
+        /* Set datagram max size to pass verification */
+        cnx->local_parameters.max_datagram_frame_size = PICOQUIC_MAX_PACKET_SIZE;
+
         /* Set min ack delay so there is no issue with ack frequency frame */
         cnx->is_ack_frequency_negotiated = 1;
         cnx->remote_parameters.min_ack_delay = 1000;
         
         /* Set enable_bdp so there is no issue with bdp frame */
         cnx->local_parameters.enable_bdp_frame = 3;
+
+        /* Enable multipath so the test of multipath frames works. */
+        cnx->is_multipath_enabled = 1;
        
         /* if testing handshake done, set state to ready so frame is ignored. */
         if (epoch == 3) {
@@ -668,7 +718,7 @@ int parse_test_packet(picoquic_quic_t* qclient, struct sockaddr* saddr, uint64_t
         ret = picoquic_decode_frames(cnx, cnx->path[0], buffer, byte_max, NULL, epoch, 
             NULL, NULL, 0, 0, simulated_time);
 
-        *ack_needed = cnx->ack_ctx[pc].ack_needed;
+        *ack_needed = cnx->ack_ctx[pc].act[0].ack_needed;
 
         if (ret == 0 &&
             (cnx->cnx_state == picoquic_state_disconnecting ||
@@ -1122,10 +1172,8 @@ int logger_test()
     return ret;
 }
 
-// From logwriter.c
-#if 0
-FILE* create_binlog(char const* binlog_file, uint64_t creation_time, unsigned int multipath_enabled);
-#endif
+// Test of binary logs.
+
 void binlog_new_connection(picoquic_cnx_t* cnx);
 
 void binlog_packet(FILE* f, const picoquic_connection_id_t* cid, uint64_t path_id, int receiving, uint64_t current_time,
@@ -1179,7 +1227,7 @@ int binlog_test()
         }
         else {
             picoquic_log_new_connection(cnx);
-
+            /* Log of good packets */
             for (size_t i = 0; i < nb_test_skip_list; i++) {
 
                 picoquic_packet_header ph;
@@ -1195,7 +1243,21 @@ int binlog_test()
 
                 binlog_packet(cnx->f_binlog, &initial_cid, 0, 0, 0, &ph, test_skip_list[i].val, test_skip_list[i].len);
             }
+            /* Log of bad backets */
+            for (size_t i = 0; i < nb_test_frame_error_list; i++) {
+                picoquic_packet_header ph;
+                memset(&ph, 0, sizeof(ph));
 
+                ph.ptype = picoquic_packet_1rtt_protected;
+                ph.pn64 = i;
+                ph.dest_cnx_id = initial_cid;
+                ph.srce_cnx_id = dest_cid;
+
+                ph.offset = 0;
+                ph.payload_length = test_frame_error_list[i].len;
+
+                binlog_packet(cnx->f_binlog, &initial_cid, 0, 0, 0, &ph, test_frame_error_list[i].val, test_frame_error_list[i].len);
+            }
             picoquic_delete_cnx(cnx);
         }
     }
@@ -2720,6 +2782,7 @@ int stream_ack_test()
             while (byte_index < stream_ack_case[i].length){
                 size_t consumed = 0;
                 int is_pure_ack = 0;
+                int do_not_detect_spurious = 0;
 
                 ret = picoquic_skip_frame(
                     bytes + byte_index, bytes_max - byte_index, &consumed, &is_pure_ack);
@@ -2733,7 +2796,7 @@ int stream_ack_test()
                     int no_need_to_repeat;
 
                     ret = picoquic_check_frame_needs_repeat(cnx,
-                        bytes + byte_index, consumed, &no_need_to_repeat);
+                        bytes + byte_index, consumed, &no_need_to_repeat, &do_not_detect_spurious);
                     if (no_need_to_repeat && !stream_ack_case[i].should_ack) {
                         DBG_PRINTF("Case %zu, failed to repeat frame index %zu",
                             i, byte_index);
