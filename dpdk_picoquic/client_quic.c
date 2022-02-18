@@ -102,9 +102,13 @@ typedef struct st_sample_client_ctx_t
 
 struct rte_mempool *mb_pools[MAX_NB_OF_PORTS_AND_LCORES];
 struct rte_eth_dev_tx_buffer *tx_buffers[MAX_NB_OF_PORTS_AND_LCORES];
+struct rte_eth_rxconf rxq_conf;
+struct rte_eth_txconf txq_conf;
 
 // hardcoded server mac
 struct rte_ether_addr eth_addr;
+uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
+uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
 static int sample_client_create_stream(picoquic_cnx_t *cnx,
                                        sample_client_ctx_t *client_ctx, int file_rank)
@@ -656,12 +660,14 @@ int picoquic_sample_client(char const *server_name,
 
 int init_mbuf_txbuffer(uint16_t portid,int index){
 
-    static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
-    static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
+    char mbuf_pool_name[20] = "mbuf_pool_X";
+    char tx_buffer_name[20] = "tx_buffer_X";
+    int index_of_X;
     char char_i = portid;
     index_of_X = strlen(mbuf_pool_name) - 1;
     mbuf_pool_name[index_of_X] = char_i;
     unsigned nb_mbufs = 8192U;
+    int ret = 0;
     mb_pools[index] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
                                             MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
                                             rte_socket_id());
@@ -693,8 +699,7 @@ int init_port(uint16_t portid)
 {
     int ret = 0;
     
-    struct rte_eth_rxconf rxq_conf;
-    struct rte_eth_txconf txq_conf;
+    
 
     static struct rte_ether_addr eth_addr;
     struct rte_eth_dev_info dev_info;
@@ -708,10 +713,7 @@ int init_port(uint16_t portid)
         },
     };
 
-    char mbuf_pool_name[20] = "mbuf_pool_X";
-    char tx_buffer_name[20] = "tx_buffer_X";
-    int index_of_X;
-    char char_i;
+    
 
   
     ret = rte_eth_dev_info_get(portid, &dev_info);
@@ -764,11 +766,13 @@ int check_ports_lcores_numbers(){
         nbr_of_ports++;
     }
     
-    RTE_LCORE_FOREACH_WORKER(lcore_id)
+    RTE_LCORE_FOREACH(lcore_id)
     {
         nbr_of_lcores++;
     }
     if(nbr_of_lcores != nbr_of_ports){
+        printf("nbr_of_lcores : %u\n", nbr_of_lcores);
+        printf("nbr_of_ports %u\n",nbr_of_ports);
         return -1;
     }
     return 0;
@@ -821,11 +825,7 @@ int main(int argc, char **argv)
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
     
-    if(check_ports_lcores_numbers != 0){
-        printf("mismatch between the number of lcore and ports\n");
-        return -1;
-
-    }
+    
     unsigned portids[MAX_NB_OF_PORTS_AND_LCORES];
     int index_port = 0;
     RTE_ETH_FOREACH_DEV(portid)
@@ -839,6 +839,10 @@ int main(int argc, char **argv)
             printf("failed to start device\n");
         }
         index_port++;
+    }
+    if(check_ports_lcores_numbers() != 0){
+        printf("mismatch between the number of lcore and ports\n");
+        return -1;
     }
     unsigned index_lcore = 0;
     unsigned args[2];
