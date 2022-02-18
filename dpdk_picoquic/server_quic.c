@@ -474,7 +474,8 @@ int picoquic_sample_server(int server_port,
     return ret;
 }
 
-int init_port(uint16_t nb_of_queues)
+//scaling on number of cores
+int init_port_server(uint16_t nb_of_queues)
 {
     int ret = 0;
     int portid = 0;
@@ -518,61 +519,57 @@ int init_port(uint16_t nb_of_queues)
         rte_exit(EXIT_FAILURE,
                  "Cannot adjust number of descriptors: err=%d, port=%u\n",
                  ret, portid);
-
-    // init tx queue
-    txq_conf = dev_info.default_txconf;
-    txq_conf.offloads = local_port_conf.txmode.offloads;
-    ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
-                                 rte_eth_dev_socket_id(portid),
-                                 &txq_conf);
-    if (ret != 0)
-    {
-        printf("failed to init queue\n");
-        return 0;
-    }
-
-    // init rx queue
-    rxq_conf = dev_info.default_rxconf;
-    rxq_conf.offloads = local_port_conf.rxmode.offloads;
-
-    char mbuf_pool_name[20] = "mbuf_pool_X";
+    
+    
+    char mbuf_pool_name = "mbuf_pool_X";
     char tx_buffer_name[20] = "tx_buffer_X";
     int index_of_X;
     char char_i;
-    for (int i = 0; i < nb_of_queues; i++)
+    unsigned nb_mbufs = 8192U;
+    mb_pools[i] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
+                                            MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+                                            rte_socket_id());
+    if (mb_pools[i] == NULL)
     {
-        char_i = i;
+        printf("fail to init mb_pool\n");
+        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+        return 0;
+    }
 
-        index_of_X = strlen(mbuf_pool_name) - 1;
-        mbuf_pool_name[index_of_X] = char_i;
-        unsigned nb_mbufs = 8192U;
-        mb_pools[i] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
-                                              MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-                                              rte_socket_id());
-        if (mb_pools[i] == NULL)
+    for (int queue_id = 0; queue_id < nb_of_queues; queue_id++)
+    {
+        // init tx queue
+        txq_conf = dev_info.default_txconf;
+        txq_conf.offloads = local_port_conf.txmode.offloads;
+        ret = rte_eth_tx_queue_setup(portid, queue_id, nb_txd,
+                                     rte_eth_dev_socket_id(portid),
+                                     &txq_conf);
+        if (ret != 0)
         {
-            printf("fail to init mb_pool\n");
-            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+            printf("failed to init queue\n");
             return 0;
         }
-        ret = rte_eth_rx_queue_setup(0, i, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[i]);
+        // init rx queue
+        rxq_conf = dev_info.default_rxconf;
+        rxq_conf.offloads = local_port_conf.rxmode.offloads;
+
+        ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[portid]);
         if (ret != 0)
         {
             printf("failed to init rx_queue\n");
         }
-
-        index_of_X = strlen(tx_buffer_name) - 1;
-        tx_buffer_name[index_of_X] = char_i;
-        tx_buffers[i] = rte_zmalloc_socket(tx_buffer_name,
-                                          RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-                                          rte_eth_dev_socket_id(0));
-        if (tx_buffers[i] == NULL)
-        {
-            printf("fail to init buffer\n");
-            return 0;
-        }
     }
- 
+
+    index_of_X = strlen(tx_buffer_name) - 1;
+    tx_buffer_name[index_of_X] = char_i;
+    tx_buffers[i] = rte_zmalloc_socket(tx_buffer_name,
+                                        RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
+                                        rte_eth_dev_socket_id(0));
+    if (tx_buffers[i] == NULL)
+    {
+        printf("fail to init buffer\n");
+        return 0;
+    }
 }
 
 
