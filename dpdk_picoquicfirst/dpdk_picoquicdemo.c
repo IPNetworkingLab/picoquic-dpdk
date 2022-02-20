@@ -82,6 +82,30 @@ static const char* token_store_filename = "demo_token_store.bin";
 #include "picoquic_config.h"
 #include "picoquic_lb.h"
 
+//dpdk
+#include <rte_common.h>
+#include <rte_log.h>
+#include <rte_malloc.h>
+#include <rte_memory.h>
+#include <rte_memcpy.h>
+#include <rte_eal.h>
+#include <rte_launch.h>
+#include <rte_atomic.h>
+#include <rte_cycles.h>
+#include <rte_prefetch.h>
+#include <rte_lcore.h>
+#include <rte_per_lcore.h>
+#include <rte_branch_prediction.h>
+#include <rte_interrupts.h>
+#include <rte_random.h>
+#include <rte_debug.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <rte_string_fns.h>
+#include <rte_ether.h>
+
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -546,7 +570,7 @@ int quic_client(const char* ip_address_text, int server_port,
 
     struct sockaddr_storage server_address;
     (*(struct sockaddr_in *)(&server_address)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&server_address)).sin_port = htons(55);
+    (*(struct sockaddr_in *)(&server_address)).sin_port = htons(4443);
     (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("198.18.0.2");
     
     memset(&loop_cb, 0, sizeof(client_loop_cb_t));
@@ -981,7 +1005,7 @@ void usage()
 }
 
 
-int init_mbuf_txbuffer_client(uint16_t portid,int index){
+int init_mbuf_txbuffer(uint16_t portid,int index){
 
     char mbuf_pool_name[20] = "mbuf_pool_X";
     char tx_buffer_name[20] = "tx_buffer_X";
@@ -1022,10 +1046,7 @@ int init_mbuf_txbuffer_client(uint16_t portid,int index){
 int init_port_client(uint16_t portid)
 {
     int ret = 0;
-    
-    
-
-    static struct rte_ether_addr eth_addr;
+    int queueid = 0;
     struct rte_eth_dev_info dev_info;
 
     static struct rte_eth_conf local_port_conf = {
@@ -1064,7 +1085,7 @@ int init_port_client(uint16_t portid)
     // init tx queue
     txq_conf = dev_info.default_txconf;
     txq_conf.offloads = local_port_conf.txmode.offloads;
-    ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
+    ret = rte_eth_tx_queue_setup(portid, queueid, nb_txd,
                                     rte_eth_dev_socket_id(portid),
                                     &txq_conf);
     if (ret != 0)
@@ -1085,8 +1106,6 @@ int init_port_server(uint16_t nb_of_queues)
     static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
     struct rte_eth_rxconf rxq_conf;
     struct rte_eth_txconf txq_conf;
-
-    static struct rte_ether_addr eth_addr;
     struct rte_eth_dev_info dev_info;
 
     static struct rte_eth_conf local_port_conf = {
@@ -1123,27 +1142,30 @@ int init_port_server(uint16_t nb_of_queues)
                  ret, portid);
     
     
-    char mbuf_pool_name = "mbuf_pool_X";
+    char mbuf_pool_name[20] = "mbuf_pool";
     char tx_buffer_name[20] = "tx_buffer_X";
     int index_of_X;
     char char_i;
     unsigned nb_mbufs = 8192U;
+
+    printf("before mb_pools\n");
     mb_pools[0] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
                                             MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
                                             rte_socket_id());
+    printf("after mb_pools[0] = ... \n");
     if (mb_pools[0] == NULL)
     {
         printf("fail to init mb_pool\n");
         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
         return 0;
     }
-
-    for (int queue_id = 0; queue_id < nb_of_queues; queue_id++)
+    printf("after mb_pools\n");
+    for (int queueid = 0; queueid < nb_of_queues; queueid++)
     {
         // init tx queue
         txq_conf = dev_info.default_txconf;
         txq_conf.offloads = local_port_conf.txmode.offloads;
-        ret = rte_eth_tx_queue_setup(portid, queue_id, nb_txd,
+        ret = rte_eth_tx_queue_setup(portid, queueid, nb_txd,
                                      rte_eth_dev_socket_id(portid),
                                      &txq_conf);
         if (ret != 0)
@@ -1155,47 +1177,26 @@ int init_port_server(uint16_t nb_of_queues)
         rxq_conf = dev_info.default_rxconf;
         rxq_conf.offloads = local_port_conf.rxmode.offloads;
 
-        ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[portid]);
+        ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[portid]);
         if (ret != 0)
         {
             printf("failed to init rx_queue\n");
         }
-    }
+        printf("before strlen\n");
+        char_i = queueid + '0';
+        index_of_X = strlen(tx_buffer_name) - 1;
+        tx_buffer_name[index_of_X] = char_i;
+        tx_buffers[queueid] = rte_zmalloc_socket(tx_buffer_name,
+                                            RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
+                                            rte_eth_dev_socket_id(0));
+        if (tx_buffers[0] == NULL)
+        {
+            printf("fail to init buffer\n");
+            return 0;
+        }
 
-    index_of_X = strlen(tx_buffer_name) - 1;
-    tx_buffer_name[index_of_X] = char_i;
-    tx_buffers[0] = rte_zmalloc_socket(tx_buffer_name,
-                                        RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-                                        rte_eth_dev_socket_id(0));
-    if (tx_buffers[0] == NULL)
-    {
-        printf("fail to init buffer\n");
-        return 0;
-    }
-}
-
-
-int check_ports_lcores_numbers(){
-    int nbr_of_ports = 0;
-    int nbr_of_lcores = 0;
-    unsigned portid;
-    unsigned lcore_id;
-
-    RTE_ETH_FOREACH_DEV(portid)
-    {   
-        nbr_of_ports++;
     }
     
-    RTE_LCORE_FOREACH(lcore_id)
-    {
-        nbr_of_lcores++;
-    }
-    if(nbr_of_lcores != nbr_of_ports){
-        printf("nbr_of_lcores : %u\n", nbr_of_lcores);
-        printf("nbr_of_ports %u\n",nbr_of_ports);
-        return -1;
-    }
-    return 0;
 }
 
 static int
@@ -1226,16 +1227,85 @@ client_job(void *arg)
 static int
 server_job(void *arg)
 {   
-    unsigned *tab = (unsigned *) arg;
     unsigned portid = 0;
-    unsigned queueid = tab[0];
+    unsigned queueid = *((unsigned *) arg);
     unsigned lcore_id;
     lcore_id = rte_lcore_id();
     struct sockaddr_storage addr_from;
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
-    quic_server(server_name, &config, just_once, queueid, portid,addr_from,NULL,mb_pools[0],tx_buffers[0]);
+    printf("before quic_server\n");
+    quic_server(server_name, &config, just_once,portid, queueid ,addr_from,NULL,mb_pools[0],tx_buffers[0]);
+}
+
+
+int check_ports_lcores_numbers(){
+    int nbr_of_ports = 0;
+    int nbr_of_lcores = 0;
+    unsigned portid;
+    unsigned lcore_id;
+
+    RTE_ETH_FOREACH_DEV(portid)
+    {   
+        nbr_of_ports++;
+    }
+    
+    RTE_LCORE_FOREACH(lcore_id)
+    {
+        nbr_of_lcores++;
+    }
+    if(nbr_of_lcores != nbr_of_ports){
+        printf("nbr_of_lcores : %u\n", nbr_of_lcores);
+        printf("nbr_of_ports %u\n",nbr_of_ports);
+        return -1;
+    }
+    return 0;
+}
+
+int get_nb_port(){
+    int count = 0;
+    unsigned portid;
+     RTE_ETH_FOREACH_DEV(portid)
+    {   
+        count++;
+    }
+    return count;
+}
+
+int get_nb_core(){
+    int count = 0;
+    unsigned lcore_id;
+    RTE_LCORE_FOREACH(lcore_id)
+    {
+        count++;
+    }
+    return count;
+}
+
+int str_to_mac(char *mac_txt, struct rte_ether_addr *mac_addr)
+{
+    printf("mac_txt : %s\n",mac_txt);
+    int values[6];
+    int i;
+    printf("before if\n");
+    if (6 == sscanf(mac_txt, "%x:%x:%x:%x:%x:%x%*c",
+                    &values[0], &values[1], &values[2],
+                    &values[3], &values[4], &values[5]))
+    {
+        /* convert to uint8_t */
+        printf("before for\n");
+        for (i = 0; i < 6; ++i){
+            (mac_addr -> addr_bytes)[i] = (uint8_t)values[i];
+        }
+        return 0;
+    }
+
+    else
+    {
+        printf("invalid mac address : %s\n",mac_txt);
+        return -1;
+    }
 }
 
 int main(int argc, char** argv)
@@ -1253,17 +1323,21 @@ int main(int argc, char** argv)
     unsigned args[2];
     server_name = default_server_name;
 
+
+    ret = rte_eal_init(argc, argv);
+    if (ret < 0)
+        rte_panic("Cannot init EAL\n");
+    argc -= ret;
+    argv += ret;
+    printf("after EAL \n");
 #ifdef _WINDOWS
     WSADATA wsaData = { 0 };
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:1", 5);
-    ret = picoquic_config_option_letters(option_string + 5, sizeof(option_string) - 5, NULL);
-
-    ret = rte_eal_init(argc, argv);
-    if (ret < 0)
-        rte_panic("Cannot init EAL\n");
+    memcpy(option_string, "u:f:1:A:", 8);
+    ret = picoquic_config_option_letters(option_string + 8, sizeof(option_string) - 8, NULL);
+    printf("after config\n");
 
     if (ret == 0) {
         /* Get the parameters */
@@ -1277,6 +1351,7 @@ int main(int argc, char** argv)
                 break;
             case 'f':
                 force_migration = atoi(optarg);
+                printf("optarg : %s\n",optarg);
                 if (force_migration <= 0 || force_migration > 3) {
                     fprintf(stderr, "Invalid migration mode: %s\n", optarg);
                     usage();
@@ -1285,15 +1360,24 @@ int main(int argc, char** argv)
             case '1':
                 just_once = 1;
                 break;
+            case 'A':
+                printf("inside mac0\n");
+                printf("optarg : %s\n",optarg);
+                if(str_to_mac(optarg,&eth_addr) != 0){
+                    printf("inside mac1\n");
+                    return -1;
+                }
+                break;
             default:
                 if (picoquic_config_command_line(opt, &optind, argc, (char const **)argv, optarg, &config) != 0) {
+                    printf("inside default\n");
                     usage();
                 }
                 break;
             }
         }
     }
-
+    printf("aftergetopt\n");
     /* Simplified style params */
     if (optind < argc) {
         server_name = argv[optind++];
@@ -1314,8 +1398,9 @@ int main(int argc, char** argv)
     if (optind < argc) {
         usage();
     }
-
+    printf("before check\n");
     if (is_client == 0) {
+        printf("inside server\n");
         if (config.server_port == 0) {
             config.server_port = server_port;
         }
@@ -1331,37 +1416,43 @@ int main(int argc, char** argv)
             /* Using set option call to ensure proper memory management*/
             picoquic_config_set_option(&config, picoquic_option_KEY, default_server_key_file);
         }
-        init_port(1);
-         /* Run as server */
+        printf("before init_port\n");
+        init_port_server(get_nb_core());
+        printf("before start\n");
+        ret = rte_eth_dev_start(0);
+        if (ret != 0)
+        {
+            printf("failed to start device\n");
+        }
+    
+        /* Run as server */
         int index_lcore = 0;
         printf("Starting Picoquic server (v%s) on port %d, server name = %s, just_once = %d, do_retry = %d\n",
             PICOQUIC_VERSION, config.server_port, server_name, just_once, config.do_retry);
-        RTE_LCORE_FOREACH_WORKER(lcore_id)
-        {
-            args[0] = index_lcore;
-            rte_eal_remote_launch(client_job, index_lcore, lcore_id);
-            index_lcore++;
-        }
+
+        // RTE_LCORE_FOREACH_WORKER(lcore_id)
+        // {
+        //     printf("launching server\n");
+        //     rte_eal_remote_launch(server_job, index_lcore, lcore_id);
+        //     index_lcore++;
+        // }
+        unsigned q = 0;
+        server_job(&q);
+
         printf("Server exit with code = %d\n", ret); 
     }
     else {
+        printf("inside client\n");
 
         /* Run as client */
-        //DPDK part
-        eth_addr.addr_bytes[0] = 0x50;
-        eth_addr.addr_bytes[1] = 0x6b;
-        eth_addr.addr_bytes[2] = 0x4b;
-        eth_addr.addr_bytes[3] = 0xf3;
-        eth_addr.addr_bytes[4] = 0x7c;
-        eth_addr.addr_bytes[5] = 0x70;
-        
+        // hardcoded server addr, need to change that
         unsigned portids[MAX_NB_OF_PORTS_AND_LCORES];
 
         int index_port = 0;
         RTE_ETH_FOREACH_DEV(portid)
         {   
             portids[index_port] = portid;
-            init_port(portid);
+            init_port_client(portid);
             init_mbuf_txbuffer(portid,index_port);
             ret = rte_eth_dev_start(portid);
             if (ret != 0)
@@ -1381,22 +1472,19 @@ int main(int argc, char** argv)
         {
             args[0] = index_lcore;
             args[1] = portids[index_lcore];
-            rte_eal_remote_launch(server_job, args, lcore_id);
+            rte_eal_remote_launch(client_job, args, lcore_id);
             index_lcore++;
         }
-
         /* call it on main lcore too */
         args[0] = index_lcore;
         args[1] = portids[index_lcore];
 
-        lcore_hello(args);
+        client_job(args);
         printf("Client exit with code = %d\n", ret);
 
-        rte_eal_mp_wait_lcore();
-        /* clean up the EAL */
-        rte_eal_cleanup();
-
     }
-
+    rte_eal_mp_wait_lcore();
+    /* clean up the EAL */
+    rte_eal_cleanup();
     picoquic_config_clear(&config);
 }
