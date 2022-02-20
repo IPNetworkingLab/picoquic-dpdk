@@ -49,7 +49,7 @@
 #include <rte_arp.h>
 #include <rte_spinlock.h>
 #include <rte_devargs.h>
-#include <autoqlog.h>
+// #include <autoqlog.h>
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -567,9 +567,9 @@ int picoquic_sample_client(char const *server_name,
 
             picoquic_set_default_congestion_algorithm(quic, picoquic_bbr_algorithm);
 
-            picoquic_set_key_log_file_from_env(quic);
-            picoquic_set_qlog(quic, qlog_dir);
-            picoquic_set_log_level(quic, 1);
+            // picoquic_set_key_log_file_from_env(quic);
+            // picoquic_set_qlog(quic, qlog_dir);
+            // picoquic_set_log_level(quic, 1);
         }
     }
 
@@ -632,7 +632,7 @@ int picoquic_sample_client(char const *server_name,
 
     /* Wait for packets */
 
-    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, portid, addr_from, mac_dst, mb_pool, tx_buffer);
+    ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0, sample_client_loop_cb, &client_ctx, 0,portid, addr_from, mac_dst, mb_pool, tx_buffer);
 
     /* Done. At this stage, we could print out statistics, etc. */
     sample_client_report(&client_ctx);
@@ -806,7 +806,7 @@ lcore_hello(void *arg)
     files[0] = (char *)malloc(sizeof(strlen(filename)) + 1);
 
     memcpy(files[0], filename, strlen(filename) + 1);
-    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files, portid, addr_from, &eth_addr, mb_pools[index], tx_buffers[index]);
+    picoquic_sample_client("root@TFE-Tyunyayev2", 55, "ClientFolder", 1, files,portid, addr_from, &eth_addr, mb_pools[index], tx_buffers[index]);
 }
 
 int main(int argc, char **argv)

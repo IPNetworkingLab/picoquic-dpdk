@@ -35,7 +35,7 @@
 #include <picoquic_utils.h>
 #include <picosocks.h>
 #include <picoquic_packet_loop.h>
-#include <autoqlog.h>
+// #include <autoqlog.h>
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -415,6 +415,7 @@ int picoquic_sample_server(int server_port,
                            const char *server_cert,
                            const char *server_key,
                            const char *default_dir,
+                           unsigned queueid,
                            unsigned portid,
                            struct sockaddr_storage addr_from,
                            struct rte_mempool *mb_pool,
@@ -449,17 +450,17 @@ int picoquic_sample_server(int server_port,
 
         picoquic_set_default_congestion_algorithm(quic, picoquic_bbr_algorithm);
 
-        picoquic_set_qlog(quic, qlog_dir);
+        // picoquic_set_qlog(quic, qlog_dir);
 
-        picoquic_set_log_level(quic, 1);
+        // picoquic_set_log_level(quic, 1);
 
-        picoquic_set_key_log_file_from_env(quic);
+        // picoquic_set_key_log_file_from_env(quic);
     }
 
     /* Wait for packets */
     if (ret == 0)
     {
-        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL, portid, addr_from,NULL,mb_pool, tx_buffer);
+        ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL,queueid, portid, addr_from,NULL,mb_pool, tx_buffer);
     }
 
     /* And finish. */
@@ -474,7 +475,6 @@ int picoquic_sample_server(int server_port,
     return ret;
 }
 
-//scaling on number of cores
 int init_port_server(uint16_t nb_of_queues)
 {
     int ret = 0;
@@ -483,8 +483,6 @@ int init_port_server(uint16_t nb_of_queues)
     static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
     struct rte_eth_rxconf rxq_conf;
     struct rte_eth_txconf txq_conf;
-
-    static struct rte_ether_addr eth_addr;
     struct rte_eth_dev_info dev_info;
 
     static struct rte_eth_conf local_port_conf = {
@@ -521,27 +519,30 @@ int init_port_server(uint16_t nb_of_queues)
                  ret, portid);
     
     
-    char mbuf_pool_name = "mbuf_pool_X";
+    char mbuf_pool_name[20] = "mbuf_pool";
     char tx_buffer_name[20] = "tx_buffer_X";
     int index_of_X;
     char char_i;
     unsigned nb_mbufs = 8192U;
-    mb_pools[i] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
+
+    printf("before mb_pools\n");
+    mb_pools[0] = rte_pktmbuf_pool_create(mbuf_pool_name, nb_mbufs,
                                             MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
                                             rte_socket_id());
-    if (mb_pools[i] == NULL)
+    printf("after mb_pools[0] = ... \n");
+    if (mb_pools[0] == NULL)
     {
         printf("fail to init mb_pool\n");
         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
         return 0;
     }
-
-    for (int queue_id = 0; queue_id < nb_of_queues; queue_id++)
+    printf("after mb_pools\n");
+    for (int queueid = 0; queueid < nb_of_queues; queueid++)
     {
         // init tx queue
         txq_conf = dev_info.default_txconf;
         txq_conf.offloads = local_port_conf.txmode.offloads;
-        ret = rte_eth_tx_queue_setup(portid, queue_id, nb_txd,
+        ret = rte_eth_tx_queue_setup(portid, queueid, nb_txd,
                                      rte_eth_dev_socket_id(portid),
                                      &txq_conf);
         if (ret != 0)
@@ -553,23 +554,26 @@ int init_port_server(uint16_t nb_of_queues)
         rxq_conf = dev_info.default_rxconf;
         rxq_conf.offloads = local_port_conf.rxmode.offloads;
 
-        ret = rte_eth_rx_queue_setup(portid, queue_id, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[portid]);
+        ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[portid]);
         if (ret != 0)
         {
             printf("failed to init rx_queue\n");
         }
-    }
+        printf("before strlen\n");
+        char_i = queueid + '0';
+        index_of_X = strlen(tx_buffer_name) - 1;
+        tx_buffer_name[index_of_X] = char_i;
+        tx_buffers[queueid] = rte_zmalloc_socket(tx_buffer_name,
+                                            RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
+                                            rte_eth_dev_socket_id(0));
+        if (tx_buffers[0] == NULL)
+        {
+            printf("fail to init buffer\n");
+            return 0;
+        }
 
-    index_of_X = strlen(tx_buffer_name) - 1;
-    tx_buffer_name[index_of_X] = char_i;
-    tx_buffers[i] = rte_zmalloc_socket(tx_buffer_name,
-                                        RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
-                                        rte_eth_dev_socket_id(0));
-    if (tx_buffers[i] == NULL)
-    {
-        printf("fail to init buffer\n");
-        return 0;
     }
+    
 }
 
 
@@ -581,13 +585,14 @@ lcore_hello(__rte_unused void *arg)
     unsigned lcore_id;
     lcore_id = rte_lcore_id();
 
+
     struct sockaddr_storage addr_from;
     
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
 
-	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",0,addr_from,mb_pools[0],tx_buffers[0]);
+	picoquic_sample_server(55, "certs/cert.pem", "certs/key.pem", "ServerFolder",0,0,addr_from,mb_pools[0],tx_buffers[0]);
    
 }
 
@@ -600,7 +605,7 @@ int main(int argc, char **argv)
     ret = rte_eal_init(argc, argv);
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
-    init_port(1);
+    init_port_server(1);
     ret = rte_eth_dev_start(portid);
 
     static struct rte_ether_addr eth_addr;

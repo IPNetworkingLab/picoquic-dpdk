@@ -384,8 +384,8 @@ int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *
         }
         if (ip_addresses[i] == 0)
         {
-            printf("ip : %u\n",ip_addr);
-            printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
+            // printf("ip : %u\n",ip_addr);
+            // printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
             ip_addresses[i] = ip_addr;
             mac_addresses[i] = mac_addr;
             return 0;
@@ -465,9 +465,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     FILE *fptr_rcv;
     int receiv_counter = 0;
     int send_counter = 0;
-    fptr_send = fopen("send.txt", "w");
-    fptr_rcv = fopen("rcv.txt", "w");
-
+    
     uint32_t ip_addresses[IP_MAC_ARRAYS_LENGTH];
     struct rte_ether_addr mac_addresses[IP_MAC_ARRAYS_LENGTH];
     memset(ip_addresses,0,sizeof(ip_addresses));
@@ -514,7 +512,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             for (int i = 0; i < pkts_recv; i++)
             {
                 receiv_counter++;
-                // printf("received packets : %u\n",portid);
+                // printf("received packets ethernet : %u\n",portid);
 
                 /* access ethernet header of rcv'd pkt */
                 struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
@@ -537,8 +535,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                     if (mac_dst == NULL)
                     {
-                        // printf("inside null\n");
-                        // add_mac_ip_pair(src_addr, (*eth_hdr).s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+
+                        add_mac_ip_pair(src_addr, (*eth_hdr).s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
                         // printf("%x\n", eth_hdr->s_addr.addr_bytes[0]);
                         // printf("%x\n", eth_hdr->s_addr.addr_bytes[1]);
                         // printf("%x\n", eth_hdr->s_addr.addr_bytes[2]);
@@ -547,7 +545,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         // printf("%x\n", eth_hdr->s_addr.addr_bytes[5]);
                     }
                     else{
-                        printf("mac_dst_is_not_null\n");
+                        // printf("mac_dst_is_not_null\n");
                     }
 
                     char *addr_val = inet_ntoa(*(struct in_addr *)&src_addr);
@@ -622,7 +620,6 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
-                        // ret = rte_eth_macaddr_get(portid, &eth_addr);
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->s_addr);
                        
 
@@ -663,7 +660,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         m->data_len = offset;
                         m->pkt_len = offset;
                         int sent = rte_eth_tx_buffer(portid, queueid, tx_buffer, m);
-                        printf("sending\n");
+                        // printf("sending\n");
                         send_counter += sent;
                         // fprintf(fptr_send, "%d\n", send_counter);
                     }

@@ -133,7 +133,7 @@ struct rte_eth_dev_tx_buffer *tx_buffers[MAX_NB_OF_PORTS_AND_LCORES];
 struct rte_eth_rxconf rxq_conf;
 struct rte_eth_txconf txq_conf;
 
-// hardcoded server mac
+//server mac
 struct rte_ether_addr eth_addr;
 uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
@@ -201,6 +201,7 @@ static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb
             break;
         default:
             ret = PICOQUIC_ERROR_UNEXPECTED_ERROR;
+            printf("error\n");
             break;
         }
 
@@ -294,7 +295,7 @@ int quic_server(const char* server_name,
             config->socket_buffer_size, server_loop_cb, &loop_cb_ctx);
 #else
         ret = picoquic_packet_loop_dpdk(qserver, config->server_port, 0, config->dest_if,
-            config->socket_buffer_size, config->do_not_use_gso, server_loop_cb, &loop_cb_ctx,portid,queueid, addr_from,NULL,mb_pool, tx_buffer);
+            config->socket_buffer_size, config->do_not_use_gso, server_loop_cb, &loop_cb_ctx, portid,queueid, addr_from,NULL,mb_pool, tx_buffer);
 #endif
     }
 
@@ -1310,12 +1311,11 @@ int str_to_mac(char *mac_txt, struct rte_ether_addr *mac_addr)
 
 int main(int argc, char** argv)
 {
-    picoquic_quic_config_t config;
+    
     char option_string[512];
     int opt;
     char default_server_cert_file[512];
     char default_server_key_file[512];
-    int just_once = 0;
     int is_client = 0;
     int ret;
     unsigned portid;
