@@ -524,7 +524,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                 // printf("%x\n", (eth_hdr->s_addr).addr_bytes[5]);
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
                 {
-                    printf("received packet\n");
+                    // printf("received packet\n");
                     ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
                     udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 

@@ -1204,10 +1204,11 @@ static int
 client_job(void *arg)
 {
     unsigned *tab = (unsigned *) arg;
-    unsigned portid = tab[0];
-    unsigned queueid = tab[1];
-
+    unsigned portid = *((unsigned *) arg);
+    unsigned queueid = 0;
     unsigned lcore_id = rte_lcore_id();
+    printf("lcore_id : %u\n", lcore_id);
+    printf("queueid : %u\n", queueid);
     char char_lcore_id = lcore_id + '0';
 
     // printf("mychar : %c\n", char_lcore_id);
@@ -1252,7 +1253,7 @@ int check_ports_lcores_numbers(){
         nbr_of_ports++;
     }
     
-    RTE_LCORE_FOREACH(lcore_id)
+    RTE_LCORE_FOREACH_WORKER(lcore_id)
     {
         nbr_of_lcores++;
     }
@@ -1430,12 +1431,12 @@ int main(int argc, char** argv)
         printf("Starting Picoquic server (v%s) on port %d, server name = %s, just_once = %d, do_retry = %d\n",
             PICOQUIC_VERSION, config.server_port, server_name, just_once, config.do_retry);
 
-        // RTE_LCORE_FOREACH_WORKER(lcore_id)
-        // {
-        //     printf("launching server\n");
-        //     rte_eal_remote_launch(server_job, index_lcore, lcore_id);
-        //     index_lcore++;
-        // }
+        RTE_LCORE_FOREACH_WORKER(lcore_id)
+        {
+            printf("launching server\n");
+            rte_eal_remote_launch(server_job, index_lcore, lcore_id);
+            index_lcore++;
+        }
         unsigned q = 0;
         server_job(&q);
 
@@ -1470,16 +1471,16 @@ int main(int argc, char** argv)
         printf("Starting Picoquic (v%s) connection to server = %s, port = %d\n", PICOQUIC_VERSION, server_name, server_port);
         RTE_LCORE_FOREACH_WORKER(lcore_id)
         {
-            args[0] = index_lcore;
-            args[1] = portids[index_lcore];
-            rte_eal_remote_launch(client_job, args, lcore_id);
+            
+            portids[index_lcore];
+            rte_eal_remote_launch(client_job, &portids[index_lcore], lcore_id);
             index_lcore++;
         }
         /* call it on main lcore too */
         args[0] = index_lcore;
         args[1] = portids[index_lcore];
 
-        client_job(args);
+        // client_job(args);
         printf("Client exit with code = %d\n", ret);
 
     }
