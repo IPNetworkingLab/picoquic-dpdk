@@ -571,7 +571,7 @@ int quic_client(const char* ip_address_text, int server_port,
 
     struct sockaddr_storage server_address;
     (*(struct sockaddr_in *)(&server_address)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&server_address)).sin_port = htons(4443);
+    (*(struct sockaddr_in *)(&server_address)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&server_address)).sin_addr.s_addr = inet_addr("198.18.0.2");
     
     memset(&loop_cb, 0, sizeof(client_loop_cb_t));
@@ -1209,19 +1209,19 @@ client_job(void *arg)
     unsigned lcore_id = rte_lcore_id();
     printf("lcore_id : %u\n", lcore_id);
     printf("queueid : %u\n", queueid);
-    char char_lcore_id = lcore_id + '0';
+    
+    
+    //giving a different IP for each client using the portid
+    uint32_t ip = (198U << 24) | (18 << 16) | (portid << 8) | 1;
+    struct in_addr ip_addr;
+    ip_addr.s_addr = rte_cpu_to_be_32(ip);
+    printf("The IP address of client %u is %s\n",portid, inet_ntoa(ip_addr));
 
-    // printf("mychar : %c\n", char_lcore_id);
     struct sockaddr_storage addr_from;
-
-    char str_addr[20] = "198.18.X.1";
-    int index_of_x = 7;
-    str_addr[index_of_x] = char_lcore_id;
-    printf("str_addr %s\n", str_addr);
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(str_addr);
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = rte_cpu_to_be_32(ip);
 
     quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,portid, queueid, addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
 }
