@@ -61,6 +61,7 @@
 #else /* Linux */
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -489,11 +490,12 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
         ret = -1;
         return -1;
     }
+    bool need_to_alloc = true;
     while (ret == 0)
     {
         int64_t delta_t = 0;
         unsigned char received_ecn;
-
+        
         if_index_to = 0;
         /* TODO: rewrite the code and avoid using the "loop_immediate" state variable */
         // printf("receiving\n");
@@ -591,21 +593,26 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
                 size_t bytes_sent = 0;
+                
                 while (ret == 0)
                 {
                     int if_index = dest_if;
                     send_length = 0;
                     struct sockaddr_storage peer_addr;
                     struct sockaddr_storage local_addr;
-                    m = rte_pktmbuf_alloc(mb_pool);
-                    // printf("alloced\n");
-                    if (m == NULL)
+                    if (need_to_alloc)
                     {
-                        printf("fail to init pktmbuf\n");
-                        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-                        return 0;
+                        m = rte_pktmbuf_alloc(mb_pool);
+                        // printf("alloced\n");
+                        if (m == NULL)
+                        {
+                            printf("fail to init pktmbuf\n");
+                            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+                            return 0;
+                        }
+                        need_to_alloc = false;
                     }
-
+                    
                     uint8_t *payload_ptr = rte_pktmbuf_mtod_offset(m, char *, (size_t)udp_payload_offset);
 
                     ret = picoquic_prepare_next_packet_ex(quic, loop_time,
@@ -663,11 +670,11 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         // printf("sending\n");
                         send_counter += sent;
                         // fprintf(fptr_send, "%d\n", send_counter);
+                        need_to_alloc=true;
                     }
 
                     else
                     {
-                        rte_pktmbuf_free(m);
                         int sent = rte_eth_tx_buffer_flush(portid, queueid, tx_buffer);
                         send_counter += sent;
                         // fprintf(fptr_send, "%d\n", send_counter);
@@ -682,7 +689,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             }
         }
     }
-
+    printf("out of the while\n");
     if (ret == PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP)
     {
         /* Normal termination requested by the application, returns no error */
