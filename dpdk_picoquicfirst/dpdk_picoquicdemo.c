@@ -1054,6 +1054,12 @@ int init_port_client(uint16_t portid)
         .rxmode = {
             .split_hdr_size = 0,
         },
+        .rx_adv_conf = {
+            .rss_conf = {
+            .rss_key = NULL,
+            .rss_hf = ETH_RSS_IP,
+            },
+        },
         .txmode = {
             .mq_mode = ETH_MQ_TX_NONE,
         },
@@ -1110,6 +1116,13 @@ int init_port_server(uint16_t nb_of_queues)
     static struct rte_eth_conf local_port_conf = {
         .rxmode = {
             .split_hdr_size = 0,
+            .mq_mode = ETH_MQ_RX_RSS,
+        },
+        .rx_adv_conf = {
+            .rss_conf = {
+            .rss_key = NULL,
+            .rss_hf = ETH_RSS_IP,
+            },
         },
         .txmode = {
             .mq_mode = ETH_MQ_TX_NONE,
@@ -1175,7 +1188,7 @@ int init_port_server(uint16_t nb_of_queues)
         rxq_conf = dev_info.default_rxconf;
         rxq_conf.offloads = local_port_conf.rxmode.offloads;
 
-        ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd, rte_eth_dev_socket_id(0), &rxq_conf, mb_pools[portid]);
+        ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd, rte_eth_dev_socket_id(portid), &rxq_conf, mb_pools[portid]);
         if (ret != 0)
         {
             printf("failed to init rx_queue\n");
@@ -1227,7 +1240,6 @@ server_job(void *arg)
 {   
     unsigned portid = 0;
     unsigned queueid = (unsigned) arg;
-    printf("queueid : %u\n",queueid);
     struct sockaddr_storage addr_from;
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);

@@ -385,8 +385,8 @@ int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *
         }
         if (ip_addresses[i] == 0)
         {
-            // printf("ip : %u\n",ip_addr);
-            // printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
+            printf("ip : %u\n",ip_addr);
+            printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
             ip_addresses[i] = ip_addr;
             mac_addresses[i] = mac_addr;
             return 0;
@@ -405,13 +405,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                               void *loop_callback_ctx,
                               unsigned portid,
                               unsigned queueid,
-                              struct sockaddr_storage addr_my_addr,
+                              struct sockaddr_storage my_addr,
                               struct rte_ether_addr *mac_dst,
                               struct rte_mempool *mb_pool,
                               struct rte_eth_dev_tx_buffer *tx_buffer)
 {
     //===================DPDK==========================//
-    printf("inside loop\n");
+    // printf("queueid loop: %u\n",queueid);
     uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
     struct rte_ether_addr eth_addr;
@@ -425,7 +425,20 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     void *tmp;
 
     ret = rte_eth_macaddr_get(portid, &eth_addr);
-    
+
+    // printf("=======================\n");
+    // printf("%x\n", eth_addr.addr_bytes[0]);
+    // printf("%x\n", eth_addr.addr_bytes[1]);
+    // printf("%x\n", eth_addr.addr_bytes[2]);
+    // printf("%x\n", eth_addr.addr_bytes[3]);
+    // printf("%x\n", eth_addr.addr_bytes[4]);
+    // printf("%x\n", eth_addr.addr_bytes[5]);
+    // printf("=======================\n");
+
+    struct sockaddr_in *sin = (struct sockaddr_in *)&my_addr;
+    unsigned char *ip = (unsigned char *)&sin->sin_addr.s_addr;
+    // printf("myip : %d %d %d %d\n", ip[0], ip[1], ip[2], ip[3]);    
+
    //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
@@ -491,6 +504,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
         return -1;
     }
     bool need_to_alloc = true;
+    bool should_i_print = true;
     while (ret == 0)
     {
         int64_t delta_t = 0;
@@ -527,6 +541,10 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
                 {
                     // printf("received packet\n");
+                    if(should_i_print){
+                        printf("received packet : id : %u\n",queueid);
+                        should_i_print = false;
+                    }
                     ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
                     udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
@@ -642,7 +660,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                             
                         }
 
-                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, addr_my_addr, peer_addr);
+                        setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, my_addr, peer_addr);
                         // setup_pkt_udp_ip_headers_test(&ip_hdr_struct, &udp_hdr_struct, send_length);
 
                         char *src_addr = inet_ntoa((*(struct sockaddr_in *)(&addr_from)).sin_addr);
