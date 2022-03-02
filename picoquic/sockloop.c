@@ -505,6 +505,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     }
     bool need_to_alloc = true;
     bool should_i_print = true;
+    bool should_i_print2 = true;
     while (ret == 0)
     {
         int64_t delta_t = 0;
@@ -685,7 +686,10 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         m->data_len = offset;
                         m->pkt_len = offset;
                         int sent = rte_eth_tx_buffer(portid, queueid, tx_buffer, m);
-                        // printf("sending\n");
+                        if(should_i_print2){
+                            printf("sending %u\n",portid);
+                            should_i_print2 = false;
+                        }
                         send_counter += sent;
                         // fprintf(fptr_send, "%d\n", send_counter);
                         need_to_alloc=true;

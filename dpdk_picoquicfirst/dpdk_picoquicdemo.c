@@ -1217,6 +1217,7 @@ client_job(void *arg)
     unsigned queueid = 0;
     unsigned lcore_id = rte_lcore_id();
     printf("lcore_id : %u\n", lcore_id);
+    printf("portid : %u\n", portid);
     printf("queueid : %u\n", queueid);
     
     
@@ -1224,7 +1225,7 @@ client_job(void *arg)
     uint32_t ip = (198U << 24) | (18 << 16) | (portid << 8) | 1;
     struct in_addr ip_addr;
     ip_addr.s_addr = rte_cpu_to_be_32(ip);
-    printf("The IP address of client %u is %s\n",portid, inet_ntoa(ip_addr));
+    printf("The IP address of client %u is %u\n",portid, rte_cpu_to_be_32(ip));
 
     struct sockaddr_storage addr_from;
 
