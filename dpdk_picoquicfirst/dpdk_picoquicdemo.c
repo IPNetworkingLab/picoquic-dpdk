@@ -53,6 +53,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/select.h>
+#include <unistd.h>
 
 #define SERVER_CERT_FILE "certs/cert.pem"
 #define SERVER_KEY_FILE "certs/key.pem"
@@ -146,6 +147,7 @@ int nb_packets_before_update = 0;
 char* client_scenario = NULL;
 picoquic_quic_config_t config;
 int just_once = 0;
+int nb_of_repetition = 1;
 
 /*
  * SIDUCK datagram demo call back.
@@ -1232,8 +1234,10 @@ client_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = rte_cpu_to_be_32(ip);
-
-    quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,portid, queueid, addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
+    for(int i = 0; i < nb_of_repetition;i++){
+        quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,portid, queueid, addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
+        sleep(0.1);
+    }
 }
 
 static int
@@ -1342,8 +1346,8 @@ int main(int argc, char** argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:1:A:", 8);
-    ret = picoquic_config_option_letters(option_string + 8, sizeof(option_string) - 8, NULL);
+    memcpy(option_string, "u:f:1:A:N:", 10);
+    ret = picoquic_config_option_letters(option_string + 10, sizeof(option_string) - 10, NULL);
     printf("after config\n");
 
     if (ret == 0) {
@@ -1373,6 +1377,13 @@ int main(int argc, char** argv)
                 if(str_to_mac(optarg,&eth_addr) != 0){
                     printf("inside mac1\n");
                     return -1;
+                }
+                break;
+            case 'N':
+                ;
+                int rep = atoi(optarg);
+                if(rep > 0){
+                    nb_of_repetition = atoi(optarg);
                 }
                 break;
             default:
