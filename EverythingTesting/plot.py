@@ -15,16 +15,27 @@ def take_average(file,index):
         throughput += float(tab[index])
         counter +=1
     return(throughput/counter)
+
+def get_data(file,index):
+    file1 = open(file, 'r')
+    ret = []
+    while True:
+        line = file1.readline()
+        if not line:
+            break
+        tab = line.split(" ")
+        ret.append(float(tab[index]))
+    return ret
     
 def plot_big_file():
-    throughputs = []
+    throughput = []
     nb_cores = [i for i in range(1,9)]
-    for i in range(1,):
-        throughput.append(take_average("output_big_file_8client_{}.txt".format(i),throughput)*8,throughput_index)
-    plt.ylabel('throughput (Mbps)')
+    for i in range(1,9):
+        throughput.append(take_average("output_big_file_8client_{}.txt".format(i),throughput_index)*8)
     plt.ylabel('throughput (Mbps)')
     plt.plot(nb_cores, throughput)
     plt.savefig('big_file.png')
+    plt.clf()
 
     
         
@@ -32,34 +43,35 @@ def plot_big_file():
 def plot_web_request():
     times = []
     nb_cores = [i for i in range(1,9)]
-    for i in range(1,):
-        throughput.append(take_average("web_request_8client_{}.txt".format(i),throughput),time_index)
-    plt.ylabel('throughput (Mbps)')
-    plt.ylabel('throughput (Mbps)')
-    plt.plot(nb_cores, times)
+    for i in range(1,9):
+        times.append(get_data("output_web_request_8client_{}.txt".format(i),time_index))
+    print(len(times))
+    print(len(nb_cores))
+    plt.boxplot(times, vert=True, patch_artist=True, labels=nb_cores,showfliers=False)
+    plt.ylabel('time(s)') 
+    plt.xlabel('# server cores')
+    plt.title('response time for a 4MB file')
     plt.savefig('web_request.png')
+    plt.clf()
 
 
 def plot_handshake():
     times = []
     nb_cores = [i for i in range(1,9)]
-    for i in range(1,):
-        throughput.append(take_average("handshake_8client_{}.txt".format(i),throughput),time_index)
-    plt.ylabel('throughput (Mbps)')
-    plt.ylabel('throughput (Mbps)')
-    plt.plot(nb_cores, times)
+    for i in range(1,9):
+        times.append(get_data("output_handshake_8client_{}.txt".format(i),time_index))
+
+    plt.boxplot(times, vert=True, patch_artist=True, labels=nb_cores,showfliers=False) 
+    plt.ylabel('time(s)') 
+    plt.xlabel('# server cores')
+    plt.title('response time for a 8bytes file')
     plt.savefig('handshake.png')
+    plt.clf()
 
 
+if __name__ == "__main__":
+    plot_big_file()
+    plot_web_request()
+    plot_handshake()
 
-
-fig = plt.figure()
-
-versions = ['localhost_picoquic', 'picoquic', 'dpdk_picoquic']
-throughput = [4396,931,9391]
-
-plt.bar(versions, throughput)
-
-plt.ylabel('throughput (Mbps)')
-plt.savefig('graph.png')
 

@@ -7,7 +7,7 @@ from subprocess import Popen, PIPE
 serverName = 'server'
 clientName = 'client1'
 process_name = 'dpdk_picoquicdemo'
-big_file_size = 5000000000
+big_file_size = 4000000000
 web_page_size = 4000000
 handshake_size = 8
 
@@ -77,8 +77,7 @@ def handshake_test():
         
 
 if __name__ == "__main__":
-    throughput_test()
-    web_test()
+    #throughput_test()
+    #web_test()
     handshake_test()
-
 
