@@ -300,7 +300,7 @@ static int demo_server_parse_path(const uint8_t * path, size_t path_length, size
         ret = 0;
     }
     else if (path_length > 1 && (path_length != 11 || memcmp(path, "/index.html", 11) != 0)) {
-        uint32_t x = 0;
+        uint64_t x = 0;
         for (size_t i = 1; i < path_length; i++) {
             if (path[i] < '0' || path[i] > '9') {
                 ret = -1;

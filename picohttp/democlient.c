@@ -191,7 +191,7 @@ int demo_client_prepare_to_send(void * context, size_t space, size_t echo_length
                     ret = -1;
                 }
                 else {
-                    *echo_sent += (uint32_t)available;
+                    *echo_sent += (uint64_t)available;
                     ret = 0;
                 }
             }
@@ -214,7 +214,7 @@ int demo_client_prepare_to_send(void * context, size_t space, size_t echo_length
                     r += 73;
                 }
 #endif
-                *echo_sent += (uint32_t)available;
+                *echo_sent += (uint64_t)available;
                 ret = 0;
             }
         }
