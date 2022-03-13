@@ -1346,8 +1346,8 @@ int main(int argc, char** argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:1:A:N:", 10);
-    ret = picoquic_config_option_letters(option_string + 10, sizeof(option_string) - 10, NULL);
+    memcpy(option_string, "u:f:A:N:1", 9);
+    ret = picoquic_config_option_letters(option_string + 9, sizeof(option_string) - 9, NULL);
     printf("after config\n");
 
     if (ret == 0) {
