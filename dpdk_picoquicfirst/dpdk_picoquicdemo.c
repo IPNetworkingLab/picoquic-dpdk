@@ -730,9 +730,9 @@ int quic_client(const char* ip_address_text, int server_port,
             if (ret == 0) {
                 ret = picoquic_start_client_cnx(cnx_client);
 
-                // printf("Starting client connection. Version = %x, I-CID: %llx\n",
-                //     picoquic_supported_versions[cnx_client->version_index].version,
-                //     (unsigned long long)picoquic_val64_connection_id(picoquic_get_logging_cnxid(cnx_client)));
+                printf("Starting client connection. Version = %x, I-CID: %llx\n",
+                    picoquic_supported_versions[cnx_client->version_index].version,
+                    (unsigned long long)picoquic_val64_connection_id(picoquic_get_logging_cnxid(cnx_client)));
 
                 fprintf(stdout, "Max stream id bidir remote after start = %d (%d)\n",
                     (int)cnx_client->max_stream_id_bidir_remote,
