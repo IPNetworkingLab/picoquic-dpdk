@@ -730,9 +730,9 @@ int quic_client(const char* ip_address_text, int server_port,
             if (ret == 0) {
                 ret = picoquic_start_client_cnx(cnx_client);
 
-                printf("Starting client connection. Version = %x, I-CID: %llx\n",
-                    picoquic_supported_versions[cnx_client->version_index].version,
-                    (unsigned long long)picoquic_val64_connection_id(picoquic_get_logging_cnxid(cnx_client)));
+                // printf("Starting client connection. Version = %x, I-CID: %llx\n",
+                //     picoquic_supported_versions[cnx_client->version_index].version,
+                //     (unsigned long long)picoquic_val64_connection_id(picoquic_get_logging_cnxid(cnx_client)));
 
                 fprintf(stdout, "Max stream id bidir remote after start = %d (%d)\n",
                     (int)cnx_client->max_stream_id_bidir_remote,
@@ -1226,10 +1226,6 @@ client_job(void *arg)
     unsigned portid = *((unsigned *) arg);
     unsigned queueid = 0;
     unsigned lcore_id = rte_lcore_id();
-    printf("lcore_id : %u\n", lcore_id);
-    printf("portid : %u\n", portid);
-    printf("queueid : %u\n", queueid);
-    
     
     //giving a different IP for each client using the portid
     uint32_t ip = (198U << 24) | (18 << 16) | (portid << 8) | 1;
@@ -1242,9 +1238,22 @@ client_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = rte_cpu_to_be_32(ip);
-    for(int i = 0; i < nb_of_repetition;i++){
-        quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,portid, queueid, addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
-        sleep(0.1);
+    if(handshake_test){
+        struct timeval start_time;
+        struct timeval current_time;
+        gettimeofday(&start_time, NULL);
+        gettimeofday(&current_time, NULL);
+        int counter = 0;
+        while((current_time.tv_sec - start_time.tv_sec) < 10){
+            quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,portid, queueid, addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
+            counter++;
+        }
+        printf("Number of request served : %d\n",counter);
+    }
+    else{
+        for(int i = 0; i < nb_of_repetition;i++){
+            quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,portid, queueid, addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
+        }
     }
 }
 
@@ -1257,7 +1266,6 @@ server_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
-    printf("before quic_server\n");
     quic_server(server_name, &config, just_once,portid, queueid ,addr_from,NULL,mb_pools[portid],tx_buffers[queueid]);
 }
 
@@ -1307,7 +1315,6 @@ int get_nb_core(){
 
 int str_to_mac(char *mac_txt, struct rte_ether_addr *mac_addr)
 {
-    printf("mac_txt : %s\n",mac_txt);
     int values[6];
     int i;
     if (6 == sscanf(mac_txt, "%x:%x:%x:%x:%x:%x%*c",
@@ -1348,7 +1355,7 @@ int main(int argc, char** argv)
         rte_panic("Cannot init EAL\n");
     argc -= ret;
     argv += ret;
-    printf("after EAL \n");
+    printf("EAL setup finshed\n");
 #ifdef _WINDOWS
     WSADATA wsaData = { 0 };
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
@@ -1356,8 +1363,7 @@ int main(int argc, char** argv)
     picoquic_config_init(&config);
     memcpy(option_string, "u:f:A:N:H1", 10);
     ret = picoquic_config_option_letters(option_string + 10, sizeof(option_string) - 10, NULL);
-    printf("after config\n");
-
+   
     if (ret == 0) {
         /* Get the parameters */
         while ((opt = getopt(argc, argv, option_string)) != -1) {
@@ -1370,7 +1376,6 @@ int main(int argc, char** argv)
                 break;
             case 'f':
                 force_migration = atoi(optarg);
-                printf("optarg : %s\n",optarg);
                 if (force_migration <= 0 || force_migration > 3) {
                     fprintf(stderr, "Invalid migration mode: %s\n", optarg);
                     usage();
@@ -1382,10 +1387,7 @@ int main(int argc, char** argv)
                 just_once = 1;
                 break;
             case 'A':
-                printf("inside mac0\n");
-                printf("optarg : %s\n",optarg);
                 if(str_to_mac(optarg,&eth_addr) != 0){
-                    printf("inside mac1\n");
                     return -1;
                 }
                 break;
@@ -1398,7 +1400,6 @@ int main(int argc, char** argv)
                 break;
             default:
                 if (picoquic_config_command_line(opt, &optind, argc, (char const **)argv, optarg, &config) != 0) {
-                    printf("inside default\n");
                     usage();
                 }
                 break;
@@ -1426,7 +1427,6 @@ int main(int argc, char** argv)
         usage();
     }
     if (is_client == 0) {
-        printf("inside server\n");
         if (config.server_port == 0) {
             config.server_port = server_port;
         }
@@ -1442,7 +1442,6 @@ int main(int argc, char** argv)
             /* Using set option call to ensure proper memory management*/
             picoquic_config_set_option(&config, picoquic_option_KEY, default_server_key_file);
         }
-        printf("cores : %u\n", get_nb_core());
         init_port_server(get_nb_core());
         ret = rte_eth_dev_start(0);
         if (ret != 0)
@@ -1457,15 +1456,12 @@ int main(int argc, char** argv)
 
         RTE_LCORE_FOREACH_WORKER(lcore_id)
         {
-            printf("launching server\n");
             rte_eal_remote_launch(server_job, index_lcore, lcore_id);
             index_lcore++;
         }
         printf("Server exit with code = %d\n", ret); 
     }
     else {
-        printf("inside client\n");
-
         /* Run as client */
         // hardcoded server addr, need to change that
         unsigned portids[MAX_NB_OF_PORTS_AND_LCORES];
