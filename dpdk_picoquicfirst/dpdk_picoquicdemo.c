@@ -149,6 +149,7 @@ picoquic_quic_config_t config;
 int just_once = 0;
 int nb_of_repetition = 1;
 
+int handshake_test=0;
 /*
  * SIDUCK datagram demo call back.
  */
@@ -347,6 +348,7 @@ typedef struct st_client_loop_cb_t {
     int is_siduck;
     int is_quicperf;
     int socket_buffer_size;
+    int handshake_test;
     char const* saved_alpn;
     struct sockaddr_storage server_address;
     struct sockaddr_storage client_address;
@@ -359,7 +361,8 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
 {
     int ret = 0;
     client_loop_cb_t* cb_ctx = (client_loop_cb_t*)callback_ctx;
-
+    cb_ctx -> handshake_test = handshake_test;
+    
     if (cb_ctx == NULL) {
         ret = PICOQUIC_ERROR_UNEXPECTED_ERROR;
     }
@@ -528,10 +531,14 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     (unsigned long long)picoquic_val64_connection_id(picoquic_get_logging_cnxid(cb_ctx->cnx_client)),
                     cb_ctx->cnx_client->is_hcid_verified);
                 cb_ctx->established = 1;
-
-                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf) {
+                
+                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf && !handshake_test) {
                     /* Start the download scenario */
                     picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
+                }
+                else{
+                    uint16_t error_found = 0;
+                    ret = picoquic_close(cb_ctx->cnx_client, error_found);
                 }
             }
             break;
@@ -757,6 +764,7 @@ int quic_client(const char* ip_address_text, int server_port,
         loop_cb.is_siduck = is_siduck;
         loop_cb.is_quicperf = is_quicperf;
         loop_cb.socket_buffer_size = config->socket_buffer_size;
+        loop_cb.handshake_test = handshake_test;
         if (is_siduck) {
             loop_cb.siduck_ctx = siduck_ctx;
         }
@@ -1346,8 +1354,8 @@ int main(int argc, char** argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:A:N:1", 9);
-    ret = picoquic_config_option_letters(option_string + 9, sizeof(option_string) - 9, NULL);
+    memcpy(option_string, "u:f:A:N:H1", 10);
+    ret = picoquic_config_option_letters(option_string + 10, sizeof(option_string) - 10, NULL);
     printf("after config\n");
 
     if (ret == 0) {
@@ -1368,6 +1376,8 @@ int main(int argc, char** argv)
                     usage();
                 }
                 break;
+            case 'H':
+                handshake_test = 1;
             case '1':
                 just_once = 1;
                 break;
