@@ -790,7 +790,6 @@ int picoquic_demo_client_initialize_context(
     ctx->alpn = picoquic_parse_alpn(alpn);
     ctx->no_disk = no_disk;
     ctx->delay_fin = delay_fin;
-
     return 0;
 }
 

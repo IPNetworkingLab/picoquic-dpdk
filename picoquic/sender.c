@@ -4762,10 +4762,10 @@ int picoquic_prepare_next_packet_ex(picoquic_quic_t* quic,
 
             if (ret == PICOQUIC_ERROR_DISCONNECTED) {
                 ret = 0;
-                printf("Closed. Retrans= %d, spurious= %d, max sp gap = %d, max sp delay = %d, dg-coal: %f",
-                    (int)cnx->nb_retransmission_total, (int)cnx->nb_spurious,
-                    (int)cnx->path[0]->max_reorder_gap, (int)cnx->path[0]->max_spurious_rtt,
-                    (cnx->nb_trains_sent > 0) ? ((double)cnx->nb_packets_sent / (double)cnx->nb_trains_sent) : 0.0);
+                // printf("Closed. Retrans= %d, spurious= %d, max sp gap = %d, max sp delay = %d, dg-coal: %f",
+                //     (int)cnx->nb_retransmission_total, (int)cnx->nb_spurious,
+                //     (int)cnx->path[0]->max_reorder_gap, (int)cnx->path[0]->max_spurious_rtt,
+                //     (cnx->nb_trains_sent > 0) ? ((double)cnx->nb_packets_sent / (double)cnx->nb_trains_sent) : 0.0);
 
                 picoquic_log_app_message(cnx, "Closed. Retrans= %d, spurious= %d, max sp gap = %d, max sp delay = %d, dg-coal: %f",
                     (int)cnx->nb_retransmission_total, (int)cnx->nb_spurious,

@@ -85,6 +85,7 @@ set(PICOQUIC_LIBRARY_FILES
     picoquic/sender.c
     picoquic/sim_link.c
     picoquic/sockloop.c
+    picoquic/sockloop_dpdk.c
     picoquic/spinbit.c
     picoquic/ticket_store.c
     picoquic/token_store.c
@@ -163,7 +164,9 @@ set(PICOHTTP_HEADERS
      picohttp/h3zero.h
      picohttp/democlient.h
      picohttp/demoserver.h)
-
+     
+set(DPDK_PICOQUIC_DEMO_HEADERS
+    dpdk_picoquicdemo/dpdk_picoquicdemo.h)
 
 set(PICOHTTP_TEST_LIBRARY_FILES
     picoquictest/h3zerotest.c
@@ -224,6 +227,8 @@ add_executable(picoquicdemo
 add_executable(dpdk_picoquicdemo
     dpdk_picoquicfirst/dpdk_picoquicdemo.c
     dpdk_picoquicfirst/getopt.c
+    dpdk_picoquicfirst/dpdk_client.c
+    dpdk_picoquicfirst/dpdk_server.c
 )
 
 
@@ -377,4 +382,5 @@ install(FILES
         ${PICOQUIC_CORE_HEADERS}
         ${PICOQUIC_LOGLIB_HEADERS}
         ${PICOHTTP_HEADERS}
+        ${DPDK_PICOQUIC_DEMO_HEADERS}
         DESTINATION include)
