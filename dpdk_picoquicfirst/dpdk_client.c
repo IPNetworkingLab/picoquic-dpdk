@@ -165,7 +165,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
 
                 if (!cb_ctx->is_siduck && !cb_ctx->is_quicperf && cb_ctx->demo_callback_ctx->nb_open_streams == 0) {
                     if(!handshake_test){
-                        printf("test : %d\n",handshake_test);
+
                         fprintf(stdout, "All done, Closing the connection.\n");
                     }
                     
@@ -193,14 +193,17 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     cb_ctx->cnx_client->is_hcid_verified);
                 cb_ctx->established = 1;
                 
-                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf && !handshake_test) {
-                    /* Start the download scenario */
-                    picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
-                }
-                else{
+                if(handshake_test){
                     uint16_t error_found = 0;
                     ret = picoquic_close(cb_ctx->cnx_client, error_found);
+                    return;
                 }
+                else{
+                    if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf) {
+                    /* Start the download scenario */
+                    picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
+                    }
+                }    
             }
             break;
         case picoquic_packet_loop_port_update:
