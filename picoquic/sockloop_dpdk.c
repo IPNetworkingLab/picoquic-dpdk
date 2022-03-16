@@ -125,7 +125,6 @@
 
 // DPDK
 #define _DPDK
-#define MAX_PKT_BURST 32
 #define MAX_RX_QUEUE_PER_LCORE 16
 #define MAX_TX_QUEUE_PER_PORT 16
 #define MAX_PKT_BURST 32
@@ -390,7 +389,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             uint16_t len;
             for (int i = 0; i < pkts_recv; i++)
             {
-                receiv_counter++;
+                //receiv_counter++;
                 // printf("received packets ethernet : %u\n",portid);
 
                 /* access ethernet header of rcv'd pkt */

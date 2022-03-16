@@ -83,8 +83,6 @@ static const char* token_store_filename = "demo_token_store.bin";
 #include <rte_string_fns.h>
 #include <rte_ether.h>
 
-
-#define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
