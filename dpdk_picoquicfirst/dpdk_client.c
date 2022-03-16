@@ -249,16 +249,11 @@ int quic_client(const char* ip_address_text, int server_port,
         (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_addr.s_addr = inet_addr("198.18.0.2");
     }
     else{
-        printf("inside else\n");
         if (ret == 0) {
             ret = picoquic_get_server_address(ip_address_text, server_port, &loop_cb.server_address, &is_name);
             if (sni == NULL && is_name != 0) {
                 sni = ip_address_text;
             }
-            printf("ret : %d\n",ret);
-            struct sockaddr_in tmp = *((struct sockaddr_in *)(&loop_cb.server_address)); 
-            printf("ip : %s ",inet_ntoa(tmp.sin_addr));
-
         }
 
     }
