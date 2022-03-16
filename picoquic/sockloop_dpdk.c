@@ -127,7 +127,7 @@
 #define _DPDK
 #define MAX_RX_QUEUE_PER_LCORE 16
 #define MAX_TX_QUEUE_PER_PORT 16
-#define MAX_PKT_BURST 32
+#define MAX_PKT_BURST 4
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
@@ -286,7 +286,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     void *tmp;
 
     ret = rte_eth_macaddr_get(portid, &eth_addr);
-
+    int handshake_callback_code = 2048;
     // printf("=======================\n");
     // printf("%x\n", eth_addr.addr_bytes[0]);
     // printf("%x\n", eth_addr.addr_bytes[1]);
@@ -457,7 +457,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     if (loop_callback != NULL)
                     {
                         size_t b_recvd = (size_t)payload_length;
-                        ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+                        ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd); 
                     }
                     rte_pktmbuf_free(pkts_burst[i]);
                     if (ret == 0)

@@ -108,7 +108,7 @@ static const char* token_store_filename = "demo_token_store.bin";
 #include <rte_ether.h>
 
 
-#define MAX_PKT_BURST 32
+#define MAX_PKT_BURST 4
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
@@ -450,15 +450,17 @@ client_job(void *arg)
     if(handshake_test){
         struct timeval start_time;
         struct timeval current_time;
+        
         gettimeofday(&start_time, NULL);
         gettimeofday(&current_time, NULL);
         int counter = 0;
-        while((current_time.tv_sec - start_time.tv_sec) < 10){
+        while((current_time.tv_sec - start_time.tv_sec) < 20){
             quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
             counter++;
             gettimeofday(&current_time, NULL);
         }
         printf("Number of request served : %d\n",counter);
+       
     }
     else{
         for(int i = 0; i < nb_of_repetition;i++){

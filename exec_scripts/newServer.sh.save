@@ -1,0 +1,2 @@
+#!/bin/bash
+sudo ./dpdk_picoquicdemo dpdk -l 0-1  -- -p 4443 -1

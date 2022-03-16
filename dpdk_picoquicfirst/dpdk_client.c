@@ -198,7 +198,6 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                 if(handshake_test){
                     uint16_t error_found = 0;
                     ret = picoquic_close(cb_ctx->cnx_client, error_found);
-                    return;
                 }
                 else{
                     if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf) {
@@ -333,15 +332,15 @@ int quic_client(const char* ip_address_text, int server_port,
             fprintf(stdout, "Getting ready to run QUICPERF\n");
         }
         else {
-            if (config->no_disk) {
-                fprintf(stdout, "Files not saved to disk (-D, no_disk)\n");
-            }
+            // if (config->no_disk) {
+            //     fprintf(stdout, "Files not saved to disk (-D, no_disk)\n");
+            // }
 
             if (client_scenario_text == NULL) {
                 client_scenario_text = test_scenario_default;
             }
 
-            fprintf(stdout, "Testing scenario: <%s>\n", client_scenario_text);
+            // fprintf(stdout, "Testing scenario: <%s>\n", client_scenario_text);
             ret = demo_client_parse_scenario_desc(client_scenario_text, &client_sc_nb, &client_sc);
             if (ret != 0) {
                 fprintf(stdout, "Cannot parse the specified scenario.\n");
@@ -486,7 +485,6 @@ int quic_client(const char* ip_address_text, int server_port,
             picoquic_log_app_message(cnx_client, "Out of %d zero RTT packets, %d were acked by the server.",
                 cnx_client->nb_zero_rtt_sent, cnx_client->nb_zero_rtt_acked);
         }
-        printf("handshake : %d\n", !handshake_test);
         if(!handshake_test){
             fprintf(stdout, "Quic Bit was %sgreased by the client.\n", (cnx_client->quic_bit_greased) ? "" : "NOT ");
             fprintf(stdout, "Quic Bit was %sgreased by the server.\n", (cnx_client->quic_bit_received_0) ? "" : "NOT ");
@@ -575,7 +573,6 @@ int quic_client(const char* ip_address_text, int server_port,
         }
 
         if (picoquic_get_data_received(cnx_client) > 0) {
-            printf("inside if\n");
             uint64_t start_time = picoquic_get_cnx_start_time(cnx_client);
             uint64_t close_time = picoquic_get_quic_time(qclient);
             double duration_usec = (double)(close_time - start_time);
