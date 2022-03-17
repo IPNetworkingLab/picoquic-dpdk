@@ -463,7 +463,7 @@ client_job(void *arg)
        
     }
     else{
-        for(int i = 0; i < nb_of_repetition;i++){
+        for(int i = 0; i < nb_of_repetition ;i++){
             quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
         }
     }
@@ -723,14 +723,37 @@ int main(int argc, char** argv)
         /* call it on main lcore too */
         // client_job(args);
         }
-        else{
-            printf("Starting Picoquic (v%s) connection to server = %s, port = %d\n", PICOQUIC_VERSION, server_name, server_port);
-        ret = quic_client(server_name, server_port, &config,
-            force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,0,0,NULL,NULL,NULL,NULL);
+        else
+        {
 
+            if (handshake_test)
+            {
+                struct timeval start_time;
+                struct timeval current_time;
+
+                gettimeofday(&start_time, NULL);
+                gettimeofday(&current_time, NULL);
+                int counter = 0;
+                while ((current_time.tv_sec - start_time.tv_sec) < 20)
+                {
+                    ret = quic_client(server_name, server_port, &config,
+                                      force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk, 0, 0, NULL, NULL, NULL, NULL);
+                    counter++;
+                    gettimeofday(&current_time, NULL);
+                }
+                printf("Number of request served : %d\n", counter);
+            }
+            else
+            {
+                printf("Starting Picoquic (v%s) connection to server = %s, port = %d\n", PICOQUIC_VERSION, server_name, server_port);
+                for (int i = 0; i < nb_of_repetition; i++)
+                {
+                    ret = quic_client(server_name, server_port, &config,
+                                      force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk, 0, 0, NULL, NULL, NULL, NULL);
+                }
+            }
         }
         printf("Client exit with code = %d\n", ret);
-
     }
     rte_eal_mp_wait_lcore();
     /* clean up the EAL */
