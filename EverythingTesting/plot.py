@@ -16,6 +16,49 @@ def take_average(file,index):
         counter +=1
     return(throughput/counter)
 
+def tp_comparison():
+    van_pquic = get_data("output_tp_van.txt",6)
+    dpdk_pquic = get_data("output_tp_dpdk.txt",6)
+
+    mean_van_pquic = sum(van_pquic)/len(van_pquic)
+    mean_dpdk_pquic = sum(dpdk_pquic)/len(dpdk_pquic)
+    plt.title("throughput comparison")
+    plt.ylabel("throughput (mbps)")
+    data = [mean_van_pquic,mean_dpdk_pquic]
+    names = ["pquic","dpdk-pquic"]
+
+    plt.bar(names,data)
+    plt.savefig("tp_comp.png")
+
+def handshake_comparison():
+
+    van_pquic = get_data("output_handshakes_van_clean.txt",5)
+    dpdk_pquic = get_data("output_handshakes_dpdk_clean.txt",5)
+    data = [[e/20 for e in van_pquic],[e/20 for e in dpdk_pquic]]
+    fig, ax = plt.subplots()
+    columns = data
+    ax.boxplot(columns)
+    plt.title("handshake comparison")
+    plt.xticks([1, 2], ["pquic","dpdk_pquic"])
+    plt.ylabel("hps(hz)")  
+    # show plot
+    plt.savefig("handshake_comp.png")
+
+def batching_comparison():
+    data = []
+    for i in [4, 8, 16, 32]:
+        data.append(get_data("output_tp_dpdk_{}.txt".format(i),6))
+    fig, ax = plt.subplots()
+    columns = data
+    ax.boxplot(columns)
+    plt.title("analysis of batching")
+    plt.xticks([1, 2, 3, 4], [4, 8,16,32])
+    plt.xlabel("batche size (packet)")
+    plt.ylabel("throughput (mbps)")
+    plt.show()
+    # plt.savefig("batching.png")
+    
+
 def get_data(file,index):
     file1 = open(file, 'r')
     ret = []
@@ -70,8 +113,11 @@ def plot_handshake():
 
 
 if __name__ == "__main__":
-    plot_big_file()
-    plot_web_request()
-    plot_handshake()
+    # plot_big_file()
+    # plot_web_request()
+    # plot_handshake()
+    # tp_comparison()
+    handshake_comparison()
+    #batching_comparison()
 
 
