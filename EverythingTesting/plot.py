@@ -57,7 +57,20 @@ def batching_comparison():
     plt.ylabel("throughput (mbps)")
     plt.show()
     # plt.savefig("batching.png")
-    
+
+def batching_comparison_8client():
+    data = []
+    for i in [4, 32]:
+        data.append(get_data("output_tp_dpdk_8_{}.txt".format(i),6))
+    fig, ax = plt.subplots()
+    columns = data
+    ax.boxplot(columns)
+    plt.title("analysis of batching")
+    plt.xticks([1, 2], [4, 32])
+    plt.xlabel("batche size (packet)")
+    plt.ylabel("throughput (mbps)")
+    plt.savefig("batching_8.png")
+  
 
 def get_data(file,index):
     file1 = open(file, 'r')
@@ -117,7 +130,8 @@ if __name__ == "__main__":
     # plot_web_request()
     # plot_handshake()
     # tp_comparison()
-    handshake_comparison()
+    batching_comparison_8client()
+    #handshake_comparison()
     #batching_comparison()
 
 

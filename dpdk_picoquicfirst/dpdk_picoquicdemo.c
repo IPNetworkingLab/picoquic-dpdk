@@ -108,7 +108,7 @@ static const char* token_store_filename = "demo_token_store.bin";
 #include <rte_ether.h>
 
 
-#define MAX_PKT_BURST 4
+#define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
@@ -692,37 +692,36 @@ int main(int argc, char** argv)
         /* Run as client */
         // hardcoded server addr, need to change that
         if(dpdk){
-        unsigned portids[MAX_NB_OF_PORTS_AND_LCORES];
-        int index_port = 0;
-        RTE_ETH_FOREACH_DEV(portid)
-        {   
-            portids[index_port] = portid;
-            init_port_client(portid);
-            init_mbuf_txbuffer(portid,index_port);
-            ret = rte_eth_dev_start(portid);
-            if (ret != 0)
-            {
-                printf("failed to start device\n");
+            unsigned portids[MAX_NB_OF_PORTS_AND_LCORES];
+            int index_port = 0;
+            RTE_ETH_FOREACH_DEV(portid)
+            {   
+                portids[index_port] = portid;
+                init_port_client(portid);
+                init_mbuf_txbuffer(portid,index_port);
+                ret = rte_eth_dev_start(portid);
+                if (ret != 0)
+                {
+                    printf("failed to start device\n");
+                }
+                index_port++;
             }
-            index_port++;
-        }
-        if(check_ports_lcores_numbers() != 0){
-            printf("mismatch between the number of lcore and ports\n");
-            return -1;
-        }
-        unsigned index_lcore = 0;
-        
-        printf("Starting Picoquic (v%s) connection to server = %s, port = %d\n", PICOQUIC_VERSION, server_name, server_port);
-        RTE_LCORE_FOREACH_WORKER(lcore_id)
-        {
+            if(check_ports_lcores_numbers() != 0){
+                printf("mismatch between the number of lcore and ports\n");
+                return -1;
+            }
+            unsigned index_lcore = 0;
             
-            portids[index_lcore];
-            rte_eal_remote_launch(client_job, &portids[index_lcore], lcore_id);
-            index_lcore++;
+            printf("Starting Picoquic (v%s) connection to server = %s, port = %d\n", PICOQUIC_VERSION, server_name, server_port);
+            RTE_LCORE_FOREACH_WORKER(lcore_id)
+            {
+                
+                portids[index_lcore];
+                rte_eal_remote_launch(client_job, &portids[index_lcore], lcore_id);
+                index_lcore++;
+            }
         }
-        /* call it on main lcore too */
-        // client_job(args);
-        }
+       
         else
         {
 
