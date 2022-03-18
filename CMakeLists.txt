@@ -231,8 +231,6 @@ add_executable(dpdk_picoquicdemo
     dpdk_picoquicfirst/dpdk_server.c
 )
 
-
-
 target_link_libraries(picoquicdemo
     picoquic-log
     picoquic-core
@@ -309,53 +307,6 @@ target_link_libraries(picohttp_ct
 )
 
 target_include_directories(picohttp_ct PRIVATE loglib picohttp)
-
-add_executable(picoquic_sample
-    sample/sample.c
-    sample/sample_client.c
-    sample/sample_server.c
-)
-add_executable(picoquic_dpdk_client
-    dpdk_picoquic/client_quic.c   
-)
-add_executable(picoquic_dpdk_server
-    dpdk_picoquic/server_quic.c 
-)
-
-target_link_libraries(picoquic_dpdk_client
-    picoquic-log
-    picoquic-core
-    ${PTLS_LIBRARIES}
-    ${OPENSSL_LIBRARIES}
-    ${CMAKE_DL_LIBS}
-    ${CMAKE_THREAD_LIBS_INIT}
-    PkgConfig::LIBDPDK
-)
-target_link_libraries(picoquic_dpdk_server
-    picoquic-log
-    picoquic-core
-    ${PTLS_LIBRARIES}
-    ${OPENSSL_LIBRARIES}
-    ${CMAKE_DL_LIBS}
-    ${CMAKE_THREAD_LIBS_INIT}
-    PkgConfig::LIBDPDK
-)
-
-target_link_libraries(picoquic_sample
-    picoquic-log
-    picoquic-core
-    ${PTLS_LIBRARIES}
-    ${OPENSSL_LIBRARIES}
-    ${CMAKE_DL_LIBS}
-    ${CMAKE_THREAD_LIBS_INIT}
-    PkgConfig::LIBDPDK
-)
-
-target_include_directories(picoquic_sample PRIVATE loglib picoquic)
-
-target_include_directories(picoquic_dpdk_client PRIVATE loglib picoquic)
-
-target_include_directories(picoquic_dpdk_server PRIVATE loglib picoquic)
 
 set(TEST_EXES picoquic_ct picohttp_ct)
 

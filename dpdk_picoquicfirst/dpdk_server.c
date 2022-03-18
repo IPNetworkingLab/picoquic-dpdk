@@ -43,7 +43,8 @@ static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb
 int quic_server(const char* server_name, 
                         picoquic_quic_config_t * config, 
                         int just_once,
-                        int dpdk, 
+                        int dpdk,
+                        int batching_size, 
                         unsigned portid,
                         unsigned queueid,
                         struct sockaddr_storage *addr_from,
@@ -118,7 +119,7 @@ int quic_server(const char* server_name,
 #else
         if(dpdk){
             ret = picoquic_packet_loop_dpdk(qserver, config->server_port, 0, config->dest_if,
-            config->socket_buffer_size, config->do_not_use_gso, server_loop_cb, &loop_cb_ctx, portid,queueid, *addr_from,NULL,mb_pool, tx_buffer);
+            config->socket_buffer_size, config->do_not_use_gso, server_loop_cb, &loop_cb_ctx, portid,queueid, batching_size,*addr_from,NULL,mb_pool, tx_buffer);
         }
         else{
             ret = picoquic_packet_loop(qserver, config->server_port, 0, config->dest_if,

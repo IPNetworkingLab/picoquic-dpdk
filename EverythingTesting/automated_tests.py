@@ -21,6 +21,8 @@ def kill_process(host,pid):
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 
+def run_client_dpdk_1_client() 
+
 def get_pid_process(host,name):
     cmds = ['ssh',host,'nohup','pidof',name]
     p = Popen(cmds, stdout=PIPE)

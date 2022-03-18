@@ -220,7 +220,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
 /* Quic Client */
 int quic_client(const char* ip_address_text, int server_port, 
     picoquic_quic_config_t * config, int force_migration,
-    int nb_packets_before_key_update, char const * client_scenario_text, int handshake_test, int dpdk,unsigned portid,
+    int nb_packets_before_key_update, char const * client_scenario_text, int handshake_test, int dpdk, int batching_size,unsigned portid,
     unsigned queueid,
                            struct sockaddr_storage *addr_from,
                            struct rte_ether_addr *mac_dst,
@@ -452,7 +452,7 @@ int quic_client(const char* ip_address_text, int server_port,
 #else
         if(dpdk){
             ret = picoquic_packet_loop_dpdk(qclient, 0, loop_cb.server_address.ss_family, 0,
-            config->socket_buffer_size, config->do_not_use_gso, client_loop_cb, &loop_cb, portid, queueid, *addr_from, mac_dst, mb_pool, tx_buffer);
+            config->socket_buffer_size, config->do_not_use_gso, client_loop_cb, &loop_cb, portid, queueid, batching_size,*addr_from, mac_dst, mb_pool, tx_buffer);
         }
         else{
             ret = picoquic_packet_loop(qclient, 0, loop_cb.server_address.ss_family, 0,

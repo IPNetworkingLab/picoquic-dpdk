@@ -108,7 +108,7 @@ static const char* token_store_filename = "demo_token_store.bin";
 #include <rte_ether.h>
 
 
-#define MAX_PKT_BURST 32
+
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 1024
@@ -149,6 +149,8 @@ picoquic_quic_config_t config;
 int just_once = 0;
 int nb_of_repetition = 1;
 
+//default values
+int MAX_PKT_BURST = 32;
 int dpdk = 0;
 int handshake_test=0;
 /*
@@ -455,7 +457,7 @@ client_job(void *arg)
         gettimeofday(&current_time, NULL);
         int counter = 0;
         while((current_time.tv_sec - start_time.tv_sec) < 20){
-            quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
+            quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,MAX_PKT_BURST,portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
             counter++;
             gettimeofday(&current_time, NULL);
         }
@@ -464,7 +466,7 @@ client_job(void *arg)
     }
     else{
         for(int i = 0; i < nb_of_repetition ;i++){
-            quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
+            quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,MAX_PKT_BURST,portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
         }
     }
 }
@@ -478,7 +480,7 @@ server_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
-    quic_server(server_name, &config, just_once,dpdk,portid, queueid ,&addr_from,NULL,mb_pools[portid],tx_buffers[queueid]);
+    quic_server(server_name, &config, just_once,dpdk,MAX_PKT_BURST,portid, queueid ,&addr_from,NULL,mb_pools[portid],tx_buffers[queueid]);
 }
 
 
@@ -579,8 +581,8 @@ int main(int argc, char** argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:A:N:H1", 10);
-    ret = picoquic_config_option_letters(option_string + 10, sizeof(option_string) - 10, NULL);
+    memcpy(option_string, "u:f:A:N:@:H1", 12);
+    ret = picoquic_config_option_letters(option_string + 12, sizeof(option_string) - 12, NULL);
    
     if (ret == 0) {
         /* Get the parameters */
@@ -608,6 +610,8 @@ int main(int argc, char** argv)
                 if(str_to_mac(optarg,&eth_addr) != 0){
                     return -1;
                 }
+            case '@':
+                MAX_PKT_BURST = atoi(optarg);
                 break;
             case 'N':
                 ;
@@ -681,7 +685,7 @@ int main(int argc, char** argv)
             }
         }
         else{
-            ret = quic_server(server_name, &config, just_once,dpdk,0,0,NULL,NULL,NULL,NULL);
+            ret = quic_server(server_name, &config, just_once,dpdk,MAX_PKT_BURST,0,0,NULL,NULL,NULL,NULL);
             printf("Server exit with code = %d\n", ret);
         }
         
@@ -736,7 +740,7 @@ int main(int argc, char** argv)
                 while ((current_time.tv_sec - start_time.tv_sec) < 20)
                 {
                     ret = quic_client(server_name, server_port, &config,
-                                      force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk, 0, 0, NULL, NULL, NULL, NULL);
+                                      force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk, MAX_PKT_BURST,0, 0, NULL, NULL, NULL, NULL);
                     counter++;
                     gettimeofday(&current_time, NULL);
                 }
@@ -748,7 +752,7 @@ int main(int argc, char** argv)
                 for (int i = 0; i < nb_of_repetition; i++)
                 {
                     ret = quic_client(server_name, server_port, &config,
-                                      force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk, 0, 0, NULL, NULL, NULL, NULL);
+                                      force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk,MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
                 }
             }
         }
