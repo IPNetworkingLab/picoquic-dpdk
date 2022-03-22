@@ -1,1 +1,1 @@
-sudo ./dpdk_picoquicdemo nodpdk -D 10.200.0.2 4443 /10000000000
+sudo ./dpdk_picoquicdemo nodpdk -D -q qlogs 10.0.0.42 4443 /1000

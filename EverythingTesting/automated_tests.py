@@ -21,7 +21,17 @@ def kill_process(host,pid):
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 
-def run_client_dpdk_1_client() 
+def run_client_dpdk_batching_client(nb_iterations,batching):
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_test_batching.py', str(nb_iterations),str(batching)]
+    return Popen(cmds, stdout=None, stderr=None, stdin=None)
+
+def run_client_dpdk_tp(iterations):
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test',iterations]
+    return Popen(cmds, stdout=None, stderr=None, stdin=None)
+
+def run_client_nodpdk_tp(iterations):
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/test_tp',iterations]
+    return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def get_pid_process(host,name):
     cmds = ['ssh',host,'nohup','pidof',name]
@@ -36,6 +46,13 @@ def run_server_dpdk(nb_cores):
     cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/newServerTestingLoop_dpdk.py', str(nb_cores)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
+def run_server_dpdk_simple():
+    cmds = ['ssh', serverName,'sh','/home/nikita/memoire/dpdk_picoquic/exec_scripts/newServer.sh']
+    return Popen(cmds, stdout=None, stderr=None, stdin=None)
+
+def run_server_nodpdk_simple():
+    cmds = ['ssh', serverName,'sh','/home/nikita/memoire/dpdk_picoquic/exec_scripts/server_vanilla.sh']
+    return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client(size_of_file,file_name,nb_iterations):
     cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/newClientTestingLoop.py', str(size_of_file),file_name,str(nb_iterations)]
@@ -44,6 +61,34 @@ def run_client(size_of_file,file_name,nb_iterations):
 def run_server():
     cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/newServerTestingLoop.py']
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
+
+
+
+def batching_test_dpdk():
+    server_process = run_server_dpdk_simple()
+    for i in [4,8,16,32,64,128]:
+        client_process = run_client_dpdk_batching_client(10,i)
+        client_process.wait()
+
+def single_tp_test_full():
+    #dpdk throughput
+    run_server_dpdk_simple()
+    client_process = run_client_dpdk_tp(10)
+    client_process.wait()
+    pid = get_pid_process(serverName,process_name)
+    intPid = int(pid)
+    killing_process = kill_process(serverName,str(intPid))
+    killing_process.wait()
+
+    #nodpdk throughput
+    run_server_nodpdk_simple()
+    client_process = run_client_dpdk_tp(10)
+    client_process.wait()
+    pid = get_pid_process(serverName,process_name)
+    intPid = int(pid)
+    killing_process = kill_process(serverName,str(intPid))
+    killing_process.wait()
+
 
 
 
@@ -119,7 +164,9 @@ def handshake_test_dpdk():
         
 
 if __name__ == "__main__":
-    throughput_test()
-    web_test()
-    handshake_test()
+    # throughput_test()
+    # web_test()
+    # handshake_test()
+    batching_test_dpdk()
+    
 
