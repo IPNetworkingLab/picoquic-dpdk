@@ -1,5 +1,10 @@
 #include "dpdk_picoquicdemo.h"
 
+static const int default_server_port = 4443;
+static const char* default_server_name = "::";
+static const char* ticket_store_filename = "demo_ticket_store_client.bin";
+static const char* token_store_filename = "demo_token_store_client.bin";
+
 int siduck_callback(picoquic_cnx_t* cnx,
     uint64_t stream_id, uint8_t* bytes, size_t length,
     picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx);

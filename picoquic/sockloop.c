@@ -208,7 +208,6 @@ int picoquic_packet_loop(picoquic_quic_t* quic,
     picoquic_packet_loop_cb_fn loop_callback,
     void* loop_callback_ctx)
 {
-    printf("loop\n");
     int ret = 0;
     uint64_t current_time = picoquic_get_quic_time(quic);
     int64_t delay_max = 10000000;
@@ -265,7 +264,20 @@ int picoquic_packet_loop(picoquic_quic_t* quic,
 
     /* Wait for packets */
     /* TODO: add stopping condition, was && (!just_once || !connection_done) */
+    time_t start,end;
+    double dif;
+
+    time (&start);
+    // Do some calculation.
+    
+    
     while (ret == 0) {
+        time (&end);
+        dif = difftime (end,start);
+        // if(dif > 10){
+        //     return 0;
+        // }
+
         int socket_rank = -1;
         int64_t delta_t = 0;
         unsigned char received_ecn;

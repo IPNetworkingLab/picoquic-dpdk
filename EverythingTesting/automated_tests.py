@@ -11,11 +11,6 @@ big_file_size = 4000000000
 web_page_size = 4000000
 handshake_size = 8
 
-
-def run_ssh_cmd(host, cmd):
-    cmds = ['ssh', host, cmd]
-    return Popen(cmds, stdout=None, stderr=None, stdin=None)
-
 def kill_process(host,pid):
     cmds = ['ssh',host,'nohup','sudo kill',str(pid)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
@@ -26,12 +21,21 @@ def run_client_dpdk_batching_client(nb_iterations,batching):
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client_dpdk_tp(iterations):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test',iterations]
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test.py',iterations]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client_nodpdk_tp(iterations):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/test_tp',iterations]
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/test_tp.py',iterations]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
+
+def run_client_dpdk_tp_noencrypt(iterations):
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test_noencrypt.py',iterations]
+    return Popen(cmds, stdout=None, stderr=None, stdin=None)
+
+def run_client_nodpdk_tp_noencrypt(iterations):
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/test_tp_noencrypt.py',iterations]
+    return Popen(cmds, stdout=None, stderr=None, stdin=None)
+
 
 def get_pid_process(host,name):
     cmds = ['ssh',host,'nohup','pidof',name]
@@ -69,6 +73,26 @@ def batching_test_dpdk():
     for i in [4,8,16,32,64,128]:
         client_process = run_client_dpdk_batching_client(10,i)
         client_process.wait()
+
+def single_tp_test_full_encryption():
+    #dpdk throughput
+    run_server_dpdk_simple()
+    client_process = run_client_dpdk_tp_noencrypt(10)
+    client_process.wait()
+    pid = get_pid_process(serverName,process_name)
+    intPid = int(pid)
+    killing_process = kill_process(serverName,str(intPid))
+    killing_process.wait()
+
+    #nodpdk throughput
+    run_server_nodpdk_simple()
+    client_process = run_client_nodpdk_tp_noencrypt(10)
+    client_process.wait()
+    pid = get_pid_process(serverName,process_name)
+    intPid = int(pid)
+    killing_process = kill_process(serverName,str(intPid))
+    killing_process.wait()
+
 
 def single_tp_test_full():
     #dpdk throughput

@@ -245,8 +245,8 @@ int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *
         }
         if (ip_addresses[i] == 0)
         {
-            printf("ip : %u\n",ip_addr);
-            printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
+            // printf("ip : %u\n",ip_addr);
+            // printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
             ip_addresses[i] = ip_addr;
             mac_addresses[i] = mac_addr;
             return 0;
@@ -370,7 +370,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             for (int i = 0; i < pkts_recv; i++)
             {
                 //receiv_counter++;
-                // printf("received packets ethernet : %u\n",portid);
+                //printf("received packets ethernet : %u\n",portid);
 
                 /* access ethernet header of rcv'd pkt */
                 struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
@@ -387,7 +387,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     if (mac_dst == NULL)
                     {
 
-                        add_mac_ip_pair(src_addr, (*eth_hdr).s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+                        add_mac_ip_pair(src_addr, (*eth_hdr).src_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
                         
                     }
                    
@@ -459,18 +459,18 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
-                        rte_ether_addr_copy(&eth_addr, &eth_ptr->s_addr);
+                        rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
                        
 
                         if (mac_dst != NULL)
                         {
-                            rte_ether_addr_copy(mac_dst, &eth_ptr->d_addr);
+                            rte_ether_addr_copy(mac_dst, &eth_ptr->dst_addr);
                             
                         }
                         else
                         {
                             struct rte_ether_addr mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
-                            rte_ether_addr_copy(&mac_addr, &eth_ptr->d_addr);
+                            rte_ether_addr_copy(&mac_addr, &eth_ptr->dst_addr);
                             
                         }
 

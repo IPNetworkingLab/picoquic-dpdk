@@ -62,9 +62,6 @@
 
 static const int default_server_port = 4443;
 static const char* default_server_name = "::";
-static const char* ticket_store_filename = "demo_ticket_store.bin";
-static const char* token_store_filename = "demo_token_store.bin";
-
 
 #include "picoquic.h"
 #include "picoquic_packet_loop.h"
