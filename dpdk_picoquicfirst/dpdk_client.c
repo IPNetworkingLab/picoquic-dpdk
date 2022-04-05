@@ -2,12 +2,224 @@
 
 static const int default_server_port = 4443;
 static const char* default_server_name = "::";
-static const char* ticket_store_filename = "demo_ticket_store_client.bin";
-static const char* token_store_filename = "demo_token_store_client.bin";
+static const char* ticket_store_filename = "demo_ticket_store.bin";
+static const char* token_store_filename = "demo_token_store.bin";
 
 int siduck_callback(picoquic_cnx_t* cnx,
     uint64_t stream_id, uint8_t* bytes, size_t length,
     picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx);
+
+
+
+typedef struct st_picoquic_demo_client_callback_ctx_copy_t {
+    picoquic_demo_client_stream_ctx_t* first_stream;
+    picoquic_demo_stream_desc_t const * demo_stream;
+    picoquic_tp_t const * tp;
+    char *dummyBuffer;
+    uint64_t offset;
+    uint64_t maxoffset;
+    char const* out_dir;
+    uint64_t last_interaction_time;
+    size_t nb_demo_streams;
+    int nb_open_streams;
+    int nb_open_files;
+    uint32_t nb_client_streams;
+    picoquic_alpn_enum alpn;
+    int progress_observed;
+    int no_disk;
+    int delay_fin; /* For tests only! */
+    int no_print;
+    int connection_ready;
+    int connection_closed;
+} picoquic_demo_callback_ctx_copy_t;
+
+int picoquic_demo_client_callback_with_copy(picoquic_cnx_t* cnx,
+    uint64_t stream_id, uint8_t* bytes, size_t length,
+    picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx)
+{
+    int ret = 0;
+
+    uint64_t fin_stream_id = PICOQUIC_DEMO_STREAM_ID_INITIAL;
+    picoquic_demo_callback_ctx_copy_t* ctx = (picoquic_demo_callback_ctx_copy_t*)callback_ctx;
+    picoquic_demo_client_stream_ctx_t* stream_ctx = (picoquic_demo_client_stream_ctx_t *)v_stream_ctx;
+
+    ctx->last_interaction_time = picoquic_get_quic_time(cnx->quic);
+    ctx->progress_observed = 1;
+
+    switch (fin_or_event) {
+    case picoquic_callback_stream_data:
+    case picoquic_callback_stream_fin:
+        /* Data arrival on stream #x, maybe with fin mark */
+        if (stream_ctx == NULL) {
+            stream_ctx = picoquic_demo_client_find_stream(ctx, stream_id);
+        }
+        if (stream_ctx != NULL && stream_ctx->is_open) {
+            if (!stream_ctx->is_file_open && ctx->no_disk == 0) {
+                ret = picoquic_demo_client_open_stream_file(cnx, ctx, stream_ctx);
+            }
+            if (ret == 0 && length > 0) {
+                switch (ctx->alpn) {
+                case picoquic_alpn_http_3: {
+                    uint16_t error_found = 0;
+                    size_t available_data = 0;
+                    uint8_t * bytes_max = bytes + length;
+                    while (bytes < bytes_max) {
+                        bytes = h3zero_parse_data_stream(bytes, bytes_max, &stream_ctx->stream_state, &available_data, &error_found);
+                        if (bytes == NULL) {
+                            ret = picoquic_close(cnx, error_found);
+                            if (ret != 0) {
+                                picoquic_log_app_message(cnx,
+                                    "Could not parse incoming data from stream %" PRIu64 ", error 0x%x", stream_id, error_found);
+                            }
+                            break;
+                        }
+                        else if (available_data > 0) {
+                            if (!stream_ctx->flow_opened){
+                                if (stream_ctx->stream_state.current_frame_length < 0x100000) {
+                                    stream_ctx->flow_opened = 1;
+                                }
+                                else if (cnx->cnx_state == picoquic_state_ready) {
+                                    stream_ctx->flow_opened = 1;
+                                    ret = picoquic_open_flow_control(cnx, stream_id, stream_ctx->stream_state.current_frame_length);
+                                }
+                            }
+                            if (ret == 0 && ctx->no_disk == 0) {
+                                if(ctx->offset + available_data > ctx->maxoffset){
+                                    ctx->offset = 0;
+                                }
+                                memcpy((ctx->dummyBuffer)+ctx->offset,bytes,available_data);
+                            }
+                            stream_ctx->received_length += available_data;
+                            bytes += available_data;
+                        }
+                    }
+                    break;
+                }
+                case picoquic_alpn_http_0_9:
+                    if (ctx->no_disk == 0) {
+                        ret = (fwrite(bytes, 1, length, stream_ctx->F) > 0) ? 0 : -1;
+                        if (ret != 0) {
+                            picoquic_log_app_message(cnx,
+                                "Could not write data from stream %" PRIu64 ", error 0x%x", stream_id, ret);
+                        }
+                    }
+                    stream_ctx->received_length += length;
+                    break;
+                default:
+                    DBG_PRINTF("%s", "ALPN not selected!");
+                    ret = -1;
+                    break;
+                }
+            }
+
+            if (fin_or_event == picoquic_callback_stream_fin) {
+                if (picoquic_demo_client_close_stream(cnx, ctx, stream_ctx)) {
+                    fin_stream_id = stream_id;
+                    if (stream_id <= 64 && !ctx->no_print) {
+                        fprintf(stdout, "Stream %d ended after %d bytes\n",
+                            (int)stream_id, (int)stream_ctx->received_length);
+                    }
+                    if (stream_ctx->received_length == 0) {
+                        picoquic_log_app_message(cnx, "Stream %d ended after %d bytes, ret=0x%x",
+                            (int)stream_id, (int)stream_ctx->received_length, ret);
+                    }
+                }
+            }
+        }
+        break;
+    case picoquic_callback_stream_reset: /* Server reset stream #x */
+    case picoquic_callback_stop_sending: /* Server asks client to reset stream #x */
+        /* TODO: special case for uni streams. */
+        if (stream_ctx == NULL) {
+            stream_ctx = picoquic_demo_client_find_stream(ctx, stream_id);
+        }
+        if (picoquic_demo_client_close_stream(cnx, ctx, stream_ctx)) {
+            fin_stream_id = stream_id;
+            if (!ctx->no_print) {
+                fprintf(stdout, "Stream %" PRIu64 " reset after %zu bytes\n",
+                    stream_id, stream_ctx->received_length);
+            }
+        }
+        picoquic_reset_stream(cnx, stream_id, 0);
+        /* TODO: higher level notify? */
+        break;
+    case picoquic_callback_stateless_reset:
+        if (!ctx->no_print) {
+            fprintf(stdout, "Received a stateless reset.\n");
+        }
+        break;
+    case picoquic_callback_close: /* Received connection close */
+        if (!ctx->no_print) {
+            fprintf(stdout, "Received a request to close the connection.\n");
+        }
+        ctx->connection_closed = 1;
+        break;
+    case picoquic_callback_application_close: /* Received application close */
+        if (!ctx->no_print) {
+            fprintf(stdout, "Received a request to close the application.\n");
+        }
+        ctx->connection_closed = 1;
+        break;
+    case picoquic_callback_version_negotiation:
+        if (!ctx->no_print) {
+            fprintf(stdout, "Received a version negotiation request:");
+            for (size_t byte_index = 0; byte_index + 4 <= length; byte_index += 4) {
+                uint32_t vn = PICOPARSE_32(bytes + byte_index);
+                fprintf(stdout, "%s%08x", (byte_index == 0) ? " " : ", ", vn);
+            }
+            fprintf(stdout, "\n");
+        }
+        break;
+    case picoquic_callback_stream_gap:
+        /* Gap indication, when unreliable streams are supported */
+        fprintf(stdout, "Received a gap indication.\n");
+        if (stream_ctx == NULL) {
+            stream_ctx = picoquic_demo_client_find_stream(ctx, stream_id);
+        }
+        if (picoquic_demo_client_close_stream(cnx, ctx, stream_ctx)) {
+            fin_stream_id = stream_id;
+            fprintf(stdout, "Stream %d reset after %d bytes\n",
+                (int)stream_id, (int)stream_ctx->received_length);
+        }
+        /* TODO: Define what error. Stop sending? */
+        picoquic_reset_stream(cnx, stream_id, H3ZERO_INTERNAL_ERROR);
+        break;
+    case picoquic_callback_prepare_to_send:
+        /* Used on client when posting data */
+            /* Used for active streams */
+        if (stream_ctx == NULL) {
+            /* Unexpected */
+            picoquic_reset_stream(cnx, stream_id, 0);
+            return 0;
+        }
+        else {
+            return demo_client_prepare_to_send((void*)bytes, length, stream_ctx->post_size, &stream_ctx->post_sent, NULL);
+        }
+    case picoquic_callback_almost_ready:
+    case picoquic_callback_ready:
+        ctx->connection_ready = 1;
+        break;
+    case picoquic_callback_request_alpn_list:
+        picoquic_demo_client_set_alpn_list((void*)bytes);
+        break;
+    case picoquic_callback_set_alpn:
+        ctx->alpn = picoquic_parse_alpn((const char*)bytes);
+        break;
+    default:
+        /* unexpected */
+        break;
+    }
+
+    if (ret == 0 && fin_stream_id != PICOQUIC_DEMO_STREAM_ID_INITIAL) {
+         /* start next batch of streams! */
+		 ret = picoquic_demo_client_start_streams(cnx, ctx, fin_stream_id);
+    }
+
+    /* that's it */
+    return ret;
+}
+
+
 
 int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode, 
     void* callback_ctx, void * callback_arg)
@@ -236,7 +448,14 @@ int quic_client(const char* ip_address_text, int server_port,
     int ret = 0;
     picoquic_quic_t* qclient = NULL;
     picoquic_cnx_t* cnx_client = NULL;
-    picoquic_demo_callback_ctx_t callback_ctx;
+    uint32_t size_of_one_gb = 1000000000;
+    // picoquic_demo_callback_ctx_t callback_ctx;
+    picoquic_demo_callback_ctx_copy_t callback_ctx;
+    callback_ctx.maxoffset = size_of_one_gb;
+    callback_ctx.dummyBuffer = malloc(sizeof(char)*size_of_one_gb);
+    if(callback_ctx.dummyBuffer == NULL){
+        printf("failed to malloc dummyBuffer\n");
+    }
     uint64_t current_time = 0;
     int is_name = 0;
     size_t client_sc_nb = 0;
@@ -378,7 +597,7 @@ int quic_client(const char* ip_address_text, int server_port,
                 picoquic_set_callback(cnx_client, quicperf_callback, quicperf_ctx);
             }
             else {
-                picoquic_set_callback(cnx_client, picoquic_demo_client_callback, &callback_ctx);
+                picoquic_set_callback(cnx_client, picoquic_demo_client_callback_with_copy, &callback_ctx);
 
                 /* Requires TP grease, for interop tests */
                 cnx_client->grease_transport_parameters = 1;

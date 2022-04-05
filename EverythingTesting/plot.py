@@ -20,18 +20,18 @@ def tp_comparison_encryption():
     van_pquic = get_data("output_tp_van.txt",6)
     dpdk_pquic = get_data("output_tp_dpdk.txt",6)
     van_pquic_noencrypt = get_data("output_tp_van_noencrypt.txt",6)
-    dpdk_pquic_encrypt = get_data("output_tp_van_noencrypt.txt",6)
+    dpdk_pquic_encrypt = get_data("output_tp_dpdk_noencrypt.txt",6)
 
 
     data = [van_pquic,dpdk_pquic,van_pquic_noencrypt,dpdk_pquic_encrypt]
     fig, ax = plt.subplots()
     columns = data
     ax.boxplot(columns)
-    plt.title("handshake comparison")
-    plt.xticks([1,2,3,4], ["pquic_encrypted","dpdk_pquic_encrypted","pquic_noencryption","dpdk_pquic_noencryption"])
+    plt.title("TP comparison")
+    plt.xticks([1,2,3,4], ["pquic_e","dpdk_pquic_e","pquic_noe","dpdk_pquic_noe"])
     plt.ylabel("throughput(mbps)")  
     # show plot
-    plt.savefig("tp_encryption.png")
+    plt.savefig("tp_encryptionNew.png")
 
 def tp_comparison():
     van_pquic = get_data("output_tp_van.txt",6)
@@ -147,7 +147,8 @@ if __name__ == "__main__":
     # plot_web_request()
     # plot_handshake()
     # tp_comparison()
-    batching_comparison_8client()
+    #batching_comparison_8client()
+    tp_comparison_encryption()
     #handshake_comparison()
     #batching_comparison()
 

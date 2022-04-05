@@ -1,1 +1,1 @@
-sudo ./dpdk_picoquicdemo nodpdk -D -q qlogs 10.0.0.42 4443 /1000
+sudo ./dpdk_picoquicdemo nodpdk -o clientFolder 10.100.0.2 4443 /test.txt

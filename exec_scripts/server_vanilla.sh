@@ -1,2 +1,2 @@
 #!/bin/bash
-sudo ./dpdk_picoquicdemo nodpdk -q qlogs -p 4443
+sudo ./dpdk_picoquicdemo nodpdk -p 4443 -1 -w serverFolder

@@ -21,19 +21,19 @@ def run_client_dpdk_batching_client(nb_iterations,batching):
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client_dpdk_tp(iterations):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test.py',iterations]
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test.py',str(iterations)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client_nodpdk_tp(iterations):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/test_tp.py',iterations]
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/tp_test.py',str(iterations)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client_dpdk_tp_noencrypt(iterations):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test_noencrypt.py',iterations]
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/dpdk_tp_test_noencrypt.py',str(iterations)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client_nodpdk_tp_noencrypt(iterations):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/test_tp_noencrypt.py',iterations]
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/tp_test_noencrypt.py',str(iterations)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 
@@ -51,11 +51,11 @@ def run_server_dpdk(nb_cores):
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_server_dpdk_simple():
-    cmds = ['ssh', serverName,'sh','/home/nikita/memoire/dpdk_picoquic/exec_scripts/newServer.sh']
+    cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/newServerTestingDpdk.py']
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_server_nodpdk_simple():
-    cmds = ['ssh', serverName,'sh','/home/nikita/memoire/dpdk_picoquic/exec_scripts/server_vanilla.sh']
+    cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/newServerTestingVan.py']
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
 def run_client(size_of_file,file_name,nb_iterations):
@@ -74,7 +74,7 @@ def batching_test_dpdk():
         client_process = run_client_dpdk_batching_client(10,i)
         client_process.wait()
 
-def single_tp_test_full_encryption():
+def single_tp_test_full_noencryption():
     #dpdk throughput
     run_server_dpdk_simple()
     client_process = run_client_dpdk_tp_noencrypt(10)
@@ -93,8 +93,7 @@ def single_tp_test_full_encryption():
     killing_process = kill_process(serverName,str(intPid))
     killing_process.wait()
 
-
-def single_tp_test_full():
+def single_tp_test_full_encryption():
     #dpdk throughput
     run_server_dpdk_simple()
     client_process = run_client_dpdk_tp(10)
@@ -103,7 +102,7 @@ def single_tp_test_full():
     intPid = int(pid)
     killing_process = kill_process(serverName,str(intPid))
     killing_process.wait()
-
+    
     #nodpdk throughput
     run_server_nodpdk_simple()
     client_process = run_client_dpdk_tp(10)
@@ -191,6 +190,7 @@ if __name__ == "__main__":
     # throughput_test()
     # web_test()
     # handshake_test()
-    batching_test_dpdk()
+    #batching_test_dpdk()
+    single_tp_test_full_noencryption()
     
 

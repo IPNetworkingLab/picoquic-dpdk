@@ -464,6 +464,7 @@ client_job(void *arg)
     else{
         for(int i = 0; i < nb_of_repetition ;i++){
             quic_client(server_name, server_port, &config, force_migration, nb_packets_before_update, client_scenario,handshake_test,dpdk,MAX_PKT_BURST,portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid]);
+            sleep(2);
         }
     }
 }
@@ -750,6 +751,7 @@ int main(int argc, char** argv)
                 {
                     ret = quic_client(server_name, server_port, &config,
                                       force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk,MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
+                    sleep(2);
                 }
             }
         }

@@ -2,8 +2,8 @@
 
 static const int default_server_port = 4443;
 static const char* default_server_name = "::";
-static const char* ticket_store_filename = "demo_ticket_store_server.bin";
-static const char* token_store_filename = "demo_token_store_server.bin";
+static const char* ticket_store_filename = "demo_ticket_store.bin";
+static const char* token_store_filename = "demo_token_store.bin";
 static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
     void* callback_ctx, void * callback_arg)
 {
