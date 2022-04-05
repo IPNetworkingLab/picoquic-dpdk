@@ -641,11 +641,11 @@ int picoquic_demo_client_callback(picoquic_cnx_t* cnx,
                                 }
                             }
                             if (ret == 0 && ctx->no_disk == 0) {
-                                ret = (fwrite(bytes, 1, available_data, stream_ctx->F) > 0) ? 0 : -1;
-                                if (ret != 0) {
-                                    picoquic_log_app_message(cnx,
-                                        "Could not write data from stream %" PRIu64 ", error 0x%x", stream_id, ret);
+                                if(ctx->offset + available_data > ctx->maxoffset){
+                                    ctx->offset = 0;
                                 }
+                                memcpy(ctx->dummy_buffer,bytes,available_data);
+                                ctx->offset+=available_data;
                             }
                             stream_ctx->received_length += available_data;
                             bytes += available_data;

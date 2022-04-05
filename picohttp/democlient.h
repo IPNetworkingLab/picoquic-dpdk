@@ -81,6 +81,9 @@ typedef struct st_picoquic_demo_client_callback_ctx_t {
     char const* out_dir;
     uint64_t last_interaction_time;
 
+    uint64_t offset;
+    uint64_t maxoffset;
+    char *dummy_buffer;
     size_t nb_demo_streams;
 
     int nb_open_streams;
