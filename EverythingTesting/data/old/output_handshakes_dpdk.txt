@@ -1,0 +1,60 @@
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7315
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7315
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314
+EAL setup finshed
+Starting Picoquic (v0.34f) connection to server = localhost, port = 4443
+The IP address of client 0 is 16782022
+Client exit with code = 0
+Connection end with local error 0x433.
+Number of request served : 7314

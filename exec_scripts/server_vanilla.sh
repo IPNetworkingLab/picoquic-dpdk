@@ -1,2 +1,2 @@
 #!/bin/bash
-sudo ./dpdk_picoquicdemo nodpdk -p 4443 -1 -w serverFolder
+sudo ./dpdk_picoquicdemo nodpdk -p 4440 -1 -w serverFolder

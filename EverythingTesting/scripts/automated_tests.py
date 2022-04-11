@@ -27,16 +27,16 @@ def run_server(isdpdk,args):
 
 def tp_test_generic(filename1,args1,filename2,args2,iterations):
     #dpdk throughput
-    run_server(1," ")
-    client_process = run_client_generic(iterations,filename1,args1,1)
-    client_process.wait()
-    pid = get_pid_process(serverName,process_name)
-    intPid = int(pid)
-    killing_process = kill_process(serverName,str(intPid))
-    killing_process.wait()
+    # run_server(1," ")
+    # client_process = run_client_generic(iterations,filename1,args1,1)
+    # client_process.wait()
+    # pid = get_pid_process(serverName,process_name)
+    # intPid = int(pid)
+    # killing_process = kill_process(serverName,str(intPid))
+    # killing_process.wait()
     
     #nodpdk throughput
-    run_server(0," ")
+    run_server(1," ")
     client_process = run_client_generic(iterations,filename2,args2,1)
     client_process.wait()
     pid = get_pid_process(serverName,process_name)
@@ -50,5 +50,6 @@ if __name__ == "__main__":
     # web_test()
     # handshake_test()
     #batching_test_dpdk()
-    tp_test_generic("nocopy","-D","copy", "",10)
+    #copy vs nocopy callback
+    tp_test_generic("nocopy","-D","copy", " ",10)
 
