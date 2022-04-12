@@ -144,233 +144,159 @@ static int sample_client_create_stream(picoquic_cnx_t *cnx,
 }
 
 
-int sample_client_callback(picoquic_cnx_t *cnx,
-                           uint64_t stream_id, uint8_t *bytes, size_t length,
-                           picoquic_call_back_event_t fin_or_event, void *callback_ctx, void *v_stream_ctx)
+int sample_server_callback(picoquic_cnx_t* cnx,
+    uint64_t stream_id, uint8_t* bytes, size_t length,
+    picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx)
 {
     int ret = 0;
-    sample_client_ctx_t *client_ctx = (sample_client_ctx_t *)callback_ctx;
-    sample_client_stream_ctx_t *stream_ctx = (sample_client_stream_ctx_t *)v_stream_ctx;
+    sample_server_ctx_t* server_ctx = (sample_server_ctx_t*)callback_ctx;
+    sample_server_stream_ctx_t* stream_ctx = (sample_server_stream_ctx_t*)v_stream_ctx;
 
-    if (client_ctx == NULL)
-    {
-        /* This should never happen, because the callback context for the client is initialized
-         * when creating the client connection. */
-        return -1;
+    /* If this is the first reference to the connection, the application context is set
+     * to the default value defined for the server. This default value contains the pointer
+     * to the file directory in which all files are defined.
+     */
+    if (callback_ctx == NULL || callback_ctx == picoquic_get_default_callback_context(picoquic_get_quic_ctx(cnx))) {
+        server_ctx = (sample_server_ctx_t *)malloc(sizeof(sample_server_ctx_t));
+        if (server_ctx == NULL) {
+            /* cannot handle the connection */
+            picoquic_close(cnx, PICOQUIC_ERROR_MEMORY);
+            return -1;
+        }
+        else {
+            sample_server_ctx_t* d_ctx = (sample_server_ctx_t*)picoquic_get_default_callback_context(picoquic_get_quic_ctx(cnx));
+            if (d_ctx != NULL) {
+                memcpy(server_ctx, d_ctx, sizeof(sample_server_ctx_t));
+            }
+            else {
+                /* This really is an error case: the default connection context should never be NULL */
+                memset(server_ctx, 0, sizeof(sample_server_ctx_t));
+                server_ctx->default_dir = "";
+            }
+            picoquic_set_callback(cnx, sample_server_callback, server_ctx);
+        }
     }
 
-    if (ret == 0)
-    {
-        switch (fin_or_event)
-        {
+    if (ret == 0) {
+        switch (fin_or_event) {
         case picoquic_callback_stream_data:
         case picoquic_callback_stream_fin:
             /* Data arrival on stream #x, maybe with fin mark */
-            if (stream_ctx == NULL)
-            {
-                /* This is unexpected, as all contexts were declared when initializing the
-                 * connection. */
-                return -1;
+            if (stream_ctx == NULL) {
+                /* Create and initialize stream context */
+                stream_ctx = sample_server_create_stream_context(server_ctx, stream_id);
             }
-            else if (!stream_ctx->is_name_sent)
-            {
-                /* Unexpected: should not receive data before sending the file name to the server */
-                return -1;
+
+            if (stream_ctx == NULL) {
+                /* Internal error */
+                (void) picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_INTERNAL_ERROR);
+                return(-1);
             }
-            else if (stream_ctx->is_stream_reset || stream_ctx->is_stream_finished)
-            {
-                /* Unexpected: receive after fin */
-                return -1;
+            else if (stream_ctx->is_name_read) {
+                /* Write after fin? */
+                return(-1);
             }
-            else
-            {
-                if (stream_ctx->started == 0)
-                {
-                    /* Open the file to receive the data. This is done at the last possible moment,
-                     * to minimize the number of files open simultaneously.
-                     * When formatting the file_path, verify that the directory name is zero-length,
-                     * or terminated by a proper file separator.
-                     */
-                    printf("inside writting to file\n");
-                    char file_path[1024];
-                    size_t dir_len = strlen(client_ctx->default_dir);
-                    size_t file_name_len = strlen(client_ctx->file_names[stream_ctx->file_rank]);
+            else {
+                /* Accumulate data */
+                size_t available = sizeof(stream_ctx->file_name) - stream_ctx->name_length - 1;
 
-                    if (dir_len > 0 && dir_len < sizeof(file_path))
-                    {
-                        memcpy(file_path, client_ctx->default_dir, dir_len);
-                        if (file_path[dir_len - 1] != PICOQUIC_FILE_SEPARATOR[0])
-                        {
-                            file_path[dir_len] = PICOQUIC_FILE_SEPARATOR[0];
-                            dir_len++;
-                        }
-                    }
-
-                    if (dir_len + file_name_len + 1 >= sizeof(file_path))
-                    {
-                        /* Unexpected: could not format the file name */
-                        fprintf(stderr, "Could not format the file path.\n");
-                        ret = -1;
-                    }
-                    else
-                    {
-                        memcpy(file_path + dir_len, client_ctx->file_names[stream_ctx->file_rank],
-                               file_name_len);
-
-                        unsigned lcore_id = rte_lcore_id();
-                        char char_lcore_id = lcore_id + '0';
-
-                        file_path[dir_len + file_name_len] = char_lcore_id;
-                        file_path[dir_len + file_name_len] = 0;
-
-                        stream_ctx->F = picoquic_file_open(file_path, "wb");
-
-                        if (stream_ctx->F == NULL)
-                        {
-                            /* Could not open the file */
-                            fprintf(stderr, "Could not open the file: %s\n", file_path);
-                            ret = -1;
-                        }
-                    }
+                if (length > available) {
+                    /* Name too long: reset stream! */
+                    sample_server_delete_stream_context(server_ctx, stream_ctx);
+                    (void) picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_NAME_TOO_LONG_ERROR);
                 }
+                else {
+                    if (length > 0) {
+                        memcpy(stream_ctx->file_name + stream_ctx->name_length, bytes, length);
+                        stream_ctx->name_length += length;
+                    }
+                    if (fin_or_event == picoquic_callback_stream_fin) {
+                        int stream_ret;
 
-                if (ret == 0 && length > 0)
-                {
-                    // /* write the received bytes to the file */
-                    // if (fwrite(bytes, length, 1, stream_ctx->F) != 1)
-                    // {
-                    //     /* Could not write file to disk */
-                    //     fprintf(stderr, "Could not write data to disk.\n");
-                    //     ret = -1;
-                    // }
-                    // else
-                    // {
-                    stream_ctx->bytes_received += length;
-                    // }
-                }
+                        /* If fin, mark read, check the file, open it. Or reset if there is no such file */
+                        stream_ctx->file_name[stream_ctx->name_length + 1] = 0;
+                        stream_ctx->is_name_read = 1;
+                        stream_ret = sample_server_open_stream(server_ctx, stream_ctx);
 
-                if (ret == 0 && fin_or_event == picoquic_callback_stream_fin)
-                {
-                    stream_ctx->F = picoquic_file_close(stream_ctx->F);
-                    stream_ctx->is_stream_finished = 1;
-                    client_ctx->nb_files_received++;
-
-                    if ((client_ctx->nb_files_received + client_ctx->nb_files_failed) >= client_ctx->nb_files)
-                    {
-                        /* everything is done, close the connection */
-                        ret = picoquic_close(cnx, 0);
+                        if (stream_ret == 0) {
+                            /* If data needs to be sent, set the context as active */
+                            ret = picoquic_mark_active_stream(cnx, stream_id, 1, stream_ctx);
+                        }
+                        else {
+                            /* If the file could not be read, reset the stream */
+                            sample_server_delete_stream_context(server_ctx, stream_ctx);
+                            (void) picoquic_reset_stream(cnx, stream_id, stream_ret);
+                        }
                     }
                 }
             }
             break;
-        case picoquic_callback_stop_sending: /* Should not happen, treated as reset */
-            /* Mark stream as abandoned, close the file, etc. */
-            picoquic_reset_stream(cnx, stream_id, 0);
-            /* Fall through */
-        case picoquic_callback_stream_reset: /* Server reset stream #x */
-            if (stream_ctx == NULL)
-            {
-                /* This is unexpected, as all contexts were declared when initializing the
-                 * connection. */
-                return -1;
+        case picoquic_callback_prepare_to_send:
+            /* Active sending API */
+            if (stream_ctx == NULL) {
+                /* This should never happen */
             }
-            else if (stream_ctx->is_stream_reset || stream_ctx->is_stream_finished)
-            {
-                /* Unexpected: receive after fin */
-                return -1;
+            else if (stream_ctx->F == NULL) {
+                /* Error, asking for data after end of file */
             }
-            else
-            {
-                stream_ctx->remote_error = picoquic_get_remote_stream_error(cnx, stream_id);
-                stream_ctx->is_stream_reset = 1;
-                client_ctx->nb_files_failed++;
+            else {
+                /* Implement the zero copy callback */
+                size_t available = stream_ctx->file_length - stream_ctx->file_sent;
+                int is_fin = 1;
+                uint8_t* buffer;
 
-                if ((client_ctx->nb_files_received + client_ctx->nb_files_failed) >= client_ctx->nb_files)
-                {
-                    /* everything is done, close the connection */
-                    fprintf(stdout, "All done, closing the connection.\n");
-                    ret = picoquic_close(cnx, 0);
+                if (available > length) {
+                    available = length;
+                    is_fin = 0;
+                }
+                
+                buffer = picoquic_provide_stream_data_buffer(bytes, available, is_fin, !is_fin);
+
+                if (buffer != NULL) {
+                    size_t nb_read = fread(buffer, 1, available, stream_ctx->F);
+
+                    if (nb_read != available) {
+                        /* Error while reading the file */
+                        sample_server_delete_stream_context(server_ctx, stream_ctx);
+                        (void)picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_FILE_READ_ERROR);
+                    }
+                    else {
+                        stream_ctx->file_sent += available;
+                    }
+                }
+                else {
+                /* Should never happen according to callback spec. */
+                    ret = -1;
                 }
             }
             break;
-        case picoquic_callback_stateless_reset:
-        case picoquic_callback_close:             /* Received connection close */
+        case picoquic_callback_stream_reset: /* Client reset stream #x */
+        case picoquic_callback_stop_sending: /* Client asks server to reset stream #x */
+            if (stream_ctx != NULL) {
+                /* Mark stream as abandoned, close the file, etc. */
+                sample_server_delete_stream_context(server_ctx, stream_ctx);
+                picoquic_reset_stream(cnx, stream_id, PICOQUIC_SAMPLE_FILE_CANCEL_ERROR);
+            }
+            break;
+        case picoquic_callback_stateless_reset: /* Received an error message */
+        case picoquic_callback_close: /* Received connection close */
         case picoquic_callback_application_close: /* Received application close */
-            fprintf(stdout, "Connection closed.\n");
-            /* Mark the connection as completed */
-            client_ctx->is_disconnected = 1;
-            /* Remove the application callback */
+            /* Delete the server application context */
+            sample_server_delete_context(server_ctx);
             picoquic_set_callback(cnx, NULL, NULL);
             break;
         case picoquic_callback_version_negotiation:
-            /* The client did not get the right version.
-             * TODO: some form of negotiation?
-             */
-            fprintf(stdout, "Received a version negotiation request:");
-            for (size_t byte_index = 0; byte_index + 4 <= length; byte_index += 4)
-            {
-                uint32_t vn = 0;
-                for (int i = 0; i < 4; i++)
-                {
-                    vn <<= 8;
-                    vn += bytes[byte_index + i];
-                }
-                fprintf(stdout, "%s%08x", (byte_index == 0) ? " " : ", ", vn);
-            }
-            fprintf(stdout, "\n");
+            /* The server should never receive a version negotiation response */
             break;
         case picoquic_callback_stream_gap:
             /* This callback is never used. */
             break;
-        case picoquic_callback_prepare_to_send:
-            /* Active sending API */
-            if (stream_ctx == NULL)
-            {
-                /* Decidedly unexpected */
-                return -1;
-            }
-            else if (stream_ctx->name_sent_length < stream_ctx->name_length)
-            {
-                uint8_t *buffer;
-                size_t available = stream_ctx->name_length - stream_ctx->name_sent_length;
-                int is_fin = 1;
-
-                /* The length parameter marks the space available in the packet */
-                if (available > length)
-                {
-                    available = length;
-                    is_fin = 0;
-                }
-                /* Needs to retrieve a pointer to the actual buffer
-                 * the "bytes" parameter points to the sending context
-                 */
-                buffer = picoquic_provide_stream_data_buffer(bytes, available, is_fin, !is_fin);
-                if (buffer != NULL)
-                {
-                    char const *filename = client_ctx->file_names[stream_ctx->file_rank];
-                    memcpy(buffer, filename + stream_ctx->name_sent_length, available);
-                    stream_ctx->name_sent_length += available;
-                    stream_ctx->is_name_sent = is_fin;
-                }
-                else
-                {
-                    ret = -1;
-                }
-            }
-            else
-            {
-                /* Nothing to send, just return */
-            }
-            break;
         case picoquic_callback_almost_ready:
-            fprintf(stdout, "Connection to the server completed, almost ready.\n");
-            break;
         case picoquic_callback_ready:
-            /* TODO: Check that the transport parameters are what the sample expects */
-            fprintf(stdout, "Connection to the server confirmed.\n");
+            /* Check that the transport parameters are what the sample expects */
             break;
         default:
-            /* unexpected -- just ignore. */
+            /* unexpected */
             break;
         }
     }
