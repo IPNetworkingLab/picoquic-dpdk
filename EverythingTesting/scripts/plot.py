@@ -16,14 +16,32 @@ def take_average(file,index):
         counter +=1
     return(throughput/counter)
 
+def comparison_aes_chacha():
+    van_chacha = get_data("../data/output_nodpdk_chacha.txt",6)
+    dpdk_chacha = get_data("../data/output_dpdk_chacha.txt",6)
+    van_aes = get_data("../data/output_nodpdk_tp_enc.txt",6)
+    dpdk_aes = get_data("../data/output_dpdk_tp_enc.txt",6)
+
+
+    data = [van_chacha,dpdk_chacha,van_aes,dpdk_aes]
+    fig, ax = plt.subplots()
+    columns = data
+    ax.boxplot(columns)
+    plt.title("TP comparison")
+    plt.xticks([1,2,3,4], ["pquic_chacha","dpdk_chacha","pquic_aes","dpdk_aes"])
+    plt.ylabel("throughput(mbps)")  
+    # show plot
+    plt.savefig("../plots/aes_chacha.png")
+    
+
 def tp_comparison_encryption():
-    van_pquic = get_data("output_tp_van.txt",6)
-    dpdk_pquic = get_data("output_tp_dpdk.txt",6)
-    van_pquic_noencrypt = get_data("output_tp_van_noencrypt.txt",6)
-    dpdk_pquic_encrypt = get_data("output_tp_dpdk_noencrypt.txt",6)
+    van_pquic = get_data("../data/output_nodpdk_tp_enc.txt",6)
+    dpdk_pquic = get_data("../data/old/output_tp_dpdk.txt",6)
+    van_pquic_noencrypt = get_data("../data/output_nodpdk_tp.txt",6)
+    dpdk_pquic_noencrypt = get_data("../data/output_dpdk_tp.txt",6)
 
 
-    data = [van_pquic,dpdk_pquic,van_pquic_noencrypt,dpdk_pquic_encrypt]
+    data = [van_pquic,dpdk_pquic,van_pquic_noencrypt,dpdk_pquic_noencrypt]
     fig, ax = plt.subplots()
     columns = data
     ax.boxplot(columns)
@@ -46,6 +64,20 @@ def tp_comparison():
 
     plt.bar(names,data)
     plt.savefig("tp_comp.png")
+
+def copy_comparison():
+    copy = get_data("../data/output_copyv2.txt",6)
+    nopy = get_data("../data/output_nopyv2.txt",6)
+    data = [copy,nopy]
+    
+    fig, ax = plt.subplots()
+    columns = data
+    ax.boxplot(columns)
+    plt.title("TP comparison")
+    plt.xticks([1,2], ["copy","nocopy"])
+    plt.ylabel("throughput(mbps)")  
+    # show plot
+    plt.savefig("../plots/copy_nocopyv2.png")
 
 def handshake_comparison():
 
@@ -148,7 +180,9 @@ if __name__ == "__main__":
     # plot_handshake()
     # tp_comparison()
     #batching_comparison_8client()
-    tp_comparison_encryption()
+    # tp_comparison_encryption()
+    # comparison_aes_chacha()
+    copy_comparison()
     #handshake_comparison()
     #batching_comparison()
 

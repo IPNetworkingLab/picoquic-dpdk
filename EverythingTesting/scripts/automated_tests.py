@@ -25,19 +25,17 @@ def run_server(isdpdk,args):
     cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/serverTesting.py',str(isdpdk),args]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
-def tp_test_generic(filename1,args1,filename2,args2,iterations):
-    #dpdk throughput
-    # run_server(1," ")
-    # client_process = run_client_generic(iterations,filename1,args1,1)
-    # client_process.wait()
-    # pid = get_pid_process(serverName,process_name)
-    # intPid = int(pid)
-    # killing_process = kill_process(serverName,str(intPid))
-    # killing_process.wait()
+def tp_test_generic(filename1,args1,usedpdk1,filename2,args2,usedpdk2,iterations):
+    run_server(usedpdk1," ")
+    client_process = run_client_generic(iterations,filename1,args1,usedpdk1)
+    client_process.wait()
+    pid = get_pid_process(serverName,process_name)
+    intPid = int(pid)
+    killing_process = kill_process(serverName,str(intPid))
+    killing_process.wait()
     
-    #nodpdk throughput
-    run_server(1," ")
-    client_process = run_client_generic(iterations,filename2,args2,1)
+    run_server(usedpdk2," ")
+    client_process = run_client_generic(iterations,filename2,args2,usedpdk2)
     client_process.wait()
     pid = get_pid_process(serverName,process_name)
     intPid = int(pid)
@@ -50,6 +48,10 @@ if __name__ == "__main__":
     # web_test()
     # handshake_test()
     #batching_test_dpdk()
-    #copy vs nocopy callback
-    tp_test_generic("nocopy","-D","copy", " ",10)
+    # tp_test_generic("dpdk_tp","",1,"nodpdk_tp","",0,10)
+    # tp_test_generic("dpdk_tp_enc","",1,"nodpdk_tp_enc","",0,10)
+    # tp_test_generic("dpdk_chacha","",1,"nodpdk_chacha","",0,5)
+    tp_test_generic("copyv2","",1,"nopyv2","-D",1,10)
+    
+    
 
