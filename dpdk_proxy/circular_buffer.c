@@ -30,6 +30,7 @@ queue_t *create_queue(unsigned int _capacity)
 
 int queue_empty(queue_t *q)
 {
+    pthread_mutex_lock(&(q->lock));
     if (q == NULL)
     {
         return -1;

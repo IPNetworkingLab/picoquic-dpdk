@@ -7,6 +7,7 @@ typedef struct data
     char **data_buffer;
     int size;
 }data_t;
+
 typedef struct queue
 {
     unsigned int tail;     // current tail
