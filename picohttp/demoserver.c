@@ -31,6 +31,7 @@
 #include "demoserver.h"
 #include "siduck.h"
 #include "quicperf.h"
+#include "../dpdk_proxy/proxy.h"
 
 /* Stream context splay management */
 
@@ -1290,17 +1291,22 @@ int picoquic_demo_server_callback(picoquic_cnx_t* cnx,
     int ret = 0;
     picoquic_alpn_enum alpn_code = picoquic_alpn_undef;
     char const * alpn = picoquic_tls_get_negotiated_alpn(cnx);
-
+    
     if (alpn != NULL) {
         alpn_code = picoquic_parse_alpn(alpn);
     }
-
+    else{
+        alpn_code = picoquic_alpn_proxy;
+    }
     switch (alpn_code) {
     case picoquic_alpn_http_3:
         ret = h3zero_server_callback(cnx, stream_id, bytes, length, fin_or_event, callback_ctx, v_stream_ctx);
         break;
     case picoquic_alpn_siduck:
         ret = siduck_callback(cnx, stream_id, bytes, length, fin_or_event, callback_ctx, v_stream_ctx);
+        break; 
+    case picoquic_alpn_proxy:
+        ret = proxy_callback(cnx,stream_id, bytes, length, fin_or_event, callback_ctx, v_stream_ctx);
         break;
     case picoquic_alpn_quicperf:
         ret = quicperf_callback(cnx, stream_id, bytes, length, fin_or_event, callback_ctx, v_stream_ctx);

@@ -72,6 +72,7 @@ static const char* default_server_name = "::";
 #include "democlient.h"
 #include "demoserver.h"
 #include "siduck.h"
+#include "proxy.h"
 #include "quicperf.h"
 #include "picoquic_unified_log.h"
 #include "picoquic_logger.h"
@@ -150,9 +151,6 @@ int nb_of_repetition = 1;
 int MAX_PKT_BURST = 32;
 int dpdk = 0;
 int handshake_test=0;
-/*
- * SIDUCK datagram demo call back.
- */
 
 
 void print_address(FILE* F_log, struct sockaddr* address, char* label, picoquic_connection_id_t cnx_id)
@@ -173,27 +171,7 @@ void print_address(FILE* F_log, struct sockaddr* address, char* label, picoquic_
     }
 }
 
-/* server loop call back management */
 
-
-
-
-/* Client loop call back management.
- * This is pretty complex, because the demo client is used to test a variety of interop
- * scenarios, for example:
- *
- * Variants of migration:
- * - Basic NAT traversal (1)
- * - Simple CID swap (2)
- * - Organized migration (3)
- * Encryption key rotation, after some number of packets have been sent.
- *
- * The client loop terminates when the client connection is closed.
- */
-
-
-
-/* TODO: rewrite using common code */
 void usage()
 {
     fprintf(stderr, "PicoQUIC demo client and server\n");

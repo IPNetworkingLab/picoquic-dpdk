@@ -52,6 +52,7 @@
 #include "performance_log.h"
 #include "picoquic_config.h"
 #include "picoquic_lb.h"
+#include "proxy.h"
 
 //dpdk
 #include <rte_common.h>
@@ -115,6 +116,7 @@ typedef struct st_client_loop_cb_t {
     int zero_rtt_available;
     int is_siduck;
     int is_quicperf;
+    int is_proxy;
     int socket_buffer_size;
     int handshake_test;
     char const* saved_alpn;

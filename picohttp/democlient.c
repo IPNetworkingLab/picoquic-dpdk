@@ -57,6 +57,7 @@ static picoquic_alpn_list_t alpn_list[] = {
     { picoquic_alpn_http_0_9, "hq-interop", 10 },
     { picoquic_alpn_siduck, "siduck", 6 },
     { picoquic_alpn_siduck, "siduck-00", 9 },
+    { picoquic_alpn_proxy, "proxy", 5},
     { picoquic_alpn_quicperf, QUICPERF_ALPN, QUICPERF_ALPN_LEN}
 };
 
@@ -644,7 +645,7 @@ int picoquic_demo_client_callback(picoquic_cnx_t* cnx,
                                 if(ctx->offset + available_data > ctx->maxoffset){
                                     ctx->offset = 0;
                                 }
-                                memcpy(ctx->dummy_buffer,bytes,available_data);
+                                memcpy(ctx->dummy_buffer+ctx->offset,bytes,available_data);
                                 ctx->offset+=available_data;
                             }
                             stream_ctx->received_length += available_data;

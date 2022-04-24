@@ -9,30 +9,6 @@ int siduck_callback(picoquic_cnx_t* cnx,
     uint64_t stream_id, uint8_t* bytes, size_t length,
     picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx);
 
-
-
-typedef struct st_picoquic_demo_client_callback_ctx_copy_t {
-    picoquic_demo_client_stream_ctx_t* first_stream;
-    picoquic_demo_stream_desc_t const * demo_stream;
-    picoquic_tp_t const * tp;
-    char *dummyBuffer;
-    uint64_t offset;
-    uint64_t maxoffset;
-    char const* out_dir;
-    uint64_t last_interaction_time;
-    size_t nb_demo_streams;
-    int nb_open_streams;
-    int nb_open_files;
-    uint32_t nb_client_streams;
-    picoquic_alpn_enum alpn;
-    int progress_observed;
-    int no_disk;
-    int delay_fin; /* For tests only! */
-    int no_print;
-    int connection_ready;
-    int connection_closed;
-} picoquic_demo_callback_ctx_copy_t;
-
 int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode, 
     void* callback_ctx, void * callback_arg)
 {
@@ -230,8 +206,8 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                 }
                 else{
                     if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf) {
-                    /* Start the download scenario */
-                    picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
+                        /* Start the download scenario */
+                        picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
                     }
                 }    
             }
@@ -270,6 +246,9 @@ int quic_client(const char* ip_address_text, int server_port,
     siduck_ctx_t* siduck_ctx = NULL;
     int is_quicperf = 0;
     quicperf_ctx_t* quicperf_ctx = NULL;
+    int is_proxy = 0;
+    proxy_ctx_t* proxy_ctx = NULL;
+
     client_loop_cb_t loop_cb;
     const char* sni = config->sni;
     memset(&loop_cb, 0, sizeof(client_loop_cb_t));
@@ -341,7 +320,17 @@ int quic_client(const char* ip_address_text, int server_port,
     }
 
     if (ret == 0) {
-        if (config->alpn != NULL && (strcmp(config->alpn, "siduck") == 0 || strcmp(config->alpn, "siduck-00") == 0)) {
+        if(config->alpn != NULL && strcmp(config->alpn, "proxy")==0){
+            is_proxy = 1;
+            proxy_ctx = proxy_create_ctx(stdout);
+            if (proxy_ctx == NULL) {
+                fprintf(stdout, "Could not get ready to proxy\n");
+                return -1;
+            }
+            fprintf(stdout, "Getting ready to proxy\n");
+        }
+
+        else if (config->alpn != NULL && (strcmp(config->alpn, "siduck") == 0 || strcmp(config->alpn, "siduck-00") == 0)) {
             /* Set a siduck client */
             is_siduck = 1;
             siduck_ctx = siduck_create_ctx(stdout);
@@ -407,6 +396,10 @@ int quic_client(const char* ip_address_text, int server_port,
                 picoquic_set_callback(cnx_client, siduck_callback, siduck_ctx);
                 cnx_client->local_parameters.max_datagram_frame_size = 128;
             }
+            else if (is_proxy){
+                picoquic_set_callback(cnx_client, siduck_callback, siduck_ctx);
+                cnx_client->local_parameters.max_datagram_frame_size = 128;
+            }
             else if (is_quicperf) {
                 picoquic_set_callback(cnx_client, quicperf_callback, quicperf_ctx);
             }
@@ -451,7 +444,7 @@ int quic_client(const char* ip_address_text, int server_port,
                 //     (int)cnx_client->remote_parameters.initial_max_stream_id_bidir);
             }
 
-            if (ret == 0 && !is_siduck && !is_quicperf) {
+            if (ret == 0 && !is_siduck && !is_quicperf && !is_proxy) {
                 if (picoquic_is_0rtt_available(cnx_client) && (config->proposed_version & 0x0a0a0a0a) != 0x0a0a0a0a) {
                     loop_cb.zero_rtt_available = 1;
 
@@ -475,11 +468,17 @@ int quic_client(const char* ip_address_text, int server_port,
         loop_cb.nb_packets_before_key_update = nb_packets_before_key_update;
         loop_cb.is_siduck = is_siduck;
         loop_cb.is_quicperf = is_quicperf;
+        loop_cb.is_proxy = is_proxy;
         loop_cb.socket_buffer_size = config->socket_buffer_size;
         loop_cb.handshake_test = handshake_test;
+
+        if (is_proxy){
+            loop_cb.siduck_ctx = proxy_ctx;
+        }
         if (is_siduck) {
             loop_cb.siduck_ctx = siduck_ctx;
         }
+
         else if (!is_quicperf) {
             loop_cb.demo_callback_ctx = &callback_ctx;
         }
@@ -686,7 +685,12 @@ int quic_client(const char* ip_address_text, int server_port,
         if (siduck_ctx != NULL) {
             free(siduck_ctx);
         }
+    } else if(is_proxy){
+        if (siduck_ctx != NULL) {
+            free(siduck_ctx);
+        }
     }
+
     else {
         picoquic_demo_client_delete_context(&callback_ctx);
     }

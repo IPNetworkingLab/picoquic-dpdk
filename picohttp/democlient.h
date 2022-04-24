@@ -41,7 +41,8 @@ typedef enum {
 	picoquic_alpn_http_0_9,
 	picoquic_alpn_http_3,
     picoquic_alpn_siduck,
-    picoquic_alpn_quicperf
+    picoquic_alpn_quicperf,
+    picoquic_alpn_proxy
 } picoquic_alpn_enum;
 
 #define PICOQUIC_DEMO_STREAM_ID_INITIAL (uint64_t)((int64_t)-1)
