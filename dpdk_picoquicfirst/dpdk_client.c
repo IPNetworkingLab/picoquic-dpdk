@@ -25,7 +25,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
             break;
         case picoquic_packet_loop_after_receive:
             /* Post receive callback */
-            if ((!cb_ctx->is_siduck && !cb_ctx->is_quicperf && cb_ctx->demo_callback_ctx->connection_closed) ||
+            if ((!cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_proxy && cb_ctx->demo_callback_ctx->connection_closed) ||
                 cb_ctx->cnx_client->cnx_state == picoquic_state_disconnected) {
                     if(!handshake_test){
                         fprintf(stdout, "The connection is closed!\n");
@@ -168,7 +168,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     }
                 }
 
-                if (!cb_ctx->is_siduck && !cb_ctx->is_quicperf && cb_ctx->demo_callback_ctx->nb_open_streams == 0) {
+                if (!cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_proxy && cb_ctx->demo_callback_ctx->nb_open_streams == 0) {
                     if(!handshake_test){
 
                         fprintf(stdout, "All done, Closing the connection.\n");
@@ -205,7 +205,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     ret = picoquic_close(cb_ctx->cnx_client, error_found);
                 }
                 else{
-                    if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf) {
+                    if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_proxy) {
                         /* Start the download scenario */
                         picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
                     }
@@ -321,6 +321,7 @@ int quic_client(const char* ip_address_text, int server_port,
 
     if (ret == 0) {
         if(config->alpn != NULL && strcmp(config->alpn, "proxy")==0){
+            /* Set a proxy client */
             is_proxy = 1;
             proxy_ctx = proxy_create_ctx(stdout);
             if (proxy_ctx == NULL) {
@@ -397,7 +398,7 @@ int quic_client(const char* ip_address_text, int server_port,
                 cnx_client->local_parameters.max_datagram_frame_size = 128;
             }
             else if (is_proxy){
-                picoquic_set_callback(cnx_client, siduck_callback, siduck_ctx);
+                picoquic_set_callback(cnx_client, proxy_callback, proxy_ctx);
                 cnx_client->local_parameters.max_datagram_frame_size = 128;
             }
             else if (is_quicperf) {

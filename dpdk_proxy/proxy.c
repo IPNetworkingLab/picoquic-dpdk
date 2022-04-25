@@ -83,7 +83,7 @@ int proxy_callback(picoquic_cnx_t* cnx,
     proxy_ctx_t * ctx = (proxy_ctx_t*)callback_ctx;
 
     if (ctx == NULL) {
-        ctx = siduck_create_ctx(NULL);
+        ctx = proxy_create_ctx(NULL);
         if (ctx != NULL) {
             ctx->is_auto_alloc = 1;
         }
