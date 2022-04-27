@@ -21,14 +21,10 @@
 
 
 typedef struct st_proxy_ctx_t {
-    FILE* F;
-    int is_auto_alloc;
-    int nb_quack_sent;
-    int nb_quack_received;
-    int nb_quack_ack_sent;
-    int nb_quack_ack_received;
-    int nb_bad_quacks;
-    int nb_other_errors;
+    int portid;
+    int queueid;
+    struct rte_mempool *mb_pool;
+
 } proxy_ctx_t;
 
 proxy_ctx_t* proxy_create_ctx(FILE* F);

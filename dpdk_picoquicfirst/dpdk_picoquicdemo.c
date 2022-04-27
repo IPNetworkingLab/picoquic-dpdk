@@ -405,6 +405,7 @@ int init_port_server(uint16_t nb_of_queues)
     
 }
 
+
 static int
 client_job(void *arg)
 {
@@ -424,6 +425,10 @@ client_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = rte_cpu_to_be_32(ip);
+
+    
+
+    //handshake test
     if(handshake_test){
         struct timeval start_time;
         struct timeval current_time;

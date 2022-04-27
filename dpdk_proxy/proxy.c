@@ -27,53 +27,38 @@
 
 #define SIDUCK_ONLY_QUACKS_ECHO 0x101
 
-static const uint8_t quack[] = { 'p', 'r', 'o', 'x', 'y' };
-static const uint8_t quack_ack[] = { 'p', 'r', 'o', 'x', 'y', '-', 'a', 'c', 'k' };
 
-int do_quack_proxy(picoquic_cnx_t* cnx) {
-    return picoquic_queue_datagram_frame(cnx, sizeof(quack), quack);
+int encapsulate_and_send(picoquic_cnx_t* cnx,uint8_t *udp_packet,int length) {
+    return picoquic_queue_datagram_frame(cnx, length, udp_packet);
 }
 
-int do_quack_proxy_ack(picoquic_cnx_t* cnx) {
+int decapsulate_and_send(picoquic_cnx_t* cnx, uint8_t *udp_packet, int length) {
     return picoquic_queue_datagram_frame(cnx, sizeof(quack_ack), quack_ack);
 }
 
+uint8_t *receive_packet(proxy_ctx_t ctx){
 
-int check_quack_proxy(uint8_t* bytes, size_t length) {
-    int ret = 0;
 
-    if (length != sizeof(quack) || memcmp(bytes, quack, sizeof(quack)) != 0) {
-        ret = SIDUCK_ONLY_QUACKS_ECHO;
-    }
-
-    return ret;
-}
-
-int check_quack_proxy_ack(uint8_t* bytes, size_t length) {
-    int ret = 0;
-
-    if (length != sizeof(quack_ack) || memcmp(bytes, quack_ack, sizeof(quack_ack)) != 0) {
-        ret = SIDUCK_ONLY_QUACKS_ECHO;
-    }
-
-    return ret;
 }
 
 
-proxy_ctx_t* proxy_create_ctx(FILE* F)
+
+
+proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_pool)
 {
     proxy_ctx_t* ctx = (proxy_ctx_t*)malloc(sizeof(proxy_ctx_t));
 
     if (ctx != NULL) {
         memset(ctx, 0, sizeof(proxy_ctx_t));
-        ctx->F = F;
+        ctx->portid = portid;
+        ctx-> queueid = queueid;
+        ctx-> mb_pool = mb_pool;
     }
-
     return ctx;
 }
 
 /*
- * SIDUCK datagram demo call back.
+ * proxy call back.
  */
 int proxy_callback(picoquic_cnx_t* cnx,
     uint64_t stream_id, uint8_t* bytes, size_t length,
@@ -81,17 +66,7 @@ int proxy_callback(picoquic_cnx_t* cnx,
 {
     int ret = 0;
     proxy_ctx_t * ctx = (proxy_ctx_t*)callback_ctx;
-
-    if (ctx == NULL) {
-        ctx = proxy_create_ctx(NULL);
-        if (ctx != NULL) {
-            ctx->is_auto_alloc = 1;
-        }
-        picoquic_set_callback(cnx, proxy_callback, ctx);
-    }
-    else {
-        ret = 0;
-    }
+    
 
     if (ret == 0) {
         switch (fin_or_event) {
@@ -101,23 +76,12 @@ int proxy_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_stop_sending: /* Client asks server to reset stream #x */
         case picoquic_callback_stream_gap:
         case picoquic_callback_prepare_to_send:
-            DBG_PRINTF("Unexpected callback, code %d, length = %zu", fin_or_event, length);
-            if (ctx != NULL) {
-                if (ctx->is_auto_alloc) {
-                    free(ctx);
-                    ctx = NULL;
-                }
-                else {
-                    ctx->nb_other_errors++;
-                }
-            }
-            picoquic_set_callback(cnx, NULL, NULL);
-            ret = picoquic_close(cnx, SIDUCK_ONLY_QUACKS_ECHO);
-            break;
+           printf("Unexpected callback, code %d, length = %zu", fin_or_event, length);
+           break;
         case picoquic_callback_stateless_reset:
         case picoquic_callback_close: /* Received connection close */
         case picoquic_callback_application_close: /* Received application close */
-            if (ctx != NULL && ctx->is_auto_alloc) {
+            if (ctx != NULL) {
                 free(ctx);
                 ctx = NULL;
             }
@@ -128,25 +92,12 @@ int proxy_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_almost_ready:
             break;
         case picoquic_callback_ready:
-            /* Check that the transport parameters are what Siduck expects */
-            if (cnx->remote_parameters.max_datagram_frame_size < sizeof(quack)) {
-                if (ctx != NULL) {
-                    ctx->nb_other_errors++;
-                }
-                picoquic_set_callback(cnx, NULL, NULL);
-                ret = picoquic_close(cnx, SIDUCK_ONLY_QUACKS_ECHO);
-            }
-            else {
-                if (cnx->client_mode) {
-                    if (ctx != NULL) {
-                        ctx->nb_quack_sent++;
-                    }
+            if (cnx->client_mode) {
 
-                    if (ctx != NULL && ctx->F != NULL) {
-                        fprintf(ctx->F, "Sent: quack\n");
-                    }
-                    ret = do_quack_proxy(cnx);
+                if (ctx != NULL && ctx->F != NULL) {
+                    fprintf(ctx->F, "Sent: quack\n");
                 }
+                ret = do_quack_proxy(cnx);
             }
             break;
         case picoquic_callback_datagram:
