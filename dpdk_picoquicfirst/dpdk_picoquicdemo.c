@@ -539,6 +539,7 @@ int main(int argc, char** argv)
     char default_server_key_file[512];
     int is_client = 0;
     int ret;
+    int is_proxy = 0;
     unsigned portid;
     unsigned lcore_id;
     unsigned args[2];
@@ -629,6 +630,9 @@ int main(int argc, char** argv)
     if (optind < argc) {
         usage();
     }
+    if(config.alpn != NULL && strcmp(config.alpn, "proxy")==0){
+        is_proxy = 1;
+    }
     if (is_client == 0) {
         if (config.server_port == 0) {
             config.server_port = server_port;
@@ -652,22 +656,38 @@ int main(int argc, char** argv)
         printf("Starting Picoquic server (v%s) on port %d, server name = %s, just_once = %d, do_retry = %d\n",
             PICOQUIC_VERSION, config.server_port, server_name, just_once, config.do_retry);
         
-        if(dpdk){
-            init_port_server(get_nb_core());
-            ret = rte_eth_dev_start(0);
-            if (ret != 0)
-            {
-                printf("failed to start device\n");
+        if(is_proxy){
+            RTE_ETH_FOREACH_DEV(portid)
+            {   
+                portids[index_port] = portid;
+                init_port_client(portid);
+                ret = rte_eth_dev_start(portid);
+                if (ret != 0)
+                {
+                    printf("failed to start device\n");
+                }
+                index_port++;
             }
-            RTE_LCORE_FOREACH_WORKER(lcore_id)
-            {
-                rte_eal_remote_launch(server_job, index_lcore, lcore_id);
-                index_lcore++;
-            }
+
         }
         else{
-            ret = quic_server(server_name, &config, just_once,dpdk,MAX_PKT_BURST,0,0,NULL,NULL,NULL,NULL);
-            printf("Server exit with code = %d\n", ret);
+            if(dpdk){
+                init_port_server(get_nb_core());
+                ret = rte_eth_dev_start(0);
+                if (ret != 0)
+                {
+                    printf("failed to start device\n");
+                }
+                RTE_LCORE_FOREACH_WORKER(lcore_id)
+                {
+                    rte_eal_remote_launch(server_job, index_lcore, lcore_id);
+                    index_lcore++;
+                }
+            }
+            else{
+                ret = quic_server(server_name, &config, just_once,dpdk,MAX_PKT_BURST,0,0,NULL,NULL,NULL,NULL);
+                printf("Server exit with code = %d\n", ret);
+            }
         }
         
         printf("Server exit with code = %d\n", ret); 

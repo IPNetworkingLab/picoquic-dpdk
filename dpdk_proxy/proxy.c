@@ -18,22 +18,124 @@
 * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+#include <rte_common.h>
+#include <rte_log.h>
+#include <rte_malloc.h>
+#include <rte_memory.h>
+#include <rte_memcpy.h>
+#include <rte_eal.h>
+#include <rte_launch.h>
+#include <rte_atomic.h>
+#include <rte_cycles.h>
+#include <rte_prefetch.h>
+#include <rte_lcore.h>
+#include <rte_per_lcore.h>
+#include <rte_branch_prediction.h>
+#include <rte_interrupts.h>
+#include <rte_random.h>
+#include <rte_debug.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <rte_string_fns.h>
+#include <rte_udp.h>
+#include <rte_ip.h>
+#include <rte_errno.h>
 
+#include <rte_common.h>
+#include <rte_byteorder.h>
+#include <rte_log.h>
+#include <rte_memory.h>
+#include <rte_memcpy.h>
+#include <rte_memzone.h>
+#include <rte_eal.h>
+#include <rte_per_lcore.h>
+#include <rte_launch.h>
+#include <rte_atomic.h>
+#include <rte_cycles.h>
+#include <rte_prefetch.h>
+#include <rte_lcore.h>
+#include <rte_per_lcore.h>
+#include <rte_branch_prediction.h>
+#include <rte_interrupts.h>
+#include <rte_pci.h>
+#include <rte_random.h>
+#include <rte_debug.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+#include <rte_ring.h>
+#include <rte_mempool.h>
+#include <rte_mbuf.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
+#include <rte_string_fns.h>
+#include <rte_timer.h>
+#include <rte_power.h>
+#include <rte_eal.h>
+#include <rte_spinlock.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
 #include "picoquic_internal.h"
 #include "proxy.h"
 
 #define SIDUCK_ONLY_QUACKS_ECHO 0x101
 
 
-int encapsulate_and_send(picoquic_cnx_t* cnx,uint8_t *udp_packet,int length) {
-    return picoquic_queue_datagram_frame(cnx, length, udp_packet);
+int rcv_encapsulate_send(proxy_ctx_t *cnx,proxy_ctx_t * ctx) {
+    int length = 0;
+    int pkt_recv = 0;
+    struct rte_mbuf *m;
+    int udp_dgram_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
+    int MAX_PKT_BURST = 1;
+    m = rte_pktmbuf_alloc(ctx->mb_pool);
+    if (m == NULL)
+    {
+        printf("fail to init pktmbuf\n");
+        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+        return 0;
+    }
+    pkt_recv = rte_eth_rx_burst(ctx->portid, ctx->queueid, m, MAX_PKT_BURST);
+    if(pkt_recv > 0){
+        struct rte_ipv4_hdr *ip_hdr;
+        struct rte_udp_hdr *udp_hdr;
+        ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(m, char *) + sizeof(struct rte_ether_hdr));
+        udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
+        uint16_t dgram_length = htons(udp_hdr->dgram_len);
+        length += udp_dgram_offset + dgram_length;
+        return picoquic_queue_datagram_frame(cnx, length, ip_hdr);
+    }
+    return 0; 
 }
 
-int decapsulate_and_send(picoquic_cnx_t* cnx, uint8_t *udp_packet, int length) {
-    return picoquic_queue_datagram_frame(cnx, sizeof(quack_ack), quack_ack);
+int send_received_dgram(proxy_ctx_t *ctx, uint8_t *udp_packet) {
+
+    struct rte_mbuf *m;
+    struct rte_ipv4_hdr *ip_hdr;
+    struct rte_udp_hdr *udp_hdr;
+    int length = 0;
+    int udp_dgram_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
+
+    m = rte_pktmbuf_alloc(ctx->mb_pool);
+    if (m == NULL)
+    {
+        printf("fail to init pktmbuf\n");
+        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+        return 0;
+    }
+    ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(m, char *) + sizeof(struct rte_ether_hdr));
+    udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
+    uint16_t dgram_length = htons(udp_hdr->dgram_len);
+    length = udp_dgram_offset + dgram_length;
+
+    copy_buf_to_pkt(udp_packet, length, m, 0);
+    m->data_len = length;
+    m->pkt_len = length;
+    rte_eth_tx_burst(ctx->portid, ctx->queueid, &m,1);
+
 }
 
 uint8_t *receive_packet(proxy_ctx_t ctx){
@@ -101,69 +203,9 @@ int proxy_callback(picoquic_cnx_t* cnx,
             }
             break;
         case picoquic_callback_datagram:
+            decapsulate_and_send(ctx,bytes);
             /* Process the datagram, which contains an address and a QUIC packet */
-            if (cnx->client_mode) {
-                if ((ret = check_quack_proxy_ack(bytes, length)) == 0) {
-                    if (ctx != NULL && ctx->F != NULL) {
-                        fprintf(ctx->F, "Received: quack-ack\n");
-                    }
-                    picoquic_set_callback(cnx, NULL, NULL);
-                    if (ctx != NULL) {
-                        if (ctx->is_auto_alloc) {
-                            free(ctx);
-                            ctx = NULL;
-                        }
-                        else {
-                            ctx->nb_quack_ack_received++;
-                        }
-                    }
-                    ret = picoquic_close(cnx, 0);
-                }
-                else {
-                    if (ctx != NULL && ctx->F != NULL) {
-                        fprintf(ctx->F, "Received: datagram, but not a quack-ack\n");
-                    }
-                    else {
-                        DBG_PRINTF("Received a datagram, but not a quack ack, length = %zu", length);
-                    }
-
-                    if (ctx != NULL) {
-                        if (ctx->is_auto_alloc) {
-                            free(ctx);
-                            ctx = NULL;
-                        }
-                        else {
-                            ctx->nb_bad_quacks++;
-                        }
-                    }
-
-                    picoquic_set_callback(cnx, NULL, NULL);
-                    ret = picoquic_close(cnx, SIDUCK_ONLY_QUACKS_ECHO);
-                }
-            } else {
-                if ((ret = check_quack_proxy(bytes, length)) == 0) {
-                    if (ctx != NULL) {
-                        ctx->nb_quack_ack_sent++;
-                    }
-                    ret = do_quack_proxy_ack(cnx);
-                }
-                else {
-                    DBG_PRINTF("Received a datagram, but not a quack, length = %zu", length);
-
-                    if (ctx != NULL) {
-                        if (ctx->is_auto_alloc) {
-                            free(ctx);
-                            ctx = NULL;
-                        }
-                        else {
-                            ctx->nb_bad_quacks++;
-                        }
-                    }
-
-                    picoquic_set_callback(cnx, NULL, NULL);
-                    ret = picoquic_close(cnx, SIDUCK_ONLY_QUACKS_ECHO);
-                }
-            }
+            
             break;
         default:
             /* unexpected */
