@@ -132,6 +132,9 @@ struct rte_ether_addr eth_addr;
 uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
+// 1 if in proxy mode
+int is_proxy = 0;
+
 // proxy clients/server mac
 struct rte_ether_addr eth_client_proxy_addr;
 
@@ -406,7 +409,7 @@ client_job(void *arg)
     unsigned portid = *((unsigned *)arg);
     unsigned queueid = 0;
     unsigned lcore_id = rte_lcore_id();
-
+    
     // giving a different IP for each client using the portid
     uint32_t ip = (198U << 24) | (18 << 16) | (portid << 8) | 1;
     struct in_addr ip_addr;
@@ -418,6 +421,24 @@ client_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = rte_cpu_to_be_32(ip);
+
+
+    //proxy_mode
+
+    if(is_proxy){
+        unsigned main_port = 0;
+        unsigned udp_port = 1;
+        quic_client(server_name,
+                    server_port,
+                    &config,
+                    force_migration,
+                    nb_packets_before_update,
+                    client_scenario, handshake_test,
+                    dpdk,
+                    MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[main_port], tx_buffers[main_port],
+                    udp_port, 0, mb_pools[main_port], &eth_client_proxy_addr);
+        return;
+    }
 
     // handshake test
     if (handshake_test)
@@ -438,7 +459,7 @@ client_job(void *arg)
                         client_scenario, handshake_test,
                         dpdk,
                         MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
-                        0, 0, mb_pools[portid], &eth_client_proxy_addr);
+                        0, 0, NULL, NULL);
             counter++;
             gettimeofday(&current_time, NULL);
         }
@@ -456,7 +477,7 @@ client_job(void *arg)
                         client_scenario, handshake_test,
                         dpdk,
                         MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
-                        0, 0, mb_pools[portid], &eth_client_proxy_addr);
+                        0, 0, NULL, NULL);
             sleep(2);
         }
     }
@@ -471,12 +492,25 @@ server_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
+
+    if(is_proxy){
+        unsigned main_port = 0;
+        unsigned udp_port = 1;
+        quic_server(server_name,
+                &config,
+                just_once,
+                dpdk,
+                MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[main_port], tx_buffers[queueid],
+                udp_port, 0, mb_pools[main_port], &eth_client_proxy_addr);
+        return;
+
+    }
     quic_server(server_name,
                 &config,
                 just_once,
                 dpdk,
                 MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[portid], tx_buffers[queueid],
-                0, 0, mb_pools[portid], &eth_client_proxy_addr);
+                0, 0, NULL, NULL);
 }
 
 int check_ports_lcores_numbers()
@@ -558,7 +592,6 @@ int main(int argc, char **argv)
     char default_server_key_file[512];
     int is_client = 0;
     int ret;
-    int is_proxy = 0;
     unsigned portid;
     unsigned lcore_id;
     unsigned args[2];
@@ -584,8 +617,8 @@ int main(int argc, char **argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:A:N:@:2:H1", 12);
-    ret = picoquic_config_option_letters(option_string + 12, sizeof(option_string) - 12, NULL);
+    memcpy(option_string, "u:f:A:N:@:2:H1", 14);
+    ret = picoquic_config_option_letters(option_string + 14, sizeof(option_string) - 14, NULL);
 
     if (ret == 0)
     {
@@ -709,17 +742,21 @@ int main(int argc, char **argv)
             {
                 portids[index_port] = portid;
                 init_port_client(portid);
+                init_mbuf_txbuffer(portid, index_port);
                 ret = rte_eth_dev_start(portid);
                 if (ret != 0)
                 {
                     printf("failed to start device\n");
                 }
                 index_port++;
-                RTE_LCORE_FOREACH_WORKER(lcore_id)
-                {
-                    rte_eal_remote_launch(server_job, index_lcore, lcore_id);
-                    break;
-                }
+            }
+            
+            unsigned index_lcore = 0;
+            RTE_LCORE_FOREACH_WORKER(lcore_id)
+            {
+
+                rte_eal_remote_launch(server_job, index_lcore, lcore_id);
+                index_lcore++;
             }
         }
         else
@@ -754,24 +791,27 @@ int main(int argc, char **argv)
 
         /* Run as client */
         if (is_proxy)
-
         {
-            unsigned index_lcore = 0;
             RTE_ETH_FOREACH_DEV(portid)
             {
                 portids[index_port] = portid;
                 init_port_client(portid);
+                init_mbuf_txbuffer(portid, index_port);
                 ret = rte_eth_dev_start(portid);
                 if (ret != 0)
                 {
                     printf("failed to start device\n");
                 }
                 index_port++;
-                RTE_LCORE_FOREACH_WORKER(lcore_id)
-                {
-                    rte_eal_remote_launch(client_job, index_lcore, lcore_id);
-                    break;
-                }
+            }
+            
+            unsigned index_lcore = 0;
+
+            printf("Starting Picoquic (v%s) connection to server = %s, port = %d\n", PICOQUIC_VERSION, server_name, server_port);
+            RTE_LCORE_FOREACH_WORKER(lcore_id)
+            {
+                rte_eal_remote_launch(client_job, &portids[index_lcore], lcore_id);
+                index_lcore++;
             }
         }
         else
@@ -802,7 +842,6 @@ int main(int argc, char **argv)
                 RTE_LCORE_FOREACH_WORKER(lcore_id)
                 {
 
-                    portids[index_lcore];
                     rte_eal_remote_launch(client_job, &portids[index_lcore], lcore_id);
                     index_lcore++;
                 }

@@ -98,8 +98,11 @@ int rcv_encapsulate_send(proxy_ctx_t *cnx,proxy_ctx_t * ctx) {
         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
         return 0;
     }
+    printf("receiving\n");
+    printf("portid : %d\n", ctx->portid);
     pkt_recv = rte_eth_rx_burst(ctx->portid, ctx->queueid, m, MAX_PKT_BURST);
     if(pkt_recv > 0){
+        printf("packet received\n");
         struct rte_ipv4_hdr *ip_hdr;
         struct rte_udp_hdr *udp_hdr;
         ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(m, char *) + sizeof(struct rte_ether_hdr));
