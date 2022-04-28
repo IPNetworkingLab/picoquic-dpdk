@@ -68,6 +68,8 @@ struct rte_mempool *mb_pool;
 static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 static struct rte_ether_addr eth_addr;
+static struct rte_ether_addr eth_addr_peer;
+
 static struct rte_eth_conf port_conf = {
     .rxmode = {
         .split_hdr_size = 0,
@@ -77,6 +79,28 @@ static struct rte_eth_conf port_conf = {
     },
 };
 
+
+int str_to_mac(char *mac_txt, struct rte_ether_addr *mac_addr)
+{
+    int values[6];
+    int i;
+    if (6 == sscanf(mac_txt, "%x:%x:%x:%x:%x:%x%*c",
+                    &values[0], &values[1], &values[2],
+                    &values[3], &values[4], &values[5]))
+    {
+        /* convert to uint8_t */
+        for (i = 0; i < 6; ++i){
+            (mac_addr -> addr_bytes)[i] = (uint8_t)values[i];
+        }
+        return 0;
+    }
+
+    else
+    {
+        printf("invalid mac address : %s\n",mac_txt);
+        return -1;
+    }
+}
 void setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
                               struct rte_udp_hdr *udp_hdr,
                               uint16_t pkt_data_len)
@@ -250,12 +274,7 @@ lcore_hello(__rte_unused void *arg)
         printf("failed to init rx_queue\n");
     }
 
-    // changing mac addr and ether type
-    //  eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-    //  eth->ether_type = htons(2048);
-    //  rte_ether_addr_copy(&eth_addr, &eth->src_addr);
-    //  tmp = &eth->d_addr.addr_bytes[0];
-    //  *((uint64_t *)tmp) = 0;
+    
 
     printf("before start \n");
     ret = rte_eth_dev_start(0);
@@ -276,9 +295,12 @@ lcore_hello(__rte_unused void *arg)
     struct rte_ipv4_hdr ip_hdr;
     struct rte_udp_hdr rte_udp_hdr;
     struct rte_ether_hdr eth_hdr;
+
+    eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+    eth->ether_type = htons(2048);
+    rte_ether_addr_copy(&eth_addr, &eth->src_addr);
     while (1)
     {
-
         m = rte_pktmbuf_alloc(mb_pool);
 
         if (m == NULL)
@@ -287,10 +309,8 @@ lcore_hello(__rte_unused void *arg)
             rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
             return 0;
         }
-
-        // rte_pktmbuf_reset_headroom(m);
-        // m->l2_len = sizeof(struct rte_ether_hdr);
-        // m->l3_len = sizeof(struct rte_ipv4_hdr);
+        struct rte_ether_hdr *eth_ptr = &eth_hdr;
+        rte_ether_addr_copy(&eth_addr_peer, &eth_ptr->dst_addr);
         setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, 5);
         (&eth_hdr)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
         copy_buf_to_pkt(&eth_hdr, sizeof(struct rte_ether_hdr), m, offset);
@@ -306,8 +326,6 @@ lcore_hello(__rte_unused void *arg)
         m->pkt_len = offset;
         rte_eth_tx_burst(0, 0, &m, 1);
         printf("after transmit\n");
-
-        return 0;
     }
 }
 
@@ -318,11 +336,15 @@ int main(int argc, char **argv)
     ret = rte_eal_init(argc, argv);
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
-
+    argc -= ret;
+        argv += ret;
     unsigned int nb_mbufs = RTE_MAX(1 * (1 + 1 + MAX_PKT_BURST + 2 * MEMPOOL_CACHE_SIZE), 8192U);
     mb_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
                                       MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
                                       rte_socket_id());
+
+
+    str_to_mac(argv[1],&eth_addr_peer);
     /* call lcore_hello() on every worker lcore */
     // RTE_LCORE_FOREACH_WORKER(lcore_id)
     // {

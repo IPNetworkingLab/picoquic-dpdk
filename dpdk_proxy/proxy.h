@@ -24,10 +24,11 @@ typedef struct st_proxy_ctx_t {
     int portid;
     int queueid;
     struct rte_mempool *mb_pool;
+    struct rte_ether_addr *client_addr;
 
 } proxy_ctx_t;
 
-proxy_ctx_t* proxy_create_ctx(FILE* F);
+proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_pool,struct rte_ether_addr *eth_client_proxy_addr);
 
 int proxy_callback(picoquic_cnx_t* cnx,
     uint64_t stream_id, uint8_t* bytes, size_t length,

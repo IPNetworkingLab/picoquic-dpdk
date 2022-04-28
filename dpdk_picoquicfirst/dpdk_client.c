@@ -233,7 +233,8 @@ int quic_client(const char *ip_address_text, int server_port,
                 struct rte_eth_dev_tx_buffer *tx_buffer,
                 int proxy_portid,
                 int proxy_queuid,
-                struct rte_mempool *mb_pool_proxy)
+                struct rte_mempool *mb_pool_proxy,
+                struct rte_ether_addr *eth_client_proxy_addr)
 {
     /* Start: start the QUIC process with cert and key files */
     int ret = 0;
@@ -326,7 +327,7 @@ int quic_client(const char *ip_address_text, int server_port,
         if(config->alpn != NULL && strcmp(config->alpn, "proxy")==0){
             /* Set a proxy client */
             is_proxy = 1;
-            proxy_ctx = proxy_create_ctx(proxy_portid,proxy_queuid,mb_pool_proxy);
+            proxy_ctx = proxy_create_ctx(proxy_portid,proxy_queuid,mb_pool_proxy,eth_client_proxy_addr);
             if (proxy_ctx == NULL) {
                 fprintf(stdout, "Could not get ready to proxy\n");
                 return -1;

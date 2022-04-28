@@ -146,7 +146,7 @@ uint8_t *receive_packet(proxy_ctx_t ctx){
 
 
 
-proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_pool)
+proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_pool,struct rte_ether_addr *eth_client_proxy_addr)
 {
     proxy_ctx_t* ctx = (proxy_ctx_t*)malloc(sizeof(proxy_ctx_t));
 
@@ -155,6 +155,7 @@ proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_poo
         ctx->portid = portid;
         ctx-> queueid = queueid;
         ctx-> mb_pool = mb_pool;
+        ctx-> client_addr = eth_client_proxy_addr;
     }
     return ctx;
 }
@@ -195,15 +196,12 @@ int proxy_callback(picoquic_cnx_t* cnx,
             break;
         case picoquic_callback_ready:
             if (cnx->client_mode) {
-
-                if (ctx != NULL && ctx->F != NULL) {
-                    fprintf(ctx->F, "Sent: quack\n");
-                }
-                ret = do_quack_proxy(cnx);
+                rcv_encapsulate_send(cnx,ctx);
             }
             break;
         case picoquic_callback_datagram:
-            decapsulate_and_send(ctx,bytes);
+            printf("%s\n", bytes);
+            //decapsulate_and_send(ctx,bytes);
             /* Process the datagram, which contains an address and a QUIC packet */
             
             break;

@@ -54,7 +54,11 @@ int quic_server(const char* server_name,
                         struct sockaddr_storage *addr_from,
                         struct rte_ether_addr *mac_dst,
                         struct rte_mempool *mb_pool,
-                        struct rte_eth_dev_tx_buffer *tx_buffer)
+                        struct rte_eth_dev_tx_buffer *tx_buffer,
+                        int proxy_portid,
+                        int proxy_queueid,
+                        struct rte_mempool *mb_pool_proxy,
+                        struct rte_ether_addr eth_client_proxy_addr)
 {
     /* Start: start the QUIC process with cert and key files */
     int ret = 0;

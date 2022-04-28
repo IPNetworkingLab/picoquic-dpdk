@@ -131,14 +131,18 @@ static const char * test_scenario_default = "0:index.html;4:test.html;8:/1234567
 int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode, 
     void* callback_ctx, void * callback_arg);
 
-int quic_client(const char* ip_address_text, int server_port, 
-    picoquic_quic_config_t * config, int force_migration,
-    int nb_packets_before_key_update, char const * client_scenario_text, int handshake_test, int dpdk, int batching_size,unsigned portid,
-    unsigned queueid,
-                           struct sockaddr_storage *addr_from,
-                           struct rte_ether_addr *mac_dst,
-                           struct rte_mempool *mb_pool,
-                           struct rte_eth_dev_tx_buffer *tx_buffer);
+int quic_client(const char *ip_address_text, int server_port,
+                picoquic_quic_config_t *config, int force_migration,
+                int nb_packets_before_key_update, char const *client_scenario_text, int handshake_test, int dpdk, int batching_size, unsigned portid,
+                unsigned queueid,
+                struct sockaddr_storage *addr_from,
+                struct rte_ether_addr *mac_dst,
+                struct rte_mempool *mb_pool,
+                struct rte_eth_dev_tx_buffer *tx_buffer,
+                int proxy_portid,
+                int proxy_queuid,
+                struct rte_mempool *mb_pool_proxy,
+                struct rte_ether_addr *eth_client_proxy_addr);
             
 //server
 typedef struct st_server_loop_cb_t {
@@ -160,6 +164,10 @@ int quic_server(const char* server_name,
                         struct sockaddr_storage *addr_from,
                         struct rte_ether_addr *mac_dst,
                         struct rte_mempool *mb_pool,
-                        struct rte_eth_dev_tx_buffer *tx_buffer);
+                        struct rte_eth_dev_tx_buffer *tx_buffer,
+                        int proxy_portid,
+                        int proxy_queueid,
+                        struct rte_mempool *mb_pool_proxy,
+                        struct rte_ether_addr eth_client_proxy_addr);
 
 
