@@ -291,29 +291,32 @@ lcore_hello(__rte_unused void *arg)
         printf("fail to init pktmbuf\n");
         return 0;
     }
-    int offset = 0;
+
     struct rte_ipv4_hdr ip_hdr;
     struct rte_udp_hdr rte_udp_hdr;
-    struct rte_ether_hdr eth_hdr;
+    struct rte_ether_hdr *eth_hdr;
 
-    eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-    eth->ether_type = htons(2048);
-    rte_ether_addr_copy(&eth_addr, &eth->src_addr);
+    
     while (1)
     {
+        int offset = 0;
         m = rte_pktmbuf_alloc(mb_pool);
-
+        
         if (m == NULL)
         {
             printf("fail to init pktmbuf\n");
             rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
             return 0;
         }
-        struct rte_ether_hdr *eth_ptr = &eth_hdr;
-        rte_ether_addr_copy(&eth_addr_peer, &eth_ptr->dst_addr);
+        eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+
+        eth_hdr -> ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+
+        rte_ether_addr_copy(&eth_addr, &eth_hdr->src_addr);
+        rte_ether_addr_copy(&eth_addr_peer, &eth_hdr->dst_addr);
+    
         setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, 5);
-        (&eth_hdr)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-        copy_buf_to_pkt(&eth_hdr, sizeof(struct rte_ether_hdr), m, offset);
+        copy_buf_to_pkt(eth_hdr, sizeof(struct rte_ether_hdr), m, offset);
         offset += sizeof(struct rte_ether_hdr);
         copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
         offset += sizeof(struct rte_ipv4_hdr);
