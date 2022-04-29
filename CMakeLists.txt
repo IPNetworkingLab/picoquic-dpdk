@@ -158,12 +158,14 @@ set(PICOHTTP_LIBRARY_FILES
     picohttp/h3zero.c
     picohttp/quicperf.c
 	picohttp/siduck.c
+    dpdk_proxy/proxy.c
 )
 
 set(PICOHTTP_HEADERS
      picohttp/h3zero.h
      picohttp/democlient.h
-     picohttp/demoserver.h)
+     picohttp/demoserver.h
+     dpdk_proxy/proxy.h)
      
 set(DPDK_PICOQUIC_DEMO_HEADERS
     dpdk_picoquicdemo/dpdk_picoquicdemo.h)
@@ -224,6 +226,7 @@ add_executable(picoquicdemo
     picoquicfirst/getopt.c
 )
 
+# dpdk_picoquicdemo
 add_executable(dpdk_picoquicdemo
     dpdk_picoquicfirst/dpdk_picoquicdemo.c
     dpdk_picoquicfirst/getopt.c
@@ -253,10 +256,39 @@ target_link_libraries(dpdk_picoquicdemo
     PkgConfig::LIBDPDK
 )
 
-
 target_include_directories(picoquicdemo PRIVATE loglib picohttp)
-
 target_include_directories(dpdk_picoquicdemo PRIVATE loglib picohttp)
+target_include_directories(dpdk_picoquicdemo PRIVATE loglib dpdk_proxy)
+
+# udp sender
+
+add_executable(udpsender
+    dpdk_proxy/udpsender.c
+)
+
+target_link_libraries(udpsender
+    picoquic-core
+    ${PTLS_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    ${CMAKE_DL_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
+)
+
+# udp receiver
+
+add_executable(udpreceiver
+    dpdk_proxy/udpreceiver.c
+)
+
+target_link_libraries(udpreceiver
+    picoquic-core
+    ${PTLS_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    ${CMAKE_DL_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    PkgConfig::LIBDPDK
+)
 
 add_executable(picolog_t
     picolog/picolog.c

@@ -264,16 +264,16 @@ int picoquic_packet_loop(picoquic_quic_t* quic,
 
     /* Wait for packets */
     /* TODO: add stopping condition, was && (!just_once || !connection_done) */
-    time_t start,end;
-    double dif;
+    // time_t start,end;
+    // double dif;
 
-    time (&start);
+    // time (&start);
     // Do some calculation.
     
     
     while (ret == 0) {
-        time (&end);
-        dif = difftime (end,start);
+        // time (&end);
+        // dif = difftime (end,start);
         // if(dif > 10){
         //     return 0;
         // }
