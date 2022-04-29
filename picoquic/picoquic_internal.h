@@ -35,7 +35,7 @@
 extern "C" {
 #endif
 
-#define PICOQUIC_VERSION "0.34f"
+#define PICOQUIC_VERSION "1.01"
 
 #ifndef PICOQUIC_MAX_PACKET_SIZE
 #define PICOQUIC_MAX_PACKET_SIZE 1536
@@ -199,9 +199,7 @@ typedef enum {
 #define PICOQUIC_TWENTYFIRST_INTEROP_VERSION 0xFF000021
 #define PICOQUIC_POST_IESG_VERSION 0xFF000022
 #define PICOQUIC_V1_VERSION 0x00000001
-#define PICOQUIC_V2_VERSION 0x00000002
-#define PICOQUIC_V2_VERSION_DRAFT 0xFF020000
-#define PICOQUIC_V2_VERSION_DRAFT_01 0x709A50C4
+#define PICOQUIC_V2_VERSION 0x709a50c4
 #define PICOQUIC_INTERNAL_TEST_VERSION_1 0x50435130
 #define PICOQUIC_INTERNAL_TEST_VERSION_2 0x50435131
 
@@ -643,6 +641,9 @@ typedef struct st_picoquic_quic_t {
     unsigned int is_preemptive_repeat_enabled : 1; /* enable premptive repeat on new connections */
     unsigned int default_send_receive_bdp_frame : 1; /* enable sending and receiving BDP frame */
     unsigned int enforce_client_only : 1; /* Do not authorize incoming connections */
+    unsigned int is_flow_control_limited : 1; /* Enforce flow control limit for tests */
+    unsigned int test_large_server_flight : 1; /* Use TP to ensure server flight is at least 8K */
+
     picoquic_stateless_packet_t* pending_stateless_packet;
 
     picoquic_congestion_algorithm_t const* default_congestion_alg;
@@ -763,6 +764,7 @@ typedef struct st_picoquic_stream_head_t {
     uint64_t consumed_offset; /* amount of data consumed by the application */
     uint64_t fin_offset; /* If the fin mark is received, index of the byte after last */
     uint64_t maxdata_local; /* flow control limit of how much the peer is authorized to send */
+    uint64_t maxdata_local_acked; /* highest value in max stream data frame acked by the peer */
     uint64_t maxdata_remote; /* flow control limit of how much we authorize the peer to send */
     uint64_t local_error;
     uint64_t remote_error;
@@ -898,6 +900,7 @@ typedef struct st_picoquic_local_cnxid_t {
     uint64_t create_time;
     picoquic_connection_id_t cnx_id;
     picoquic_ack_context_t ack_ctx;
+    unsigned int is_acked;
 } picoquic_local_cnxid_t;
 
 /* Remote CID.
@@ -910,7 +913,9 @@ typedef struct st_picoquic_remote_cnxid_t {
     picoquic_connection_id_t cnx_id;
     uint8_t reset_secret[PICOQUIC_RESET_SECRET_SIZE];
     int nb_path_references;
-    int needs_removal;
+    unsigned int needs_removal : 1;
+    unsigned int retire_sent : 1;
+    unsigned int retire_acked : 1;
     picoquic_packet_context_t pkt_ctx;
 } picoquic_remote_cnxid_t;
 
@@ -1150,6 +1155,8 @@ typedef struct st_picoquic_cnx_t {
     unsigned int path_demotion_needed : 1; /* If at least one path was recently demoted */
     unsigned int alt_path_challenge_needed : 1; /* If at least one alt path challenge is needed or in progress */
     unsigned int is_handshake_finished : 1; /* If there are no more packets to ack or retransmit in initial  or handshake contexts */
+    unsigned int is_handshake_done_acked : 1; /* If the peer has acked the handshake done packet */
+    unsigned int is_new_token_acked : 1; /* Has the peer acked a new token? This assumes at most one new token sent per connection */
     unsigned int is_1rtt_received : 1; /* If at least one 1RTT packet has been received */
     unsigned int is_1rtt_acked : 1; /* If at least one 1RTT packet has been acked by the peer */
     unsigned int has_successful_probe : 1; /* At least one probe was successful */
@@ -1253,7 +1260,9 @@ typedef struct st_picoquic_cnx_t {
     uint64_t crypto_failure_count;
     /* Liveness detection */
     uint64_t latest_progress_time; /* last local time at which the connection progressed */
-
+    uint64_t latest_receive_time; /* last time something was received from the peer */
+    /* Close connection management */
+    uint64_t last_close_sent;
     /* Sequence and retransmission state */
     picoquic_packet_context_t pkt_ctx[picoquic_nb_packet_context];
     /* Acknowledgement state */
@@ -1303,14 +1312,17 @@ typedef struct st_picoquic_cnx_t {
     /* Flow control information */
     uint64_t data_sent;
     uint64_t data_received;
-    uint64_t maxdata_local;
-    uint64_t maxdata_remote;
-    uint64_t max_stream_id_bidir_local;
-    uint64_t max_stream_id_bidir_local_computed;
-    uint64_t max_stream_id_unidir_local;
-    uint64_t max_stream_id_unidir_local_computed;
-    uint64_t max_stream_id_bidir_remote;
-    uint64_t max_stream_id_unidir_remote;
+    uint64_t maxdata_local; /* Highest value sent to the peer */
+    uint64_t maxdata_local_acked; /* Highest value acked by the peer */
+    uint64_t maxdata_remote; /* Highest value received from the peer */
+    uint64_t max_stream_id_bidir_local; /* Highest value sent to the peer */
+    uint64_t max_stream_id_bidir_rank_acked; /* Highest rank value acked by the peer */
+    uint64_t max_stream_id_bidir_local_computed; /* Value computed from stream FIN but not yet sent */
+    uint64_t max_stream_id_bidir_remote; /* Highest value received from the peer */
+    uint64_t max_stream_id_unidir_local; /* Highest value sent to the peer */
+    uint64_t max_stream_id_unidir_rank_acked; /* Highest rank value acked by the peer */
+    uint64_t max_stream_id_unidir_local_computed;  /* Value computed from stream FIN but not yet sent */
+    uint64_t max_stream_id_unidir_remote; /* Highest value received from the peer */
 
     /* Queue for frames waiting to be sent */
     picoquic_misc_frame_header_t* first_misc_frame;
@@ -1438,6 +1450,8 @@ int picoquic_remove_not_before_cid(picoquic_cnx_t* cnx, uint64_t not_before, uin
 int picoquic_renew_path_connection_id(picoquic_cnx_t* cnx, picoquic_path_t* path_x);
 
 /* handling of retransmission queue */
+void picoquic_queue_for_retransmit(picoquic_cnx_t* cnx, picoquic_path_t* path_x, picoquic_packet_t* packet,
+    size_t length, uint64_t current_time);
 picoquic_packet_t* picoquic_dequeue_retransmit_packet(picoquic_cnx_t* cnx, picoquic_packet_context_t* pkt_ctx,
     picoquic_packet_t* p, int should_free);
 void picoquic_dequeue_retransmitted_packet(picoquic_cnx_t* cnx, picoquic_packet_context_t* pkt_ctx, picoquic_packet_t* p);
@@ -1598,7 +1612,7 @@ uint64_t picoquic_sack_list_last(picoquic_sack_list_t* first_sack);
 
 picoquic_sack_item_t* picoquic_sack_list_first_range(picoquic_sack_list_t* first_sack);
 
-int picoquic_sack_list_init(picoquic_sack_list_t* first_sack);
+void picoquic_sack_list_init(picoquic_sack_list_t* first_sack);
 
 int picoquic_sack_list_reset(picoquic_sack_list_t* first_sack, 
     uint64_t range_min, uint64_t range_max, uint64_t current_time);
@@ -1675,8 +1689,8 @@ void picoquic_update_max_stream_ID_local(picoquic_cnx_t* cnx, picoquic_stream_he
  *
  * May have to split a retransmitted stream frame if it does not fit in the new packet size */
 int picoquic_check_frame_needs_repeat(picoquic_cnx_t* cnx, const uint8_t* bytes,
-    size_t bytes_max, int* no_need_to_repeat, int* do_not_detect_spurious);
-
+    size_t bytes_max, picoquic_packet_type_enum p_type,
+    int* no_need_to_repeat, int* do_not_detect_spurious, int is_preemptive);
 uint8_t* picoquic_format_available_stream_frames(picoquic_cnx_t* cnx, uint8_t* bytes_next, uint8_t* bytes_max,
     int* more_data, int* is_pure_ack, int* stream_tried_and_failed, int* ret);
 uint8_t* picoquic_format_stream_frame_for_retransmit(picoquic_cnx_t* cnx, 
@@ -1697,7 +1711,7 @@ void picoquic_set_ack_needed(picoquic_cnx_t* cnx, uint64_t current_time, picoqui
 /* If the packet contained an ACK frame, perform the ACK of ACK pruning logic.
  * Record stream data as acknowledged, signal datagram frames as acknowledged.
  */
-void picoquic_process_possible_ack_of_ack_frame(picoquic_cnx_t* cnx, picoquic_packet_t* p,
+void picoquic_process_ack_of_frames(picoquic_cnx_t* cnx, picoquic_packet_t* p,
     int is_spurious, uint64_t current_time);
 
 /* Coding and decoding of frames */

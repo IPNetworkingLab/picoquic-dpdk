@@ -792,6 +792,7 @@ int picoquic_parse_header_and_decrypt(
                             memcmp(bytes + length - PICOQUIC_RESET_SECRET_SIZE,
                             (*pcnx)->path[0]->p_remote_cnxid->reset_secret, PICOQUIC_RESET_SECRET_SIZE) == 0) {
                             ret = PICOQUIC_ERROR_STATELESS_RESET;
+                            picoquic_log_app_message(*pcnx, "Decrypt error, matching reset secret, ret = %d", ret);
                         }
                         else {
                             if (ret != PICOQUIC_ERROR_AEAD_NOT_READY) {
@@ -822,12 +823,15 @@ int picoquic_parse_header_and_decrypt(
                         *pcnx = picoquic_cnx_by_secret(quic, bytes + length - PICOQUIC_RESET_SECRET_SIZE, addr_from);
                         if (*pcnx != NULL) {
                             ret = PICOQUIC_ERROR_STATELESS_RESET;
+                            picoquic_log_app_message(*pcnx, "Found connection from reset secret, ret = %d", ret);
                         }
                     }
                 }
             }
         }
         else {
+            /* Clear text packet. Copy content to decrypted data */
+            memmove(decrypted_data->data, bytes, length);
             *consumed = length;
         }
     }
@@ -866,7 +870,12 @@ int picoquic_incoming_version_negotiation(
         DBG_PRINTF("Unexpected VN packet (%d), state %d, type: %d, epoch: %d, pc: %d, pn: %d\n",
             cnx->client_mode, cnx->cnx_state, ph->ptype, ph->epoch, ph->pc, (int)ph->pn);
     } else if (picoquic_compare_connection_id(&ph->dest_cnx_id, &cnx->path[0]->p_local_cnxid->cnx_id) != 0 || ph->vn != 0) {
-        /* Packet that do not match the "echo" checks should be logged and ignored */
+        /* Packet destination ID does not match local CID, should be logged and ignored */
+        DBG_PRINTF("VN packet (%d), does not pass echo test.\n", cnx->client_mode);
+        ret = PICOQUIC_ERROR_DETECTED;
+    }
+    else if (picoquic_compare_connection_id(&ph->srce_cnx_id, &cnx->initial_cnxid) != 0 || ph->vn != 0) {
+        /* Packet destination ID does not match initial DCID, should be logged and ignored */
         DBG_PRINTF("VN packet (%d), does not pass echo test.\n", cnx->client_mode);
         ret = PICOQUIC_ERROR_DETECTED;
     } else {
@@ -881,16 +890,19 @@ int picoquic_incoming_version_negotiation(
                     cnx->client_mode, length, nb_vn);
                 ret = PICOQUIC_ERROR_DETECTED;
                 break;
-            } else if (vn == cnx->proposed_version) {
+            } else if (vn == cnx->proposed_version || vn == 0) {
                 DBG_PRINTF("VN packet (%d), proposed_version[%d] = 0x%08x.\n", cnx->client_mode, nb_vn, vn);
                 ret = PICOQUIC_ERROR_DETECTED;
                 break;
             }
-            nb_vn++;
+            else if (picoquic_get_version_index(vn) >= 0){
+                /* The VN packet proposes a valid version that is locally supported */
+                nb_vn++;
+            }
         }
         if (ret == 0) {
             if (nb_vn == 0) {
-                DBG_PRINTF("VN packet (%d), does not propose any version.\n", cnx->client_mode);
+                DBG_PRINTF("VN packet (%d), does not propose any interesting version.\n", cnx->client_mode);
                 ret = PICOQUIC_ERROR_DETECTED;
             }
             else {
@@ -1508,7 +1520,8 @@ int picoquic_incoming_server_initial(
                             break;
                         }
                     }
-                    if (ack_needed) {
+                    if (ack_needed && cnx->retry_token_length == 0 && cnx->crypto_context[1].aead_encrypt == NULL) {
+                        /* perform the test on new paths, but not if resuming an existing path or session */
                         picoquic_log_app_message(cnx, "Server initial too short (%zu bytes)", packet_length);
                         ret = PICOQUIC_ERROR_INITIAL_TOO_SHORT;
                     }
@@ -2335,6 +2348,7 @@ int picoquic_incoming_segment(
         if (cnx != NULL && cnx->cnx_state != picoquic_state_disconnected &&
             ph.ptype != picoquic_packet_version_negotiation) {
             cnx->nb_packets_received++;
+            cnx->latest_receive_time = current_time;
             /* Mark the sequence number as received */
             ret = picoquic_record_pn_received(cnx, ph.pc, ph.l_cid, ph.pn64, receive_time);
             /* Perform ECN accounting */

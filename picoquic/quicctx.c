@@ -97,7 +97,7 @@ const picoquic_version_parameters_t picoquic_supported_versions[] = {
         PICOQUIC_LABEL_QUIC_V1_KEY_BASE,
         PICOQUIC_LABEL_V1_TRAFFIC_UPDATE,
         PICOQUIC_V1_VERSION},
-    { PICOQUIC_V2_VERSION_DRAFT_01,
+    { PICOQUIC_V2_VERSION,
         sizeof(picoquic_cleartext_v2_salt),
         picoquic_cleartext_v2_salt,
         sizeof(picoquic_retry_protection_v2),
@@ -105,14 +105,6 @@ const picoquic_version_parameters_t picoquic_supported_versions[] = {
         PICOQUIC_LABEL_QUIC_V2_KEY_BASE,
         PICOQUIC_LABEL_V2_TRAFFIC_UPDATE,
         PICOQUIC_V2_VERSION},
-    { PICOQUIC_V2_VERSION_DRAFT,
-        sizeof(picoquic_cleartext_v2_salt),
-        picoquic_cleartext_v2_salt,
-        sizeof(picoquic_retry_protection_v2),
-        picoquic_retry_protection_v2,
-        PICOQUIC_LABEL_QUIC_V2_KEY_BASE,
-        PICOQUIC_LABEL_V2_TRAFFIC_UPDATE,
-        PICOQUIC_V1_VERSION},
     { PICOQUIC_POST_IESG_VERSION,
         sizeof(picoquic_cleartext_v1_salt),
         picoquic_cleartext_v1_salt,
@@ -2105,6 +2097,8 @@ int picoquic_enqueue_cnxid_stash(picoquic_cnx_t* cnx, uint64_t retire_before_nex
         if (picoquic_compare_connection_id(&cnx_id, &next_stash->cnx_id) == 0)
         {
             if (next_stash->sequence == sequence &&
+                cnx_id.id_len == next_stash->cnx_id.id_len &&
+                (cnx_id.id_len == 0 || memcmp(cnx_id.id, next_stash->cnx_id.id, cnx_id.id_len) == 0) &&
                 memcmp(secret_bytes, next_stash->reset_secret, PICOQUIC_RESET_SECRET_SIZE) == 0) {
                 is_duplicate = 1;
             }
@@ -2120,7 +2114,7 @@ int picoquic_enqueue_cnxid_stash(picoquic_cnx_t* cnx, uint64_t retire_before_nex
             ret = PICOQUIC_TRANSPORT_PROTOCOL_VIOLATION;
         }
         else {
-            if (next_stash->sequence < retire_before_next) {
+            if (next_stash->sequence < retire_before_next || next_stash->retire_sent) {
                 nb_cid_retired_before++;
             }
             nb_cid_received++;
@@ -2251,14 +2245,19 @@ void picoquic_dereference_stashed_cnxid(picoquic_cnx_t* cnx, picoquic_path_t * p
 {
     if (path_x->p_remote_cnxid != NULL) {
         if (path_x->p_remote_cnxid->nb_path_references <= 1) {
-            if (!is_deleting_cnx) {
+            if (!is_deleting_cnx && !path_x->p_remote_cnxid->retire_sent) {
                 /* if this was the last reference, retire the old cnxid */
                 if (picoquic_queue_retire_connection_id_frame(cnx, path_x->p_remote_cnxid->sequence) != 0) {
                     DBG_PRINTF("Could not properly retire CID[%" PRIu64 "]", path_x->p_remote_cnxid->sequence);
                 }
+                else {
+                    path_x->p_remote_cnxid->retire_sent = 1;
+                }
             }
-            /* Delete and perhaps recycle the queued packets */
-            (void)picoquic_remove_stashed_cnxid(cnx, path_x->p_remote_cnxid, NULL, !is_deleting_cnx);
+            if (is_deleting_cnx || path_x->p_remote_cnxid->retire_acked) {
+                /* Delete and perhaps recycle the queued packets */
+                (void)picoquic_remove_stashed_cnxid(cnx, path_x->p_remote_cnxid, NULL, !is_deleting_cnx);
+            }
         }
         else {
             path_x->p_remote_cnxid->nb_path_references--;
@@ -2274,11 +2273,20 @@ int picoquic_remove_not_before_cid(picoquic_cnx_t* cnx, uint64_t not_before, uin
     picoquic_remote_cnxid_t * previous_stash = NULL;
 
     while (ret == 0 && next_stash != NULL) {
-        next_stash->needs_removal = (next_stash->sequence < not_before);
+        next_stash->needs_removal |= (next_stash->sequence < not_before);
         if (next_stash->needs_removal && next_stash->nb_path_references == 0) {
-            ret = picoquic_queue_retire_connection_id_frame(cnx, next_stash->sequence);
-            if (ret == 0) {
+            if (!next_stash->retire_sent) {
+                ret = picoquic_queue_retire_connection_id_frame(cnx, next_stash->sequence);
+                if (ret == 0) {
+                    next_stash->retire_sent = 1;
+                }
+            }
+            if (ret == 0 && next_stash->retire_acked) {
                 next_stash = picoquic_remove_stashed_cnxid(cnx, next_stash, previous_stash, 1);
+            }
+            else {
+                previous_stash = next_stash;
+                next_stash = next_stash->next;
             }
         }
         else {
@@ -2417,7 +2425,10 @@ picoquic_stream_data_node_t* picoquic_stream_data_node_alloc(picoquic_quic_t* qu
             malloc(sizeof(picoquic_stream_data_node_t));
 
         if (stream_data != NULL) {
-            memset(stream_data, 0, offsetof(struct st_picoquic_stream_data_node_t, data));
+            /* It might be sufficient to zero the metadata, but zeroing everything
+             * appears safer, and does not confuse checkers like valgrind.
+             */
+            memset(stream_data, 0, sizeof(picoquic_stream_data_node_t));
             stream_data->quic = quic;
             quic->nb_data_nodes_allocated++;
         }
@@ -2464,7 +2475,7 @@ void picoquic_clear_stream(picoquic_stream_head_t* stream)
         }
         free(next);
     }
-
+    stream->send_queue = NULL;
     picosplay_empty_tree(&stream->stream_data_tree);
     picoquic_sack_list_free(&stream->sack_list);
 }
@@ -2593,10 +2604,7 @@ picoquic_stream_head_t* picoquic_create_stream(picoquic_cnx_t* cnx, uint64_t str
     picoquic_stream_head_t* stream = (picoquic_stream_head_t*)malloc(sizeof(picoquic_stream_head_t));
     if (stream != NULL) {
         memset(stream, 0, sizeof(picoquic_stream_head_t));
-        if (picoquic_sack_list_init(&stream->sack_list) != 0) {
-            free(stream);
-            stream = NULL;
-        }
+        picoquic_sack_list_init(&stream->sack_list);
     }
 
     if (stream != NULL){
@@ -3079,9 +3087,14 @@ picoquic_cnx_t* picoquic_create_cnx(picoquic_quic_t* quic,
         cnx->callback_ctx = quic->default_callback_ctx;
         cnx->congestion_alg = quic->default_congestion_alg;
         cnx->is_preemptive_repeat_enabled = quic->is_preemptive_repeat_enabled;
+        cnx->is_flow_control_limited = quic->is_flow_control_limited;
 
         /* Initialize key rotation interval to default value */
         cnx->crypto_epoch_length_max = quic->crypto_epoch_length_max;
+
+        for (int epoch = 0; epoch < PICOQUIC_NUMBER_OF_EPOCHS; epoch++) {
+            cnx->tls_stream[epoch].send_queue = NULL;
+        }
 
         /* Perform different initializations for clients and servers */
         if (cnx->client_mode) {
@@ -3120,9 +3133,6 @@ picoquic_cnx_t* picoquic_create_cnx(picoquic_quic_t* quic,
             if (cnx->quic->current_number_half_open > cnx->quic->max_half_open_before_retry) {
                 cnx->quic->check_token = 1;
             }
-            for (int epoch = 0; epoch < PICOQUIC_NUMBER_OF_EPOCHS; epoch++) {
-                cnx->tls_stream[epoch].send_queue = NULL;
-            }
             cnx->cnx_state = picoquic_state_server_init;
             cnx->initial_cnxid = initial_cnx_id;
             cnx->path[0]->p_remote_cnxid->cnx_id = remote_cnx_id;
@@ -3151,6 +3161,7 @@ picoquic_cnx_t* picoquic_create_cnx(picoquic_quic_t* quic,
         cnx->ack_ignore_order_remote = 0;
 
         cnx->latest_progress_time = start_time;
+        cnx->latest_receive_time = start_time;
 
         for (int epoch = 0; epoch < PICOQUIC_NUMBER_OF_EPOCHS; epoch++) {
             cnx->tls_stream[epoch].stream_id = 0;
@@ -3166,7 +3177,7 @@ picoquic_cnx_t* picoquic_create_cnx(picoquic_quic_t* quic,
             cnx->tls_stream[epoch].maxdata_remote = UINT64_MAX;
 
             picosplay_init_tree(&cnx->tls_stream[epoch].stream_data_tree, picoquic_stream_data_node_compare, picoquic_stream_data_node_create, picoquic_stream_data_node_delete, picoquic_stream_data_node_value);
-
+            picoquic_sack_list_init(&cnx->tls_stream[epoch].sack_list);
             /* No need to reset the state flags, as they are not used for the crypto stream */
         }
         
@@ -3856,7 +3867,7 @@ void picoquic_delete_cnx(picoquic_cnx_t* cnx)
         picoquic_remove_cnx_from_list(cnx);
         picoquic_remove_cnx_from_wake_list(cnx);
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PICOQUIC_NUMBER_OF_EPOCHS; i++) {
             picoquic_crypto_context_free(&cnx->crypto_context[i]);
         }
 
@@ -4249,8 +4260,7 @@ int picoquic_process_version_upgrade(picoquic_cnx_t* cnx, int old_version_index,
     if (new_version_index == old_version_index) {
         /* not an upgrade, nothing to do. */
         ret = 0;
-    } else if (picoquic_supported_versions[new_version_index].version == PICOQUIC_V2_VERSION_DRAFT || 
-        picoquic_supported_versions[new_version_index].version == PICOQUIC_V2_VERSION_DRAFT_01 ) {
+    } else if (picoquic_supported_versions[new_version_index].version == PICOQUIC_V2_VERSION) {
         if (picoquic_supported_versions[old_version_index].version == PICOQUIC_V1_VERSION) {
             /* Supported */
             ret = 0;

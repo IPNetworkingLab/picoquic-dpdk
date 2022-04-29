@@ -51,6 +51,8 @@ static const picoquic_test_def_t test_table[] = {
     { "splay", splay_test },
     { "cnxcreation", cnxcreation_test },
     { "parseheader", parseheadertest },
+    { "incoming_initial", incoming_initial_test },
+    { "header_length", header_length_test },
     { "pn2pn64", pn2pn64test },
     { "intformat", intformattest },
     { "varint", varint_test },
@@ -91,6 +93,7 @@ static const picoquic_test_def_t test_table[] = {
     { "silence_test", tls_api_silence_test },
     { "version_negotiation", tls_api_version_negotiation_test },
     { "version_invariant", tls_api_version_invariant_test },
+    { "version_negotiation_spoof", test_version_negotiation_spoof },
     { "first_loss", tls_api_client_first_loss_test },
     { "second_loss", tls_api_client_second_loss_test },
     { "SH_loss", tls_api_server_first_loss_test },
@@ -101,8 +104,10 @@ static const picoquic_test_def_t test_table[] = {
     { "datagram_rt", datagram_rt_test },
     { "datagram_loss", datagram_loss_test },
     { "datagram_size", datagram_size_test },
-    { "ddos_amplification", ddos_amplification_test},
-    { "ddos_amplification_0rtt", ddos_amplification_0rtt_test},
+    { "datagram_small", datagram_small_test },
+    { "ddos_amplification", ddos_amplification_test },
+    { "ddos_amplification_0rtt", ddos_amplification_0rtt_test },
+    { "ddos_amplification_8k", ddos_amplification_8k_test },
     { "blackhole", blackhole_test },
     { "no_ack_frequency", no_ack_frequency_test },
     { "connection_drop", connection_drop_test },
@@ -118,8 +123,10 @@ static const picoquic_test_def_t test_table[] = {
     { "tls_api_oneway_stream", tls_api_oneway_stream_test },
     { "tls_api_q_and_r_stream", tls_api_q_and_r_stream_test },
     { "tls_api_q2_and_r2_stream", tls_api_q2_and_r2_stream_test },
-    { "tls_api_server_reset", tls_api_server_reset_test },
-    { "tls_api_bad_server_reset", tls_api_bad_server_reset_test },
+    { "stateless_reset", stateless_reset_test },
+    { "stateless_reset_bad", stateless_reset_bad_test },
+    { "stateless_reset_client", stateless_reset_client_test },
+    { "stateless_reset_handshake", stateless_reset_handshake_test },
     { "tls_api_very_long_stream", tls_api_very_long_stream_test },
     { "tls_api_very_long_max", tls_api_very_long_max_test },
     { "tls_api_very_long_with_err", tls_api_very_long_with_err_test },
@@ -228,6 +235,13 @@ static const picoquic_test_def_t test_table[] = {
     { "perflog", perflog_test },
     { "nat_rebinding_stress", rebinding_stress_test },
     { "random_padding", random_padding_test },
+    { "ec00_zero", ec00_zero_test },
+    { "ec2f_second_flight", ec2f_second_flight_nack_test },
+    { "eccf_corrupted_fuzz", eccf_corrupted_file_fuzz_test },
+    { "eca1_amplification_loss", eca1_amplification_loss_test },
+    { "ecf1_final_loss", ecf1_final_loss_test },
+    { "ec5c_silly_cid", ec5c_silly_cid_test },
+    { "ec9a_preemptive_amok", ec9a_preemptive_amok_test },
     { "error_reason", error_reason_test },
     { "ready_to_send", ready_to_send_test },
     { "ready_to_skip", ready_to_skip_test },
@@ -258,6 +272,7 @@ static const picoquic_test_def_t test_table[] = {
     { "satellite_jitter", satellite_jitter_test },
     { "satellite_medium", satellite_medium_test },
     { "satellite_preemptive", satellite_preemptive_test },
+    { "satellite_preemptive_fc", satellite_preemptive_fc_test },
     { "satellite_small", satellite_small_test },
     { "satellite_small_up", satellite_small_up_test },
     { "satellite_cubic", satellite_cubic_test },
@@ -389,6 +404,7 @@ int usage(char const * argv0)
     fprintf(stderr, "  -f nnn            Run fuzz for nnn minutes.\n");
     fprintf(stderr, "  -c nnn ccc        Run connection stress for nnn minutes, ccc connections.\n");
     fprintf(stderr, "  -d ppp uuu dir    Run connection ddoss for ppp packets, uuu usec intervals,\n");
+    fprintf(stderr, "  -F nnn            Run the corrupt file fuzzer nnn times,\n");
     fprintf(stderr, "                    logs in dir. No logs if dir=\"-\"");
     fprintf(stderr, "  -n                Disable debug prints.\n");
     fprintf(stderr, "  -r                Retry failed tests with debug print enabled.\n");
@@ -417,13 +433,15 @@ int main(int argc, char** argv)
     int nb_test_tried = 0;
     int nb_test_failed = 0;
     int stress_minutes = 0;
-    int found_exclusion = 0;
+    int auto_bypass = 0;
+    int cf_rounds = 0;
     test_status_t * test_status = (test_status_t *) calloc(nb_tests, sizeof(test_status_t));
     int opt;
     int do_fuzz = 0;
     int do_stress = 0;
     int do_cnx_stress = 0;
     int do_cnx_ddos = 0;
+    int do_cf_fuzz = 0;
     int disable_debug = 0;
     int retry_failed_test = 0;
     int cnx_stress_minutes = 0;
@@ -432,6 +450,8 @@ int main(int argc, char** argv)
     int cnx_ddos_interval = 0;
     char const* cnx_ddos_dir = NULL;
 
+    debug_printf_push_stream(stderr);
+
     if (test_status == NULL)
     {
         fprintf(stderr, "Could not allocate memory.\n");
@@ -439,18 +459,29 @@ int main(int argc, char** argv)
     }
     else
     {
-        while (ret == 0 && (opt = getopt(argc, argv, "f:s:c:d:S:x:nrh")) != -1) {
+        memset(test_status, 0, nb_tests * sizeof(test_status_t));
+
+        while (ret == 0 && (opt = getopt(argc, argv, "c:d:f:F:s:S:x:nrh")) != -1) {
             switch (opt) {
             case 'x': {
-                int test_number = get_test_number(optarg);
+                optind--;
+                while (optind < argc) {
+                    char const* tn = argv[optind];
+                    if (tn[0] == '-') {
+                        break;
+                    }
+                    else {
+                        int test_number = get_test_number(tn);
 
-                if (test_number < 0) {
-                    fprintf(stderr, "Incorrect test name: %s\n", optarg);
-                    ret = usage(argv[0]);
-                }
-                else {
-                    test_status[test_number] = test_excluded;
-                    found_exclusion = 1;
+                        if (test_number < 0) {
+                            fprintf(stderr, "Incorrect test name: %s\n", tn);
+                            ret = usage(argv[0]);
+                        }
+                        else {
+                            test_status[test_number] = test_excluded;
+                        }
+                        optind++;
+                    }
                 }
                 break;
             }
@@ -459,6 +490,14 @@ int main(int argc, char** argv)
                 stress_minutes = atoi(optarg);
                 if (stress_minutes <= 0) {
                     fprintf(stderr, "Incorrect stress minutes: %s\n", optarg);
+                    ret = usage(argv[0]);
+                }
+                break;
+            case 'F':
+                do_cf_fuzz = 1;
+                cf_rounds = atoi(optarg);
+                if (cf_rounds <= 0) {
+                    fprintf(stderr, "Incorrect number of cf_fuzz rounds: %s\n", optarg);
                     ret = usage(argv[0]);
                 }
                 break;
@@ -523,110 +562,131 @@ int main(int argc, char** argv)
                 break;
             }
         }
+        /* If one of the stressers was specified, do not run any other test by default */
+        if (do_stress || do_fuzz || do_cnx_stress || do_cnx_ddos || do_cf_fuzz) {
+            auto_bypass = 1;
+            for (size_t i = 0; i < nb_tests; i++) {
+                test_status[i] = test_excluded;
+            }
+        }
+
+        /* If the argument list ends with a list of selected tests, mark all other tests as excluded */
+        if (optind < argc) {
+            auto_bypass = 1;
+            for (size_t i = 0; i < nb_tests; i++) {
+                test_status[i] = test_excluded;
+            }
+            while (optind < argc) {
+                int test_number = get_test_number(argv[optind]);
+
+                if (test_number < 0) {
+                    fprintf(stderr, "Incorrect test name: %s\n", optarg);
+                    ret = usage(argv[0]);
+                }
+                else {
+                    test_status[test_number] = 0;
+                }
+                optind++;
+            }
+        }
+
+        /* If one of the stressers is requested, just execute it,
+         */
+
+        if (ret == 0 && (do_stress || do_fuzz || do_cnx_stress || do_cnx_ddos || do_cf_fuzz)) {
+            debug_printf_suspend();
+            if (do_stress || do_fuzz) {
+                picoquic_stress_test_duration = stress_minutes;
+                picoquic_stress_test_duration *= 60000000;
+            }
+
+            for (size_t i = 0; i < nb_tests; i++) {
+                if ((do_stress && strcmp(test_table[i].test_name, "stress") == 0) ||
+                    (do_fuzz && strcmp(test_table[i].test_name, "fuzz") == 0)) {
+                    /* Run the stress test or the fuzz test as specified */
+                    nb_test_tried++;
+                    if (do_one_test(i, stdout) != 0) {
+                        test_status[i] = test_failed;
+                        nb_test_failed++;
+                        ret = -1;
+                    }
+                    else {
+                        test_status[i] = test_success;
+                    }
+                }
+                else if (do_cnx_stress && strcmp(test_table[i].test_name, "cnx_stress") == 0) {
+                    uint64_t duration = ((uint64_t)cnx_stress_minutes) * 60000000ull;
+                    nb_test_tried++;
+                    if (cnx_stress_do_test(duration, cnx_stress_nb_cnx, 1) != 0) {
+                        test_status[i] = test_failed;
+                        nb_test_failed++;
+                        ret = -1;
+                    }
+                    else {
+                        test_status[i] = test_success;
+                    }
+                }
+                else if (do_cnx_ddos && strcmp(test_table[i].test_name, "cnx_ddos") == 0) {
+                    nb_test_tried++;
+                    if (cnx_ddos_test_loop(cnx_ddos_packets, cnx_ddos_interval, cnx_ddos_dir) != 0) {
+                        test_status[i] = test_failed;
+                        nb_test_failed++;
+                        ret = -1;
+                    }
+                    else {
+                        test_status[i] = test_success;
+                    }
+                }
+                else if (do_cf_fuzz && strcmp(test_table[i].test_name, "eccf_corrupted_fuzz") == 0) {
+                    uint64_t r_seed = picoquic_current_time();
+                    FILE* F = picoquic_file_open("ECCF_Fuzz_report.csv", "w");
+
+                    if (F == NULL) {
+                        test_status[i] = test_failed;
+                        nb_test_failed++;
+                        ret = -1;
+                    }
+                    else {
+                        (void)fprintf(F, "Seed_hex, Seed, Ret, Elapsed\n");
+                        eccf_corrupted_file_fuzz(cf_rounds, r_seed, F);
+                        picoquic_file_close(F);
+                        test_status[i] = test_success;
+                    }
+                }
+            }
+            debug_printf_resume();
+        }
+
 
         if (disable_debug) {
             debug_printf_suspend();
         }
         else {
-            debug_printf_push_stream(stderr);
+            debug_printf_resume();
         }
 
-        if (ret == 0 && (do_stress || do_fuzz || do_cnx_stress || do_cnx_ddos)) {
-            if (optind >= argc && found_exclusion == 0) {
-                for (size_t i = 0; i < nb_tests; i++) {
-                    if (strcmp(test_table[i].test_name, "stress") == 0)
-                    {
-                        if (do_stress == 0) {
-                            test_status[i] = test_excluded;
-                        }
-                    }
-                    else if (strcmp(test_table[i].test_name, "fuzz") == 0) {
-                        if (do_fuzz == 0) {
-                            test_status[i] = test_excluded;
-                        }
-                    }
-                    else if (strcmp(test_table[i].test_name, "cnx_stress") == 0) {
-                        if (do_cnx_stress == 0) {
-                            test_status[i] = test_excluded;
-                        }
-                    }
-                    else if (strcmp(test_table[i].test_name, "cnx_ddos") == 0) {
-                        if (do_cnx_ddos == 0) {
-                            test_status[i] = test_excluded;
-                        }
+        /* Execute now all the tests that were not excluded */
+        if (ret == 0) {
+            for (size_t i = 0; i < nb_tests; i++) {
+                if (test_status[i] == test_not_run) {
+                    nb_test_tried++;
+                    if (do_one_test(i, stdout) != 0) {
+                        test_status[i] = test_failed;
+                        nb_test_failed++;
+                        ret = -1;
                     }
                     else {
-                        test_status[i] = test_excluded;
+                        test_status[i] = test_success;
                     }
                 }
-                picoquic_stress_test_duration = stress_minutes;
-                picoquic_stress_test_duration *= 60000000;
-            }
-        }
-
-        if (ret == 0)
-        {
-            if (optind >= argc) {
-                for (size_t i = 0; i < nb_tests; i++) {
-                    if (test_status[i] == test_not_run) {
-                        nb_test_tried++;
-                        if (do_cnx_stress && strcmp(test_table[i].test_name, "cnx_stress") == 0) {
-                            uint64_t duration = ((uint64_t)cnx_stress_minutes) * 60000000ull;
-                            if (cnx_stress_do_test(duration, cnx_stress_nb_cnx,1) != 0) {
-                                test_status[i] = test_failed;
-                                nb_test_failed++;
-                                ret = -1;
-                            } else {
-                                test_status[i] = test_success;
-                            }
-                        }
-                        else if (do_cnx_ddos && strcmp(test_table[i].test_name, "cnx_ddos") == 0) {
-                            if (cnx_ddos_test_loop(cnx_ddos_packets, cnx_ddos_interval, cnx_ddos_dir) != 0) {
-                                test_status[i] = test_failed;
-                                nb_test_failed++;
-                                ret = -1;
-                            }
-                            else {
-                                test_status[i] = test_success;
-                            }
-                        }
-                        else if (do_one_test(i, stdout) != 0) {
-                            test_status[i] = test_failed;
-                            nb_test_failed++;
-                            ret = -1;
-                        }
-                        else {
-                            test_status[i] = test_success;
-                        }
-                    }
-                    else if (!(do_cnx_stress || do_fuzz || do_stress || do_cnx_ddos)) {
-                        fprintf(stdout, "Test number %d (%s) is bypassed.\n", (int)i, test_table[i].test_name);
-                    }
-                }
-            }
-            else {
-                for (int arg_num = optind; arg_num < argc; arg_num++) {
-                    int test_number = get_test_number(argv[arg_num]);
-
-                    if (test_number < 0) {
-                        fprintf(stderr, "Incorrect test name: %s\n", argv[arg_num]);
-                        ret = usage(argv[0]);
-                    }
-                    else {
-                        nb_test_tried++;
-                        if (do_one_test(test_number, stdout) != 0) {
-                            test_status[test_number] = test_failed;
-                            nb_test_failed++;
-                            ret = -1;
-                        }
-                        else if (test_status[test_number] == test_not_run) {
-                            test_status[test_number] = test_success;
-                        }
-                        break;
-                    }
+                else if (!auto_bypass && test_status[i] == test_excluded) {
+                    fprintf(stdout, "Test number %d (%s) is bypassed.\n", (int)i, test_table[i].test_name);
                 }
             }
         }
+
+        /* Report status, and if specified retry 
+         */
 
         if (nb_test_tried > 1) {
             fprintf(stdout, "Tried %d tests, %d fail%s.\n", nb_test_tried,
@@ -643,31 +703,30 @@ int main(int argc, char** argv)
             fprintf(stdout, "\n");
 
             if (disable_debug && retry_failed_test) {
-                /* debug_printf_push_stream(stderr); */
                 debug_printf_resume();
                 ret = 0;
                 for (size_t i = 0; i < nb_tests; i++) {
-                    int is_fuzz = 0;
-                    if (strcmp("stress", test_table[i].test_name) == 0 ||
-                        strcmp("fuzz", test_table[i].test_name) == 0 ||
-                        strcmp("fuzz_initial", test_table[i].test_name) == 0) {
-                        is_fuzz = 1;
-                    }
                     if (test_status[i] == test_failed) {
-                        fprintf(stdout, "Retrying %s:\n", test_table[i].test_name);
-                        if (is_fuzz) {
-                            debug_printf_suspend();
-                        }
-                        if (do_one_test(i, stdout) != 0) {
-                            test_status[i] = test_failed;
+                        if (strcmp("stress", test_table[i].test_name) == 0 ||
+                            strcmp("fuzz", test_table[i].test_name) == 0 ||
+                            strcmp("fuzz_initial", test_table[i].test_name) == 0 ||
+                            strcmp(test_table[i].test_name, "cnx_stress") == 0 ||
+                            strcmp(test_table[i].test_name, "cnx_ddos") == 0 ||
+                            strcmp(test_table[i].test_name, "eccf_corrupted_fuzz") == 0)
+                        {
+                            fprintf(stdout, "Cannot retry %s:\n", test_table[i].test_name);
                             ret = -1;
                         }
                         else {
-                            /* This was a Heisenbug.. */
-                            test_status[i] = test_success;
-                        }
-                        if (is_fuzz) {
-                            debug_printf_resume();
+                            fprintf(stdout, "Retrying %s:\n", test_table[i].test_name);
+                            if (do_one_test(i, stdout) != 0) {
+                                test_status[i] = test_failed;
+                                ret = -1;
+                            }
+                            else {
+                                /* This was a Heisenbug.. */
+                                test_status[i] = test_success;
+                            }
                         }
                     }
                 }

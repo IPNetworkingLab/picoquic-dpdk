@@ -402,7 +402,7 @@ static int tls_api_inject_packet(picoquic_test_tls_api_ctx_t* test_ctx, int from
     return ret;
 }
 
-static int test_api_queue_initial_queries(picoquic_test_tls_api_ctx_t* test_ctx, uint64_t stream_id)
+int test_api_queue_initial_queries(picoquic_test_tls_api_ctx_t* test_ctx, uint64_t stream_id)
 {
     int ret = 0;
     int more_stream = 0;
@@ -1713,8 +1713,8 @@ int wait_client_connection_ready(picoquic_test_tls_api_ctx_t* test_ctx,
     return ret;
 }
 
-static int tls_api_attempt_to_close(
-    picoquic_test_tls_api_ctx_t* test_ctx, uint64_t* simulated_time)
+int tls_api_close_with_losses(
+    picoquic_test_tls_api_ctx_t* test_ctx, uint64_t* simulated_time, uint64_t loss_mask)
 {
     int ret = 0;
     int nb_rounds = 0;
@@ -1725,21 +1725,35 @@ static int tls_api_attempt_to_close(
         /* packet from client to server */
         /* Do not simulate losses there, as there is no way to correct them */
 
-        test_ctx->c_to_s_link->loss_mask = 0;
-        test_ctx->s_to_c_link->loss_mask = 0;
+        test_ctx->c_to_s_link->loss_mask = &loss_mask;
+        test_ctx->s_to_c_link->loss_mask = &loss_mask;
 
-        while (ret == 0 && (test_ctx->cnx_client->cnx_state != picoquic_state_disconnected || test_ctx->cnx_server->cnx_state != picoquic_state_disconnected) && nb_rounds < 100000) {
+        while (ret == 0 && (test_ctx->cnx_client->cnx_state != picoquic_state_disconnected || 
+            (test_ctx->cnx_server != NULL && test_ctx->cnx_server->cnx_state != picoquic_state_disconnected)) && nb_rounds < 100000) {
             int was_active = 0;
             ret = tls_api_one_sim_round(test_ctx, simulated_time, 0, &was_active);
+            if (ret != 0){
+                if (test_ctx->cnx_client->cnx_state == picoquic_state_disconnected && test_ctx->cnx_server->cnx_state == picoquic_state_disconnected) {
+                    ret = 0;
+                    break;
+                }
+            }
             nb_rounds++;
         }
     }
 
-    if (ret == 0 && (test_ctx->cnx_client->cnx_state != picoquic_state_disconnected || test_ctx->cnx_server->cnx_state != picoquic_state_disconnected)) {
+    if (ret == 0 && (test_ctx->cnx_client->cnx_state != picoquic_state_disconnected || 
+        (test_ctx->cnx_server != NULL && test_ctx->cnx_server->cnx_state != picoquic_state_disconnected))) {
         ret = -1;
     }
 
     return ret;
+}
+
+static int tls_api_attempt_to_close(
+    picoquic_test_tls_api_ctx_t* test_ctx, uint64_t* simulated_time)
+{
+    return tls_api_close_with_losses(test_ctx, simulated_time, 0);
 }
 
 static int tls_api_test_with_loss_final(picoquic_test_tls_api_ctx_t* test_ctx, uint32_t proposed_version,
@@ -2173,6 +2187,174 @@ int tls_api_version_invariant_test()
     return ret;
 }
 
+/* Test that spoofed version negotiation does not delete the connection context
+ * spoof mode:
+ * 0- valid CID
+ * 1- invalid DCID
+ * 2- invalid SCID
+ * 3- invalid VN, empty list
+ * 4- invalid list, contains current version
+ * 5- invalid list, contains null version
+ * 6- invalid list, contains only non existing versions
+ * 7- invalid VN, length not multiple of 4
+ */
+size_t test_version_negotiation_get_spoofed(picoquic_cnx_t* cnx, int spoof_mode, uint8_t * packet, size_t packet_length)
+{
+    size_t packet_index = 0;
+    picoquic_connection_id_t bad_cid = { {0xba, 0xdc, 0x1d, 0, 0, 0, 0, 0}, 8 };
+    uint32_t this_vn = picoquic_supported_versions[cnx->version_index].version;
+    uint32_t random_vn = 0xa5a6a7a8 ^ (this_vn & 0x0f0f0f0f);
+    /* First byte for long header packet */
+    if (packet_index < packet_length) {
+        packet[packet_index++] = (uint8_t)(spoof_mode | 0x80);
+    }
+    /* version value 0 */
+    if (packet_index + 4 < packet_length) {
+        picoformat_32(&packet[packet_index], 0);
+        packet_index += 4;
+    }
+    /* DCID */
+    if (packet_index + 1 < packet_length) {
+        if (spoof_mode == 1) {
+            packet[packet_index++] = bad_cid.id_len;
+            packet_index += picoquic_format_connection_id(&packet[packet_index], packet_length - packet_index, bad_cid);
+        }
+        else {
+            packet[packet_index++] = cnx->path[0]->p_local_cnxid->cnx_id.id_len;
+            packet_index += picoquic_format_connection_id(&packet[packet_index], packet_length - packet_index, cnx->path[0]->p_local_cnxid->cnx_id);
+        }
+    }
+    /* SCID */
+    if (packet_index + 1 < packet_length) {
+        if (spoof_mode == 2) {
+            packet[packet_index++] = bad_cid.id_len;
+            packet_index += picoquic_format_connection_id(&packet[packet_index], packet_length - packet_index, bad_cid);
+        }
+        else {
+            packet[packet_index++] = cnx->initial_cnxid.id_len;
+            packet_index += picoquic_format_connection_id(&packet[packet_index], packet_length - packet_index, cnx->initial_cnxid);
+        }
+    }
+    /* Encode the proposed versions */
+    if (spoof_mode != 3) {
+        if (packet_index + 4 < packet_length) {
+            picoformat_32(&packet[packet_index], random_vn);
+            packet_index += 4;
+        }
+        if (packet_index + 4 < packet_length) {
+            uint32_t plausible_vn = 0xffffffff;
+            if (spoof_mode == 4) {
+                plausible_vn = this_vn;
+            }
+            else if (spoof_mode == 5) {
+                plausible_vn = this_vn;
+            }
+            else if (spoof_mode != 6 && picoquic_nb_supported_versions > 1) {
+                size_t plausible_index = picoquic_nb_supported_versions - 1;
+                if (cnx->version_index == plausible_index) {
+                    plausible_index = 0;
+                }
+                plausible_vn = picoquic_supported_versions[plausible_index].version;
+            }
+            picoformat_32(&packet[packet_index], plausible_vn);
+            packet_index += 4;
+        }
+        if (spoof_mode == 7 && packet_index < packet_length) {
+            packet[packet_index++] = 0xaf;
+        }
+    }
+
+    return packet_index;
+}
+
+int test_version_negotiation_spoof_one(int spoof_mode)
+{
+    uint64_t simulated_time = 0;
+    picoquic_test_tls_api_ctx_t* test_ctx = NULL;
+    int ret = tls_api_init_ctx(&test_ctx, 0, PICOQUIC_TEST_SNI, PICOQUIC_TEST_ALPN, &simulated_time, NULL, NULL, 0, 0, 0);
+    uint8_t packet[256];
+    size_t packet_length = 0;
+    int nb_trials = 0;
+    int nb_inactive = 0;
+
+    /* Do one round of simulation so the client connection moves to initial state */
+    while (ret == 0 && nb_trials < 1024 && nb_inactive < 512) {
+        int was_active = 0;
+        nb_trials++;
+
+        ret = tls_api_one_sim_round(test_ctx, &simulated_time, 0, &was_active);
+
+        if (test_ctx->cnx_client->cnx_state >= picoquic_state_client_init_sent) {
+            break;
+        }
+
+        if (nb_trials == 512) {
+            DBG_PRINTF("After %d trials, client state = %d, server state = %d",
+                nb_trials, (int)test_ctx->cnx_client->cnx_state,
+                (test_ctx->cnx_server == NULL) ? -1 : test_ctx->cnx_server->cnx_state);
+        }
+
+        if (was_active) {
+            nb_inactive = 0;
+        }
+        else {
+            nb_inactive++;
+        }
+    }
+    /* Verify that the connection is in the right state */
+    if (ret == 0 && test_ctx->cnx_client->cnx_state != picoquic_state_client_init_sent) {
+        DBG_PRINTF("After %d trials, client state = %d",
+            nb_trials, (int)test_ctx->cnx_client->cnx_state);
+        ret = -1;
+    }
+
+    if (ret == 0) {
+        /* Create the spoofed VN */
+        packet_length = test_version_negotiation_get_spoofed(test_ctx->cnx_client, spoof_mode, packet, sizeof(packet));
+
+        /* Inject the spoofed VN packet */
+        ret = picoquic_incoming_packet(test_ctx->qclient, packet, packet_length,
+            (struct sockaddr*)&test_ctx->server_addr, (struct sockaddr*)&test_ctx->client_addr,
+            0, 0, simulated_time);
+    }
+
+    if (ret == 0) {
+        /* Verify that the connection survived */
+        if (test_ctx->cnx_client->cnx_state != picoquic_state_client_init_sent) {
+            DBG_PRINTF("After VN injection, client state = %d",
+                (int)test_ctx->cnx_client->cnx_state);
+            ret = -1;
+        }
+    }
+
+    if (test_ctx != NULL) {
+        tls_api_delete_ctx(test_ctx);
+        test_ctx = NULL;
+    }
+
+    return ret;
+}
+
+int test_version_negotiation_spoof()
+{
+    int ret = 0;
+
+    if (test_version_negotiation_spoof_one(0) == 0) {
+        DBG_PRINTF("%s", "VN spoof mode 0 has no effect");
+        ret = -1;
+    }
+
+    for (int spoof_mode = 1; ret == 0 && spoof_mode < 8; spoof_mode++) {
+        ret = test_version_negotiation_spoof_one(spoof_mode);
+        if (ret != 0) {
+            DBG_PRINTF("VN spoof mode %d caused failure", spoof_mode);
+            ret = -1;
+        }
+    }
+
+    return ret;
+}
+
 /* Test the compatible VN setup.
  * This will start a connection with version 1, and verify that it gets established with version 2.
  * TODO: define the transport parameters that require the upgrade.
@@ -2186,7 +2368,7 @@ int vn_compat_test()
 
     if (ret == 0) {
         /* Set the desired version */
-        picoquic_set_desired_version(test_ctx->cnx_client, PICOQUIC_V2_VERSION_DRAFT_01);
+        picoquic_set_desired_version(test_ctx->cnx_client, PICOQUIC_V2_VERSION);
         /* Start the client connection */
         ret = picoquic_start_client_cnx(test_ctx->cnx_client);
     }
@@ -2202,12 +2384,12 @@ int vn_compat_test()
 
 
     if (ret == 0) {
-        if (picoquic_supported_versions[test_ctx->cnx_client->version_index].version != PICOQUIC_V2_VERSION_DRAFT_01) {
+        if (picoquic_supported_versions[test_ctx->cnx_client->version_index].version != PICOQUIC_V2_VERSION) {
             DBG_PRINTF("Client remained to version 0x%8x",
                 picoquic_supported_versions[test_ctx->cnx_client->version_index].version);
             ret = -1;
         }
-        else if (picoquic_supported_versions[test_ctx->cnx_server->version_index].version != PICOQUIC_V2_VERSION_DRAFT_01) {
+        else if (picoquic_supported_versions[test_ctx->cnx_server->version_index].version != PICOQUIC_V2_VERSION) {
             DBG_PRINTF("Server remained to version 0x%8x",
                 picoquic_supported_versions[test_ctx->cnx_client->version_index].version);
             ret = -1;
@@ -2558,7 +2740,7 @@ int many_short_loss_test()
  * with a stateless reset, the client closes its own connection.
  */
 
-int tls_api_server_reset_test()
+int stateless_reset_test()
 {
     uint64_t simulated_time = 0;
     uint64_t loss_mask = 0;
@@ -2627,7 +2809,7 @@ int tls_api_server_reset_test()
 * send it to the client.
 * Expected result: the client ignores the bogus reset.
 */
-int tls_api_bad_server_reset_test()
+int stateless_reset_bad_test()
 {
     uint64_t simulated_time = 0;
     uint64_t loss_mask = 0;
@@ -2665,6 +2847,125 @@ int tls_api_bad_server_reset_test()
 
     return ret;
 }
+
+/*
+* Server reset client test.
+* Establish a connection between server and client.
+* Get the connection almost established on server,
+* fabricate a bogus stateless reset and
+* send it from the client to the server.
+* Expected result: the server connection ignores the bogus reset.
+*/
+int stateless_reset_client_test()
+{
+    uint64_t simulated_time = 0;
+    uint64_t loss_mask = 0;
+    picoquic_test_tls_api_ctx_t* test_ctx = NULL;
+    int ret = tls_api_init_ctx(&test_ctx, 0, PICOQUIC_TEST_SNI, PICOQUIC_TEST_ALPN, &simulated_time, NULL, NULL, 0, 0, 0);
+    uint8_t buffer[256];
+
+    if (ret == 0) {
+        ret = tls_api_connection_loop(test_ctx, &loss_mask, 0, &simulated_time);
+    }
+
+    /* Prepare the bogus reset */
+    if (ret == 0) {
+        size_t byte_index = 0;
+        buffer[byte_index++] = 0x41;
+        /* Copy the client ID */
+        byte_index += picoquic_format_connection_id(&buffer[byte_index], sizeof(buffer) - byte_index, test_ctx->cnx_server->path[0]->p_local_cnxid->cnx_id);
+        /* Change one byte of the client ID */
+        if (byte_index > 5) {
+            buffer[5] ^= 0xff;
+        }
+        else {
+            buffer[1] ^= 0xff;
+        }
+        /* rest of packet is null */
+        memset(buffer + byte_index, 0xcc, sizeof(buffer) - byte_index);
+
+        /* Submit bogus request to server */
+        ret = picoquic_incoming_packet(test_ctx->qserver, buffer, sizeof(buffer),
+            (struct sockaddr*)(&test_ctx->client_addr),
+            (struct sockaddr*)(&test_ctx->server_addr), 0, test_ctx->recv_ecn_server,
+            simulated_time);
+    }
+
+    /* check that the server is still up */
+    if (ret == 0 && test_ctx->cnx_server != NULL && test_ctx->cnx_server->cnx_state > picoquic_state_ready) {
+        ret = -1;
+    }
+
+    if (test_ctx != NULL) {
+        tls_api_delete_ctx(test_ctx);
+        test_ctx = NULL;
+    }
+
+    return ret;
+}
+
+
+/*
+* Server reset handshake test.
+* Verify that the server does not send a reset in response to
+* a bogus long header packet
+*/
+int stateless_reset_handshake_test()
+{
+    uint64_t simulated_time = 0;
+    uint64_t loss_mask = 0;
+    picoquic_test_tls_api_ctx_t* test_ctx = NULL;
+    int ret = tls_api_init_ctx(&test_ctx, 0, PICOQUIC_TEST_SNI, PICOQUIC_TEST_ALPN, &simulated_time, NULL, NULL, 0, 0, 0);
+    uint8_t buffer[256];
+
+    if (ret == 0) {
+        ret = tls_api_connection_loop(test_ctx, &loss_mask, 0, &simulated_time);
+    }
+
+    /* Prepare the bogus reset */
+    if (ret == 0) {
+        size_t byte_index = 0;
+        buffer[byte_index++] = 0xff;
+        buffer[byte_index++] = test_ctx->cnx_server->path[0]->p_local_cnxid->cnx_id.id_len;
+        buffer[byte_index++] = test_ctx->cnx_server->path[0]->p_remote_cnxid->cnx_id.id_len;
+        /* Copy the client ID */
+        byte_index += picoquic_format_connection_id(&buffer[byte_index], sizeof(buffer) - byte_index, test_ctx->cnx_server->path[0]->p_local_cnxid->cnx_id);
+        /* Change one byte of the client ID */
+        if (byte_index > 5) {
+            buffer[5] ^= 0xff;
+        }
+        else {
+            buffer[1] ^= 0xff;
+        }
+        /* Copy the server ID */
+        byte_index += picoquic_format_connection_id(&buffer[byte_index], sizeof(buffer) - byte_index, test_ctx->cnx_server->path[0]->p_remote_cnxid->cnx_id);
+        /* rest of packet is null */
+        memset(buffer + byte_index, 0xcc, sizeof(buffer) - byte_index);
+
+        /* Submit bogus request to server */
+        ret = picoquic_incoming_packet(test_ctx->qserver, buffer, sizeof(buffer),
+            (struct sockaddr*)(&test_ctx->client_addr),
+            (struct sockaddr*)(&test_ctx->server_addr), 0, test_ctx->recv_ecn_server,
+            simulated_time);
+    }
+
+    /* check that the server is still up */
+    if (ret == 0 && test_ctx->cnx_server != NULL && test_ctx->cnx_server->cnx_state > picoquic_state_ready) {
+        ret = -1;
+    }
+    /* Check that no stateless packet is queued */
+    if (ret == 0 && test_ctx->qserver->pending_stateless_packet != NULL) {
+        ret = -1;
+    }
+
+    if (test_ctx != NULL) {
+        tls_api_delete_ctx(test_ctx);
+        test_ctx = NULL;
+    }
+
+    return ret;
+}
+
 
 /*
  * verify that a connection is correctly established after a stateless retry,
@@ -3341,7 +3642,7 @@ int zero_rtt_test_one(int use_badcrypt, int hardreset, uint64_t early_loss,
     uint64_t loss_mask = 0;
     uint32_t proposed_version = 0;
 
-    picoquic_tp_t server_parameters;
+    picoquic_tp_t server_parameters = { 0 };
     int ret = 0;
 
     /* Initialize an empty ticket store */
@@ -9012,7 +9313,7 @@ int large_client_hello_test()
  * of data sent by the client.
  */
 
-int ddos_amplification_test_one(int use_0rtt)
+int ddos_amplification_test_one(int use_0rtt, int do_8k)
 {
     uint64_t simulated_time = 0;
     uint64_t loss_mask = 0;
@@ -9037,6 +9338,10 @@ int ddos_amplification_test_one(int use_0rtt)
     {
         DBG_PRINTF("Could not create the QUIC test contexts for V=%x\n", proposed_version);
         ret = -1;
+    }
+
+    if (ret == 0 && do_8k) {
+        test_ctx->qserver->test_large_server_flight = 1;
     }
 
     if (ret == 0 && use_0rtt) {
@@ -9169,7 +9474,6 @@ int ddos_amplification_test_one(int use_0rtt)
         ret = -1;
     }
 
-
     if (test_ctx != NULL) {
         tls_api_delete_ctx(test_ctx);
         test_ctx = NULL;
@@ -9184,12 +9488,17 @@ int ddos_amplification_test_one(int use_0rtt)
 
 int ddos_amplification_test()
 {
-    return ddos_amplification_test_one(0);
+    return ddos_amplification_test_one(0, 0);
 }
 
 int ddos_amplification_0rtt_test()
 {
-    return ddos_amplification_test_one(1);
+    return ddos_amplification_test_one(1, 0);
+}
+
+int ddos_amplification_8k_test()
+{
+    return ddos_amplification_test_one(0, 1);
 }
 
 /* ESNI Test. */

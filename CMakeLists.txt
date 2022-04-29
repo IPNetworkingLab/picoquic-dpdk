@@ -8,6 +8,7 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSan) for debugging" OF
 
 set(CMAKE_C_STANDARD 11)
 
+message(STATUS "Initial CMAKE_C_FLAGS=${CMAKE_C_FLAGS}")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_C_FLAGS "-std=gnu99 -g -Wall -O3 -fno-exceptions -fno-signed-zeros -fno-trapping-math -march=native -msse4 -I/usr/local/include ${CC_WARNING_FLAGS} ${CMAKE_C_FLAGS}")
@@ -131,6 +132,7 @@ set(PICOQUIC_TEST_LIBRARY_FILES
     picoquictest/cnxstress.c
     picoquictest/cplusplus.cpp
     picoquictest/datagram_tests.c
+    picoquictest/edge_cases.c
     picoquictest/hashtest.c
     picoquictest/high_latency_test.c
     picoquictest/intformattest.c
@@ -179,11 +181,22 @@ find_package(PTLS REQUIRED)
 message(STATUS "picotls/include: ${PTLS_INCLUDE_DIRS}" )
 message(STATUS "picotls libraries: ${PTLS_LIBRARIES}" )
 
+OPTION(PTLS_WITH_FUSION "build 'fusion' AES-GCM engine" ${PTLS_WITH_FUSION_DEFAULT})
+if(PTLS_WITH_FUSION)
+    message(STATUS "PTLS Fusion is enabled")
+else()
+    message(STATUS "PTLS compiled without support for Fusion")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPTLS_WITHOUT_FUSION")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPTLS_WITHOUT_FUSION")
+endif()
+
 find_package(OpenSSL )
 message(STATUS "root: ${OPENSSL_ROOT_DIR}")
 message(STATUS "OpenSSL_VERSION: ${OPENSSL_VERSION}")
 message(STATUS "OpenSSL_INCLUDE_DIR: ${OPENSSL_INCLUDE_DIR}")
 message(STATUS "OpenSSL_LIBRARIES: ${OPENSSL_LIBRARIES}")
+message(STATUS "CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 
 include_directories(picoquic picoquictest
     ${PTLS_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR})

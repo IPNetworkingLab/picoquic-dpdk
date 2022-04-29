@@ -118,9 +118,23 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
-        TEST_METHOD(test_parse_header)
+        TEST_METHOD(parse_header)
         {
             int ret = parseheadertest();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(incoming_initial)
+        {
+            int ret = incoming_initial_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(header_length)
+        {
+            int ret = header_length_test();
 
             Assert::AreEqual(ret, 0);
         }
@@ -430,6 +444,13 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
+        TEST_METHOD(datagram_small)
+        {
+            int ret = datagram_small_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(ddos_amplification)
         {
             int ret = ddos_amplification_test();
@@ -440,6 +461,13 @@ namespace UnitTest1
         TEST_METHOD(ddos_amplification_0rtt)
         {
             int ret = ddos_amplification_0rtt_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ddos_amplification_8k)
+        {
+            int ret = ddos_amplification_8k_test();
 
             Assert::AreEqual(ret, 0);
         }
@@ -475,6 +503,13 @@ namespace UnitTest1
         TEST_METHOD(version_invariant)
         {
             int ret = tls_api_version_invariant_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(version_negotiation_spoof)
+        {
+            int ret = test_version_negotiation_spoof();
 
             Assert::AreEqual(ret, 0);
         }
@@ -563,19 +598,33 @@ namespace UnitTest1
 			Assert::AreEqual(ret, 0);
 		}
 
-		TEST_METHOD(test_server_reset)
+		TEST_METHOD(stateless_reset)
 		{
-			int ret = tls_api_server_reset_test();
+			int ret = stateless_reset_test();
 
 			Assert::AreEqual(ret, 0);
 		}
 
-		TEST_METHOD(test_bad_server_reset)
+		TEST_METHOD(stateless_reset_bad)
 		{
-			int ret = tls_api_bad_server_reset_test();
+			int ret = stateless_reset_bad_test();
 
 			Assert::AreEqual(ret, 0);
 		}
+
+        TEST_METHOD(stateless_reset_client)
+        {
+            int ret = stateless_reset_client_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(stateless_reset_handshake)
+        {
+            int ret = stateless_reset_handshake_test();
+
+            Assert::AreEqual(ret, 0);
+        }
 
 		TEST_METHOD(test_very_long_stream)
 		{
@@ -1328,6 +1377,56 @@ namespace UnitTest1
         TEST_METHOD(random_padding)
         {
             int ret = random_padding_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ec00_zero)
+        {
+            int ret = ec00_zero_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ec2f_second_flight)
+        {
+            int ret = ec2f_second_flight_nack_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(eccf_corrupted_fuzz)
+        {
+            int ret = eccf_corrupted_file_fuzz_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(eca1_amplification_loss)
+        {
+            int ret = eca1_amplification_loss_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+
+        TEST_METHOD(ecf1_final_loss)
+        {
+            int ret = ecf1_final_loss_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ec5c_silly_cid)
+        {
+            int ret = ec5c_silly_cid_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(ec9a_preemptive_amok)
+        {
+            int ret = ec9a_preemptive_amok_test();
 
             Assert::AreEqual(ret, 0);
         }
