@@ -84,32 +84,49 @@
 
 #define SIDUCK_ONLY_QUACKS_ECHO 0x101
 
-
-int rcv_encapsulate_send(proxy_ctx_t *cnx,proxy_ctx_t * ctx) {
+int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
     int length = 0;
     int pkt_recv = 0;
-    struct rte_mbuf *m;
     int udp_dgram_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
-    int MAX_PKT_BURST = 1;
-    m = rte_pktmbuf_alloc(ctx->mb_pool);
-    if (m == NULL)
-    {
-        printf("fail to init pktmbuf\n");
-        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-        return 0;
-    }
-    printf("receiving\n");
-    printf("portid : %d\n", ctx->portid);
-    pkt_recv = rte_eth_rx_burst(ctx->portid, ctx->queueid, m, MAX_PKT_BURST);
+    int MAX_PKT_BURST = 32;
+    struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
+    struct rte_ether_addr eth_addr;
+    // printf("portid : %d\n",ctx->portid);
+    int ret = rte_eth_macaddr_get(ctx->portid, &eth_addr);
+
+
+    char macStr[18];
+
+    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x", eth_addr.addr_bytes[0], 
+                                                                    eth_addr.addr_bytes[1], 
+                                                                    eth_addr.addr_bytes[2], 
+                                                                    eth_addr.addr_bytes[3], 
+                                                                    eth_addr.addr_bytes[4], 
+                                                                    eth_addr.addr_bytes[5]);
+    
+    // printf("ret : %d\n",ret);
+    // printf("mac : %s\n",macStr);
+    
+    pkt_recv = rte_eth_rx_burst(ctx->portid, ctx->queueid, pkts_burst, MAX_PKT_BURST);
     if(pkt_recv > 0){
         printf("packet received\n");
-        struct rte_ipv4_hdr *ip_hdr;
-        struct rte_udp_hdr *udp_hdr;
-        ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(m, char *) + sizeof(struct rte_ether_hdr));
-        udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
-        uint16_t dgram_length = htons(udp_hdr->dgram_len);
-        length += udp_dgram_offset + dgram_length;
-        return picoquic_queue_datagram_frame(cnx, length, ip_hdr);
+        for (int j = 0; j < pkt_recv; j++)
+		{
+            int ret = 0;
+            struct rte_ipv4_hdr *ip_hdr;
+            struct rte_udp_hdr *udp_hdr;
+            ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[j], char *) + sizeof(struct rte_ether_hdr));
+            udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
+            uint16_t dgram_length = htons(udp_hdr->dgram_len);
+            length += udp_dgram_offset + dgram_length;
+            ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
+            printf("ret : %d\n",ret);
+		}
+        
+    }
+    else{
+        sleep(0.5);
+        return picoquic_queue_datagram_frame(cnx, 5, "test");
     }
     return 0; 
 }
@@ -184,9 +201,13 @@ int proxy_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_prepare_to_send:
            printf("Unexpected callback, code %d, length = %zu", fin_or_event, length);
            break;
+        case picoquic_callback_prepare_datagram:
+            rcv_encapsulate_send(cnx,ctx);
+            break;
         case picoquic_callback_stateless_reset:
         case picoquic_callback_close: /* Received connection close */
         case picoquic_callback_application_close: /* Received application close */
+            printf("app closed\n");
             if (ctx != NULL) {
                 free(ctx);
                 ctx = NULL;
@@ -201,14 +222,22 @@ int proxy_callback(picoquic_cnx_t* cnx,
             if (cnx->client_mode) {
                 rcv_encapsulate_send(cnx,ctx);
             }
+            else{
+                printf("server\n");
+            }
             break;
         case picoquic_callback_datagram:
-            printf("%s\n", bytes);
+            printf("datagram : %s\n", bytes);
             //decapsulate_and_send(ctx,bytes);
             /* Process the datagram, which contains an address and a QUIC packet */
             
             break;
+        case picoquic_callback_datagram_acked:
+            // printf("acked datagram\n");
+            break;
         default:
+            printf("even : %d\n",fin_or_event);
+            printf("inside default\n");
             /* unexpected */
             break;
         }

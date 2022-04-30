@@ -329,7 +329,7 @@ lcore_hello(__rte_unused void *arg)
         m->pkt_len = offset;
         rte_eth_tx_burst(0, 0, &m, 1);
         printf("after transmit\n");
-        sleep(2);
+        sleep(0.2);
     }
 }
 

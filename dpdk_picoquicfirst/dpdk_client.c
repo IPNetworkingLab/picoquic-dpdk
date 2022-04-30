@@ -448,7 +448,9 @@ int quic_client(const char *ip_address_text, int server_port,
                 //     (int)cnx_client->max_stream_id_bidir_remote,
                 //     (int)cnx_client->remote_parameters.initial_max_stream_id_bidir);
             }
-
+            if(is_proxy){
+                picoquic_mark_datagram_ready(cnx_client,1);
+            }
             if (ret == 0 && !is_siduck && !is_quicperf && !is_proxy) {
                 if (picoquic_is_0rtt_available(cnx_client) && (config->proposed_version & 0x0a0a0a0a) != 0x0a0a0a0a) {
                     loop_cb.zero_rtt_available = 1;
