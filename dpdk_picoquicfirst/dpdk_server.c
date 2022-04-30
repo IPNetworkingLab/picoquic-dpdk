@@ -58,7 +58,7 @@ int quic_server(const char* server_name,
                         int proxy_portid,
                         int proxy_queueid,
                         struct rte_mempool *mb_pool_proxy,
-                        struct rte_ether_addr eth_client_proxy_addr)
+                        struct rte_ether_addr *eth_client_proxy_addr)
 {
     /* Start: start the QUIC process with cert and key files */
     int ret = 0;
@@ -84,7 +84,15 @@ int quic_server(const char* server_name,
             ret = picoquic_config_set_option(config, picoquic_option_Token_File_Name, token_store_filename);
         }
         if (ret == 0) {
-            qserver = picoquic_create_and_configure(config, picoquic_demo_server_callback, &picoquic_file_param, current_time, NULL);
+            if(mb_pool_proxy == NULL){
+                qserver = picoquic_create_and_configure(config, picoquic_demo_server_callback, &picoquic_file_param, current_time, NULL);
+            }
+            //proxy mode here
+            else{
+                proxy_ctx_t* proxy_ctx = proxy_create_ctx(proxy_portid,proxy_queueid,mb_pool_proxy,eth_client_proxy_addr);
+                qserver = picoquic_create_and_configure(config, proxy_callback, proxy_ctx, current_time, NULL);
+            }
+            
             if (qserver == NULL) {
                 ret = -1;
             }

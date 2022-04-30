@@ -168,6 +168,6 @@ int quic_server(const char* server_name,
                         int proxy_portid,
                         int proxy_queueid,
                         struct rte_mempool *mb_pool_proxy,
-                        struct rte_ether_addr eth_client_proxy_addr);
+                        struct rte_ether_addr *eth_client_proxy_addr);
 
 

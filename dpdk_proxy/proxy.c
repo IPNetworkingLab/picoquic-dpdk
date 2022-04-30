@@ -109,7 +109,6 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
     
     pkt_recv = rte_eth_rx_burst(ctx->portid, ctx->queueid, pkts_burst, MAX_PKT_BURST);
     if(pkt_recv > 0){
-        printf("packet received\n");
         for (int j = 0; j < pkt_recv; j++)
 		{
             int ret = 0;
@@ -120,7 +119,6 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
             uint16_t dgram_length = htons(udp_hdr->dgram_len);
             length += udp_dgram_offset + dgram_length;
             ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
-            printf("ret : %d\n",ret);
 		}
         
     }
@@ -155,6 +153,7 @@ int send_received_dgram(proxy_ctx_t *ctx, uint8_t *udp_packet) {
     m->data_len = length;
     m->pkt_len = length;
     rte_eth_tx_burst(ctx->portid, ctx->queueid, &m,1);
+    printf("sending\n");
 
 }
 
@@ -189,8 +188,6 @@ int proxy_callback(picoquic_cnx_t* cnx,
 {
     int ret = 0;
     proxy_ctx_t * ctx = (proxy_ctx_t*)callback_ctx;
-    
-
     if (ret == 0) {
         switch (fin_or_event) {
         case picoquic_callback_stream_data:
@@ -227,8 +224,10 @@ int proxy_callback(picoquic_cnx_t* cnx,
             }
             break;
         case picoquic_callback_datagram:
-            printf("datagram : %s\n", bytes);
-            //decapsulate_and_send(ctx,bytes);
+            if(!strcmp(bytes,"test")==0){
+                send_received_dgram(ctx,bytes);
+            }
+            
             /* Process the datagram, which contains an address and a QUIC packet */
             
             break;
