@@ -84,10 +84,12 @@
 
 #define SIDUCK_ONLY_QUACKS_ECHO 0x101
 
+
+
 int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
     int length = 0;
     int pkt_recv = 0;
-    int udp_dgram_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
+    int udp_dgram_offset = sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
     int MAX_PKT_BURST = 32;
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     struct rte_ether_addr eth_addr;
@@ -111,14 +113,18 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
     if(pkt_recv > 0){
         for (int j = 0; j < pkt_recv; j++)
 		{
-            int ret = 0;
-            struct rte_ipv4_hdr *ip_hdr;
-            struct rte_udp_hdr *udp_hdr;
-            ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[j], char *) + sizeof(struct rte_ether_hdr));
-            udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
-            uint16_t dgram_length = htons(udp_hdr->dgram_len);
-            length += udp_dgram_offset + dgram_length;
-            ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
+            struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[j], struct rte_ether_hdr *);
+            if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)){
+                int ret = 0;
+                struct rte_ipv4_hdr *ip_hdr;
+                struct rte_udp_hdr *udp_hdr;
+                ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[j], char *) + sizeof(struct rte_ether_hdr));
+                udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
+                uint16_t dgram_length = htons(udp_hdr->dgram_len);
+                length = sizeof(struct rte_ipv4_hdr)+ dgram_length;
+                printf("dgram_length : %d \n",dgram_length);
+                ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
+            }
 		}
         
     }
@@ -132,11 +138,15 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
 int send_received_dgram(proxy_ctx_t *ctx, uint8_t *udp_packet) {
 
     struct rte_mbuf *m;
+    struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
+    struct rte_ether_addr eth_addr;
     int length = 0;
-    int udp_dgram_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
+    int udp_dgram_offset = sizeof(struct rte_ipv4_hdr);
 
+    int ret = rte_eth_macaddr_get(ctx->portid, &eth_addr);
+    
     m = rte_pktmbuf_alloc(ctx->mb_pool);
     if (m == NULL)
     {
@@ -144,17 +154,32 @@ int send_received_dgram(proxy_ctx_t *ctx, uint8_t *udp_packet) {
         rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
         return 0;
     }
-    ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(m, char *) + sizeof(struct rte_ether_hdr));
+    eth_hdr = (struct rte_ether_hdr *)(rte_pktmbuf_mtod(m, char *));
+    eth_hdr -> ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+    rte_ether_addr_copy(&eth_addr, &eth_hdr->src_addr);
+    rte_ether_addr_copy(ctx->client_addr, &eth_hdr->dst_addr);
+
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x", ctx->client_addr->addr_bytes[0], 
+                                                                    ctx->client_addr->addr_bytes[1], 
+                                                                    ctx->client_addr->addr_bytes[2], 
+                                                                    ctx->client_addr->addr_bytes[3], 
+                                                                    ctx->client_addr->addr_bytes[4], 
+                                                                    ctx->client_addr->addr_bytes[5]);
+
+    // printf("mac : %s\n",macStr);
+    ip_hdr = (struct rte_ipv4_hdr *) udp_packet;
     udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
     uint16_t dgram_length = htons(udp_hdr->dgram_len);
-    length = udp_dgram_offset + dgram_length;
+    length = dgram_length + udp_dgram_offset;
+    printf("dgram_length : %zu\n",dgram_length);
 
-    copy_buf_to_pkt(udp_packet, length, m, 0);
-    m->data_len = length;
-    m->pkt_len = length;
-    rte_eth_tx_burst(ctx->portid, ctx->queueid, &m,1);
-    printf("sending\n");
-
+    copy_buf_to_pkt(udp_packet, length, m, sizeof(struct rte_ether_hdr));
+    
+    m->data_len = length+sizeof(struct rte_ether_hdr);
+    m->pkt_len = length+sizeof(struct rte_ether_hdr);
+    ret = rte_eth_tx_burst(ctx->portid, ctx->queueid, &m,1);
+    printf("ret : %d\n",ret);
 }
 
 uint8_t *receive_packet(proxy_ctx_t ctx){

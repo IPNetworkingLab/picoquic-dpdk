@@ -322,13 +322,13 @@ lcore_hello(__rte_unused void *arg)
         offset += sizeof(struct rte_ipv4_hdr);
         copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
         offset += sizeof(struct rte_udp_hdr);
-        copy_buf_to_pkt("test", 5, m, offset);
+        copy_buf_to_pkt("test!", 6, m, offset);
         offset += 5;
         // inchallah ca marche
         m->data_len = offset;
         m->pkt_len = offset;
+        printf("length : %u\n",htons(rte_udp_hdr.dgram_len)+sizeof(struct rte_ipv4_hdr)+sizeof(struct rte_udp_hdr));
         rte_eth_tx_burst(0, 0, &m, 1);
-        printf("after transmit\n");
         sleep(0.2);
     }
 }

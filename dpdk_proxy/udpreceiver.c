@@ -53,6 +53,7 @@ lcore_hello(__rte_unused void *arg)
 
 	int ret;
 	uint16_t portid = 0;
+
 	struct rte_eth_conf local_port_conf = port_conf;
 	struct rte_eth_rxconf rxq_conf;
 	struct rte_eth_dev_info dev_info;
@@ -111,6 +112,19 @@ lcore_hello(__rte_unused void *arg)
 		rte_exit(EXIT_FAILURE, "rte_eth_dev_start:err=%d, port=%u\n",
 				 ret, 0);
 	printf("loop start\n");
+	static struct rte_ether_addr eth_addr;
+	ret = rte_eth_macaddr_get(portid, &eth_addr);
+
+	char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x", eth_addr.addr_bytes[0], 
+                                                                    eth_addr.addr_bytes[1], 
+                                                                    eth_addr.addr_bytes[2], 
+                                                                    eth_addr.addr_bytes[3], 
+                                                                    eth_addr.addr_bytes[4], 
+                                                                    eth_addr.addr_bytes[5]);
+
+    printf("mac : %s\n",macStr);
+
 	while (true)
 	{
 		ret = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
