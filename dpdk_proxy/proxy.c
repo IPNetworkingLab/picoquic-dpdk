@@ -124,6 +124,7 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
                 length = sizeof(struct rte_ipv4_hdr)+ dgram_length;
                 printf("dgram_length : %d \n",dgram_length);
                 ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
+                rte_pktmbuf_free(pkts_burst[j]);
             }
 		}
         

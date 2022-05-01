@@ -124,7 +124,7 @@ lcore_hello(__rte_unused void *arg)
                                                                     eth_addr.addr_bytes[5]);
 
     printf("mac : %s\n",macStr);
-
+	int counter = 0;
 	while (true)
 	{
 		ret = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
@@ -134,13 +134,17 @@ lcore_hello(__rte_unused void *arg)
 		struct rte_ipv4_hdr *ip_hdr;
 		for (int j = 0; j < ret; j++)
 		{
-
+			
 			ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[j], char *) + sizeof(struct rte_ether_hdr));
 
 			struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
 															 sizeof(struct rte_ipv4_hdr));
 			unsigned char *payload = (unsigned char *)(udp + 1);
+			counter++;
+			printf("counter : %d\n",counter);
 			printf("payload : %s\n", payload);
+			rte_pktmbuf_free(pkts_burst[j]);
+
 		}
 	}
 	return 0;
