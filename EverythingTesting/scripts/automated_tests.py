@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import time
 from subprocess import Popen, PIPE
 
 
@@ -17,25 +16,25 @@ def kill_process(host,pid):
     cmds = ['ssh',host,'nohup','sudo kill',str(pid)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
-def run_client_generic(iterations,filename,args,isdpdk):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/tp_generic.py',str(iterations),filename,args,str(isdpdk)]
+def run_client_generic(iterations,filename,isdpdk,request,args):
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/tp_generic.py',str(iterations),filename,str(isdpdk),request,args]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
-def run_server(isdpdk,args):
+def run_server(args,isdpdk):
     cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/serverTesting.py',str(isdpdk),args]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
-def tp_test_generic(filename1,args1,usedpdk1,filename2,args2,usedpdk2,iterations):
-    run_server(usedpdk1," ")
-    client_process = run_client_generic(iterations,filename1,args1,usedpdk1)
+def tp_test_generic(filename1,usedpdk1,args1,filename2,usedpdk2,args2,request,iterations):
+    run_server(" ",usedpdk1)
+    client_process = run_client_generic(iterations,filename1,usedpdk1,request,args1)
     client_process.wait()
     pid = get_pid_process(serverName,process_name)
     intPid = int(pid)
     killing_process = kill_process(serverName,str(intPid))
     killing_process.wait()
     
-    run_server(usedpdk2," ")
-    client_process = run_client_generic(iterations,filename2,args2,usedpdk2)
+    run_server(" ",usedpdk2)
+    client_process = run_client_generic(iterations,filename2,usedpdk2,request,args2)
     client_process.wait()
     pid = get_pid_process(serverName,process_name)
     intPid = int(pid)
@@ -53,7 +52,9 @@ if __name__ == "__main__":
     # tp_test_generic("dpdk_chacha","",1,"nodpdk_chacha","",0,5)
     # tp_test_generic("copyv2","",1,"nopyv2","-D",1,10)
     ## handshake test
-    tp_test_generic_("dpdk_handshake", "-H -D",1,"nodpdk_handshake","-H -D",0,100)
+    tp_test_generic("dpdk_handshake",1, "-H -D -a proxy","nodpdk_handshake",0,"-H -D -a proxy","/100",5)
+    ## request test
+    tp_test_generic("dpdk_handshake",1, "-D","nodpdk_handshake",0,"-D","*1000/100000",5)
     
     
     

@@ -133,7 +133,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
 
 int quic_client(const char *ip_address_text, int server_port,
                 picoquic_quic_config_t *config, int force_migration,
-                int nb_packets_before_key_update, char const *client_scenario_text, int handshake_test, int dpdk, int batching_size, unsigned portid,
+                int nb_packets_before_key_update, char const *client_scenario_text, int handshake_test, int request_test, int dpdk, int batching_size, unsigned portid,
                 unsigned queueid,
                 struct sockaddr_storage *addr_from,
                 struct rte_ether_addr *mac_dst,

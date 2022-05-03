@@ -201,6 +201,7 @@ proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_poo
         ctx-> queueid = queueid;
         ctx-> mb_pool = mb_pool;
         ctx-> client_addr = eth_client_proxy_addr;
+        ctx-> handshake_test = 0;
     }
     return ctx;
 }
@@ -242,8 +243,12 @@ int proxy_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_almost_ready:
             break;
         case picoquic_callback_ready:
+            
+            break;
             if (cnx->client_mode) {
-                rcv_encapsulate_send(cnx,ctx);
+                picoquic_set_callback(cnx, NULL, NULL);
+                ret = picoquic_close(cnx, SIDUCK_ONLY_QUACKS_ECHO);
+                // rcv_encapsulate_send(cnx,ctx);
             }
             else{
                 printf("server\n");

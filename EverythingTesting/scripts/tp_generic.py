@@ -3,15 +3,12 @@ import sys
 
 
 os.chdir("/home/nikita/memoire/dpdk_picoquic/")
+print("hello")
 nb_of_iteration = int(sys.argv[1])
 filename = sys.argv[2]
-args=""
-isdpdk = 0
-if len(sys.argv)==4:
-    isdpdk = int(sys.argv[3])
-else:
-    isdpdk = int(sys.argv[4])
-    args = sys.argv[3]
+isdpdk = sys.argv[3]
+args = sys.argv[4:]
+print(args)
 size = 20000000000
 
 dpdk = "dpdk -l 0-1 -a 0000:8a:00.1 -- -A 50:6b:4b:f3:7c:71"

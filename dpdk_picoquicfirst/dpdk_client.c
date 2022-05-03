@@ -225,7 +225,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
 /* Quic Client */
 int quic_client(const char *ip_address_text, int server_port,
                 picoquic_quic_config_t *config, int force_migration,
-                int nb_packets_before_key_update, char const *client_scenario_text, int handshake_test, int dpdk, int batching_size, unsigned portid,
+                int nb_packets_before_key_update, char const *client_scenario_text, int handshake_test, int request_test,int dpdk, int batching_size, unsigned portid,
                 unsigned queueid,
                 struct sockaddr_storage *addr_from,
                 struct rte_ether_addr *mac_dst,
@@ -328,6 +328,9 @@ int quic_client(const char *ip_address_text, int server_port,
             /* Set a proxy client */
             is_proxy = 1;
             proxy_ctx = proxy_create_ctx(proxy_portid,proxy_queuid,mb_pool_proxy,eth_client_proxy_addr);
+            if(handshake_test){
+                proxy_ctx -> handshake_test = 1;
+            }
             if (proxy_ctx == NULL) {
                 fprintf(stdout, "Could not get ready to proxy\n");
                 return -1;
