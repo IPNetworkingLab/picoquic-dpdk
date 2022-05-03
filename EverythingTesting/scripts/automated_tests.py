@@ -51,7 +51,10 @@ if __name__ == "__main__":
     # tp_test_generic("dpdk_tp","",1,"nodpdk_tp","",0,10)
     # tp_test_generic("dpdk_tp_enc","",1,"nodpdk_tp_enc","",0,10)
     # tp_test_generic("dpdk_chacha","",1,"nodpdk_chacha","",0,5)
-    tp_test_generic("copyv2","",1,"nopyv2","-D",1,10)
+    # tp_test_generic("copyv2","",1,"nopyv2","-D",1,10)
+    ## handshake test
+    tp_test_generic_("dpdk_handshake", "-H -D",1,"nodpdk_handshake","-H -D",0,100)
+    
     
     
 

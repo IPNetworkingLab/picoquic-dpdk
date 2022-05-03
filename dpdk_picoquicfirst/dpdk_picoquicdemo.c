@@ -152,6 +152,7 @@ int nb_of_repetition = 1;
 int MAX_PKT_BURST = 32;
 int dpdk = 0;
 int handshake_test = 0;
+int request_test = 0;
 
 void print_address(FILE *F_log, struct sockaddr *address, char *label, picoquic_connection_id_t cnx_id)
 {
@@ -441,29 +442,32 @@ client_job(void *arg)
     }
 
     // handshake test
-    if (handshake_test)
+    if (handshake_test || request_test)
     {
         struct timeval start_time;
         struct timeval current_time;
-
-        gettimeofday(&start_time, NULL);
-        gettimeofday(&current_time, NULL);
-        int counter = 0;
-        while ((current_time.tv_sec - start_time.tv_sec) < 20)
+        for (int i = 0; i < nb_of_repetition; i++)
         {
-            quic_client(server_name,
-                        server_port,
-                        &config,
-                        force_migration,
-                        nb_packets_before_update,
-                        client_scenario, handshake_test,
-                        dpdk,
-                        MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
-                        0, 0, NULL, NULL);
-            counter++;
+            gettimeofday(&start_time, NULL);
             gettimeofday(&current_time, NULL);
+            int counter = 0;
+            while ((current_time.tv_sec - start_time.tv_sec) < 20)
+            {
+                quic_client(server_name,
+                            server_port,
+                            &config,
+                            force_migration,
+                            nb_packets_before_update,
+                            client_scenario, handshake_test,
+                            dpdk,
+                            MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
+                            0, 0, NULL, NULL);
+                counter++;
+                gettimeofday(&current_time, NULL);
+            }
+            printf("Number of request served : %d\n", counter);
+            sleep(2);
         }
-        printf("Number of request served : %d\n", counter);
     }
     else
     {
@@ -653,6 +657,8 @@ int main(int argc, char **argv)
                     return -1;
                 }
                 break;
+            case '3':
+                request_test = 1;
 
             case 'A':
                 if (str_to_mac(optarg, &eth_addr) != 0)
@@ -849,22 +855,25 @@ int main(int argc, char **argv)
             else
             {
 
-                if (handshake_test)
+                if (handshake_test || request_test)
                 {
                     struct timeval start_time;
                     struct timeval current_time;
-
-                    gettimeofday(&start_time, NULL);
-                    gettimeofday(&current_time, NULL);
-                    int counter = 0;
-                    while ((current_time.tv_sec - start_time.tv_sec) < 20)
-                    {
-                        ret = quic_client(server_name, server_port, &config,
-                                          force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
-                        counter++;
+                    for (int i = 0; i < nb_of_repetition; i++){
+                        gettimeofday(&start_time, NULL);
                         gettimeofday(&current_time, NULL);
+                        int counter = 0;
+                        while ((current_time.tv_sec - start_time.tv_sec) < 20)
+                        {
+                            ret = quic_client(server_name, server_port, &config,
+                                            force_migration, nb_packets_before_update, client_scenario, handshake_test, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
+                            counter++;
+                            gettimeofday(&current_time, NULL);
+                        }
+                        printf("Number of request served : %d\n", counter);
+                        sleep(2);
                     }
-                    printf("Number of request served : %d\n", counter);
+                    
                 }
                 else
                 {

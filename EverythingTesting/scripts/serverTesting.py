@@ -2,7 +2,7 @@ import os
 import sys
 
 os.chdir("/home/nikita/memoire/dpdk_picoquic/")
-dpdk = "dpdk -l 0-1 -a 0000:51:00.0 -- "
+dpdk = "dpdk -l 0-1 -a -a 0000:51:00.1 -- "
 nodpdk = "nodpdk "
 isdpdk = int(sys.argv[1])
 args = ""

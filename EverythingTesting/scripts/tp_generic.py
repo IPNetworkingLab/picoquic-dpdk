@@ -14,7 +14,7 @@ else:
     args = sys.argv[3]
 size = 20000000000
 
-dpdk = "dpdk -l 0-1 -a 0000:51:00.1 -- -A 50:6b:4b:f3:7c:70"
+dpdk = "dpdk -l 0-1 -a 0000:8a:00.1 -- -A 50:6b:4b:f3:7c:71"
 nodpdk = "nodpdk"
 setup = ""
 
