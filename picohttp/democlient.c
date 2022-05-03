@@ -548,14 +548,23 @@ int picoquic_demo_client_start_streams(picoquic_cnx_t* cnx,
     for (size_t i = 0; ret == 0 && i < ctx->nb_demo_streams; i++) {
         if (ctx->demo_stream[i].previous_stream_id == fin_stream_id) {
             uint64_t repeat_nb = 0;
+            struct timeval start_time;
+            struct timeval current_time;
+            gettimeofday(&start_time, NULL);
+            gettimeofday(&current_time, NULL);
+            int isTimeExceeded = (current_time.tv_sec - start_time.tv_sec) < 20;
             do {
+                if(ctx->request_test){
+                    gettimeofday(&current_time, NULL);
+                    isTimeExceeded = (current_time.tv_sec - start_time.tv_sec) < 20;
+                }
                 ret = picoquic_demo_client_open_stream(cnx, ctx, ctx->demo_stream[i].stream_id,
                     ctx->demo_stream[i].doc_name,
                     ctx->demo_stream[i].f_name,
                     (size_t)ctx->demo_stream[i].post_size,
                     repeat_nb);
                 repeat_nb++;
-            } while (ret == 0 && repeat_nb < ctx->demo_stream[i].repeat_count);
+            } while (ret == 0 && repeat_nb < ctx->demo_stream[i].repeat_count && !isTimeExceeded);
 
             if (ret == 0 && repeat_nb > 1 && !ctx->no_print) {
                 fprintf(stdout, "Repeated stream opening %d times.\n", (int)repeat_nb);

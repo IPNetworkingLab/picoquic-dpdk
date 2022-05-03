@@ -1295,9 +1295,6 @@ int picoquic_demo_server_callback(picoquic_cnx_t* cnx,
     if (alpn != NULL) {
         alpn_code = picoquic_parse_alpn(alpn);
     }
-    else{
-        alpn_code = picoquic_alpn_proxy;
-    }
     switch (alpn_code) {
     case picoquic_alpn_http_3:
         ret = h3zero_server_callback(cnx, stream_id, bytes, length, fin_or_event, callback_ctx, v_stream_ctx);

@@ -2,10 +2,21 @@
 
 from subprocess import Popen, PIPE
 
+import json
+import shlex
 
+#Global variables
 serverName = 'server'
 clientName = 'client1'
 process_name = 'dpdk_picoquicdemo'
+dpdk_1_client = 'dpdk -l 0-1 -a 0000:8a:00.1 -- -A 50:6b:4b:f3:7c:71'
+dpdk_1_server = 'dpdk -l 0-1 -a -a 0000:51:00.1 --'
+nodpdk = 'nodpdk'
+
+
+def dic_to_json(dic):
+    return shlex.quote(json.dumps(dic))
+    
 
 def get_pid_process(host,name):
     cmds = ['ssh',host,'nohup','pidof',name]
@@ -16,25 +27,34 @@ def kill_process(host,pid):
     cmds = ['ssh',host,'nohup','sudo kill',str(pid)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
-def run_client_generic(iterations,filename,isdpdk,request,args):
-    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/tp_generic.py',str(iterations),filename,str(isdpdk),request,args]
+def run_client(args):
+    print(args)
+    cmds = ['ssh', clientName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/client_for_tests.py',dic_to_json(args)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
-def run_server(args,isdpdk):
-    cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/serverTesting.py',str(isdpdk),args]
+def run_server(args):
+    print(args)
+    cmds = ['ssh', serverName,'python3','/home/nikita/memoire/dpdk_picoquic/EverythingTesting/scripts/server_for_tests.py',dic_to_json(args)]
     return Popen(cmds, stdout=None, stderr=None, stdin=None)
 
-def tp_test_generic(filename1,usedpdk1,args1,filename2,usedpdk2,args2,request,iterations):
-    run_server(" ",usedpdk1)
-    client_process = run_client_generic(iterations,filename1,usedpdk1,request,args1)
+def test_cmp(argsClient,argsServer):
+    run_server(argsServer)
+    client_process = run_client(argsClient)
     client_process.wait()
     pid = get_pid_process(serverName,process_name)
     intPid = int(pid)
     killing_process = kill_process(serverName,str(intPid))
     killing_process.wait()
     
-    run_server(" ",usedpdk2)
-    client_process = run_client_generic(iterations,filename2,usedpdk2,request,args2)
+    argsClientDpdk = argsClient.copy()
+    argsClientDpdk["eal"] = nodpdk
+    argsClientDpdk["output_file"].replace("dpdk","nodpdk")
+    
+    argsServerDpdk = argsServer.copy()
+    argsServer["eal"] = dpdk_1_server
+    
+    run_server(argsServerDpdk)
+    client_process = run_client(argsClient)
     client_process.wait()
     pid = get_pid_process(serverName,process_name)
     intPid = int(pid)
@@ -43,18 +63,19 @@ def tp_test_generic(filename1,usedpdk1,args1,filename2,usedpdk2,args2,request,it
 
 
 if __name__ == "__main__":
-    # throughput_test()
-    # web_test()
-    # handshake_test()
-    #batching_test_dpdk()
-    # tp_test_generic("dpdk_tp","",1,"nodpdk_tp","",0,10)
-    # tp_test_generic("dpdk_tp_enc","",1,"nodpdk_tp_enc","",0,10)
-    # tp_test_generic("dpdk_chacha","",1,"nodpdk_chacha","",0,5)
-    # tp_test_generic("copyv2","",1,"nopyv2","-D",1,10)
-    ## handshake test
-    tp_test_generic("dpdk_handshake",1, "-H -D -a proxy","nodpdk_handshake",0,"-H -D -a proxy","/100",5)
-    ## request test
-    tp_test_generic("dpdk_handshake",1, "-D","nodpdk_handshake",0,"-D","*1000/100000",5)
+    
+    
+    clientArgsDpdk = {"eal" : dpdk_1_client,
+                  "args": "-H -D -a proxy -N 10",
+                  "output_file":"handshake_dpdk",
+                  "ip_and_port" : "10.100.0.2 5600",
+                  "request" : "/100"}   
+    serverArgsDpdk = {"eal" : dpdk_1_server,
+                  "args" : "-a proxy",
+                  "port" : 5600}
+    serverArgsNoDpdk = serverArgsDpdk.copy()
+    serverArgsNoDpdk["eal"] = nodpdk
+    test_cmp(clientArgsDpdk,serverArgsDpdk)
     
     
     

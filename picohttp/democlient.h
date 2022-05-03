@@ -99,6 +99,9 @@ typedef struct st_picoquic_demo_client_callback_ctx_t {
     int no_print;
     int connection_ready;
     int connection_closed;
+
+    //for request test
+    int request_test;
 } picoquic_demo_callback_ctx_t;
 
 picoquic_alpn_enum picoquic_parse_alpn(char const * alpn);
