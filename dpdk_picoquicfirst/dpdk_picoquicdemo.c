@@ -434,7 +434,7 @@ client_job(void *arg)
                     &config,
                     force_migration,
                     nb_packets_before_update,
-                    client_scenario, handshake_test,
+                    client_scenario, handshake_test, request_test,
                     dpdk,
                     MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[main_port], tx_buffers[main_port],
                     udp_port, 0, mb_pools[main_port], &eth_client_proxy_addr);
@@ -589,7 +589,6 @@ int str_to_mac(char *mac_txt, struct rte_ether_addr *mac_addr)
 
 int main(int argc, char **argv)
 {
-
     char option_string[512];
     int opt;
     char default_server_cert_file[512];
@@ -784,7 +783,6 @@ int main(int argc, char **argv)
             else
             {
                 ret = quic_server(server_name, &config, just_once, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
-                printf("Server exit with code = %d\n", ret);
             }
         }
 

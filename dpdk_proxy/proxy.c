@@ -201,7 +201,6 @@ proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_poo
         ctx-> queueid = queueid;
         ctx-> mb_pool = mb_pool;
         ctx-> client_addr = eth_client_proxy_addr;
-        ctx-> handshake_test = 0;
     }
     return ctx;
 }

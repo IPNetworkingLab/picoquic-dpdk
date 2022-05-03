@@ -200,16 +200,12 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     cb_ctx->cnx_client->is_hcid_verified);
                 cb_ctx->established = 1;
                 
-                if(handshake_test){
-                    uint16_t error_found = 0;
-                    ret = picoquic_close(cb_ctx->cnx_client, error_found);
+                
+                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_proxy) {
+                    /* Start the download scenario */
+                    picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
                 }
-                else{
-                    if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_proxy) {
-                        /* Start the download scenario */
-                        picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
-                    }
-                }    
+                   
             }
             break;
         case picoquic_packet_loop_port_update:
@@ -271,7 +267,6 @@ int quic_client(const char *ip_address_text, int server_port,
         }
 
     }
-    loop_cb.handshake_test = handshake_test;
     /* Create QUIC context */
     current_time = picoquic_current_time();
     callback_ctx.last_interaction_time = current_time;
@@ -328,9 +323,6 @@ int quic_client(const char *ip_address_text, int server_port,
             /* Set a proxy client */
             is_proxy = 1;
             proxy_ctx = proxy_create_ctx(proxy_portid,proxy_queuid,mb_pool_proxy,eth_client_proxy_addr);
-            if(handshake_test){
-                proxy_ctx -> handshake_test = 1;
-            }
             if (proxy_ctx == NULL) {
                 fprintf(stdout, "Could not get ready to proxy\n");
                 return -1;
@@ -376,6 +368,8 @@ int quic_client(const char *ip_address_text, int server_port,
             else {
                 ret = picoquic_demo_client_initialize_context(&callback_ctx, client_sc, client_sc_nb, config->alpn, config->no_disk, 0);
                 callback_ctx.no_print = handshake_test;
+                callback_ctx.handshake_test = handshake_test;
+                callback_ctx.request_test = request_test;
                 callback_ctx.out_dir = config->out_dir;
                 if (!config->no_disk) {
                     callback_ctx.offset = 0;

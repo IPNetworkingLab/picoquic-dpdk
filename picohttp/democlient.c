@@ -765,7 +765,13 @@ int picoquic_demo_client_callback(picoquic_cnx_t* cnx,
         }
     case picoquic_callback_almost_ready:
     case picoquic_callback_ready:
-        ctx->connection_ready = 1;
+        if(ctx->handshake_test){
+            ret = picoquic_close(cnx, 0);
+        }
+        else{
+            ctx->connection_ready = 1;
+        }
+        
         break;
     case picoquic_callback_request_alpn_list:
         picoquic_demo_client_set_alpn_list((void*)bytes);
