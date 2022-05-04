@@ -327,7 +327,6 @@ lcore_hello(__rte_unused void *arg)
         // inchallah ca marche
         m->data_len = offset;
         m->pkt_len = offset;
-        printf("length : %u\n",htons(rte_udp_hdr.dgram_len)+sizeof(struct rte_ipv4_hdr)+sizeof(struct rte_udp_hdr));
         rte_eth_tx_burst(0, 0, &m, 1);
     }
 }

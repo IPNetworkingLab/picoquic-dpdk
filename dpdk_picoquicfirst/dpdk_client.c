@@ -21,7 +21,9 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
     else {
         switch (cb_mode) {
         case picoquic_packet_loop_ready:
-            fprintf(stdout, "Waiting for packets.\n");
+            if(!handshake_test){
+                fprintf(stdout, "Waiting for packets.\n");
+            }
             break;
         case picoquic_packet_loop_after_receive:
             /* Post receive callback */

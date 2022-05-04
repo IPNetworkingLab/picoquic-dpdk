@@ -465,7 +465,7 @@ client_job(void *arg)
                     counter++;
                     gettimeofday(&current_time, NULL);
                 }
-                printf("Number of request served : %d\n", counter);
+                printf("Number of handshakes served : %d\n", counter);
                 sleep(2);
             }
         }

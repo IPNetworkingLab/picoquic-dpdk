@@ -141,8 +141,6 @@ lcore_hello(__rte_unused void *arg)
 															 sizeof(struct rte_ipv4_hdr));
 			unsigned char *payload = (unsigned char *)(udp + 1);
 			counter++;
-			printf("counter : %d\n",counter);
-			printf("payload : %s\n", payload);
 			rte_pktmbuf_free(pkts_burst[j]);
 
 		}

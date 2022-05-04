@@ -105,10 +105,7 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
                                                                     eth_addr.addr_bytes[3], 
                                                                     eth_addr.addr_bytes[4], 
                                                                     eth_addr.addr_bytes[5]);
-    
-    // printf("ret : %d\n",ret);
-    // printf("mac : %s\n",macStr);
-    
+        
     pkt_recv = rte_eth_rx_burst(ctx->portid, ctx->queueid, pkts_burst, MAX_PKT_BURST);
     if(pkt_recv > 0){
         for (int j = 0; j < pkt_recv; j++)
@@ -122,7 +119,6 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
                 udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
                 uint16_t dgram_length = htons(udp_hdr->dgram_len);
                 length = sizeof(struct rte_ipv4_hdr)+ dgram_length;
-                printf("dgram_length : %d \n",dgram_length);
                 ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
                 rte_pktmbuf_free(pkts_burst[j]);
             }
@@ -173,14 +169,12 @@ int send_received_dgram(proxy_ctx_t *ctx, uint8_t *udp_packet) {
     udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
     uint16_t dgram_length = htons(udp_hdr->dgram_len);
     length = dgram_length + udp_dgram_offset;
-    printf("dgram_length : %zu\n",dgram_length);
 
     copy_buf_to_pkt(udp_packet, length, m, sizeof(struct rte_ether_hdr));
     
     m->data_len = length+sizeof(struct rte_ether_hdr);
     m->pkt_len = length+sizeof(struct rte_ether_hdr);
     ret = rte_eth_tx_burst(ctx->portid, ctx->queueid, &m,1);
-    printf("ret : %d\n",ret);
 }
 
 uint8_t *receive_packet(proxy_ctx_t ctx){
