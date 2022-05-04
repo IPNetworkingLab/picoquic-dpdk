@@ -410,7 +410,7 @@ client_job(void *arg)
     unsigned portid = *((unsigned *)arg);
     unsigned queueid = 0;
     unsigned lcore_id = rte_lcore_id();
-    
+
     // giving a different IP for each client using the portid
     uint32_t ip = (198U << 24) | (18 << 16) | (portid << 8) | 1;
     struct in_addr ip_addr;
@@ -423,10 +423,10 @@ client_job(void *arg)
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = rte_cpu_to_be_32(ip);
 
+    // proxy_mode
 
-    //proxy_mode
-
-    if(is_proxy){
+    if (is_proxy)
+    {
         unsigned main_port = 0;
         unsigned udp_port = 1;
         quic_client(server_name,
@@ -438,20 +438,40 @@ client_job(void *arg)
                     dpdk,
                     MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[main_port], tx_buffers[main_port],
                     udp_port, 0, mb_pools[main_port], &eth_client_proxy_addr);
-        return;
     }
-
-    // handshake test
-    if (handshake_test || request_test)
+    else
     {
-        struct timeval start_time;
-        struct timeval current_time;
-        for (int i = 0; i < nb_of_repetition; i++)
+        // handshake test
+        if (handshake_test)
         {
-            gettimeofday(&start_time, NULL);
-            gettimeofday(&current_time, NULL);
-            int counter = 0;
-            while ((current_time.tv_sec - start_time.tv_sec) < 20)
+            struct timeval start_time;
+            struct timeval current_time;
+            for (int i = 0; i < nb_of_repetition; i++)
+            {
+                gettimeofday(&start_time, NULL);
+                gettimeofday(&current_time, NULL);
+                int counter = 0;
+                while ((current_time.tv_sec - start_time.tv_sec) < 20)
+                {
+                    quic_client(server_name,
+                                server_port,
+                                &config,
+                                force_migration,
+                                nb_packets_before_update,
+                                client_scenario, handshake_test, request_test,
+                                dpdk,
+                                MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
+                                0, 0, NULL, NULL);
+                    counter++;
+                    gettimeofday(&current_time, NULL);
+                }
+                printf("Number of request served : %d\n", counter);
+                sleep(2);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < nb_of_repetition; i++)
             {
                 quic_client(server_name,
                             server_port,
@@ -462,27 +482,8 @@ client_job(void *arg)
                             dpdk,
                             MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
                             0, 0, NULL, NULL);
-                counter++;
-                gettimeofday(&current_time, NULL);
+                sleep(2);
             }
-            printf("Number of request served : %d\n", counter);
-            sleep(2);
-        }
-    }
-    else
-    {
-        for (int i = 0; i < nb_of_repetition; i++)
-        {
-            quic_client(server_name,
-                        server_port,
-                        &config,
-                        force_migration,
-                        nb_packets_before_update,
-                        client_scenario, handshake_test, request_test,
-                        dpdk,
-                        MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
-                        0, 0, NULL, NULL);
-            sleep(2);
         }
     }
 }
@@ -506,15 +507,17 @@ server_job(void *arg)
                 dpdk,
                 MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[main_port], tx_buffers[queueid],
                 udp_port, 0, mb_pools[main_port], &eth_client_proxy_addr);
-        return;
+    
 
     }
-    quic_server(server_name,
+    else{
+        quic_server(server_name,
                 &config,
                 just_once,
                 dpdk,
                 MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[portid], tx_buffers[queueid],
                 0, 0, NULL, NULL);
+    }
 }
 
 int check_ports_lcores_numbers()
@@ -620,8 +623,8 @@ int main(int argc, char **argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:A:N:@:2:3:H1", 16);
-    ret = picoquic_config_option_letters(option_string + 16, sizeof(option_string) - 16, NULL);
+    memcpy(option_string, "u:f:A:N:@:2:3H1", 15);
+    ret = picoquic_config_option_letters(option_string + 15, sizeof(option_string) - 15, NULL);
 
     if (ret == 0)
     {
@@ -647,6 +650,7 @@ int main(int argc, char **argv)
                 break;
             case 'H':
                 handshake_test = 1;
+                break;
             case '1':
                 just_once = 1;
                 break;
@@ -658,6 +662,7 @@ int main(int argc, char **argv)
                 break;
             case '3':
                 request_test = 1;
+                break;
 
             case 'A':
                 if (str_to_mac(optarg, &eth_addr) != 0)
@@ -782,7 +787,7 @@ int main(int argc, char **argv)
             }
             else
             {
-                ret = quic_server(server_name, &config, just_once, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
+                ret = quic_server(server_name, &config, just_once, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL,0,0,NULL,NULL);
             }
         }
 
@@ -852,8 +857,7 @@ int main(int argc, char **argv)
             }
             else
             {
-
-                if (handshake_test || request_test)
+                if (handshake_test)
                 {
                     struct timeval start_time;
                     struct timeval current_time;

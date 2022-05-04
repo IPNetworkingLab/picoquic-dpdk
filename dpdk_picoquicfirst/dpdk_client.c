@@ -371,6 +371,7 @@ int quic_client(const char *ip_address_text, int server_port,
                 callback_ctx.handshake_test = handshake_test;
                 callback_ctx.request_test = request_test;
                 callback_ctx.out_dir = config->out_dir;
+                gettimeofday(&callback_ctx.start_time, NULL);
                 if (!config->no_disk) {
                     callback_ctx.offset = 0;
                     callback_ctx.maxoffset = size_of_one_gb;
@@ -506,15 +507,15 @@ int quic_client(const char *ip_address_text, int server_port,
     if (ret == 0) {
         uint64_t last_err;
         
-        if ((last_err = picoquic_get_local_error(cnx_client)) != 0) {
+        if ((last_err = picoquic_get_local_error(cnx_client)) != 0 && !handshake_test) {
             fprintf(stdout, "Connection end with local error 0x%" PRIx64 ".\n", last_err);
             ret = -1;
         }
-        if ((last_err = picoquic_get_remote_error(cnx_client)) != 0) {
+        if ((last_err = picoquic_get_remote_error(cnx_client)) != 0 && !handshake_test) {
             fprintf(stdout, "Connection end with remote error 0x%" PRIx64 ".\n", last_err);
             ret = -1;
         }
-        if ((last_err = picoquic_get_application_error(cnx_client)) != 0) {
+        if ((last_err = picoquic_get_application_error(cnx_client)) != 0 && !handshake_test) {
             fprintf(stdout, "Connection end with application error 0x%" PRIx64 ".\n", last_err);
             ret = -1;
         }
@@ -633,6 +634,9 @@ int quic_client(const char *ip_address_text, int server_port,
                             picoquic_get_data_received(cnx_client), duration_usec, ((double)quicperf_ctx->data_received) * 8.0 / duration_usec);
                     }
                     else {
+                        if(request_test){
+                            printf("requests served : %lu\n",callback_ctx.requests_counter);
+                        }
                         double receive_rate_mbps = 8.0 * ((double)picoquic_get_data_received(cnx_client)) / duration_usec;
                         fprintf(stdout, "Received %" PRIu64 " bytes in %f seconds, %f Mbps.\n",
                             picoquic_get_data_received(cnx_client),

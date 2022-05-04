@@ -242,12 +242,8 @@ int proxy_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_almost_ready:
             break;
         case picoquic_callback_ready:
-            
-            break;
             if (cnx->client_mode) {
-                picoquic_set_callback(cnx, NULL, NULL);
-                ret = picoquic_close(cnx, SIDUCK_ONLY_QUACKS_ECHO);
-                // rcv_encapsulate_send(cnx,ctx);
+                rcv_encapsulate_send(cnx,ctx);
             }
             else{
                 printf("server\n");
