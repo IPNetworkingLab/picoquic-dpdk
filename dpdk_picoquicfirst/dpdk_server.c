@@ -4,6 +4,7 @@ static const int default_server_port = 4443;
 static const char* default_server_name = "::";
 static const char* ticket_store_filename = "demo_ticket_store.bin";
 static const char* token_store_filename = "demo_token_store.bin";
+
 static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
     void* callback_ctx, void * callback_arg)
 {
@@ -55,10 +56,7 @@ int quic_server(const char* server_name,
                         struct rte_ether_addr *mac_dst,
                         struct rte_mempool *mb_pool,
                         struct rte_eth_dev_tx_buffer *tx_buffer,
-                        int proxy_portid,
-                        int proxy_queueid,
-                        struct rte_mempool *mb_pool_proxy,
-                        struct rte_ether_addr *eth_client_proxy_addr)
+                        proxy_ctx_t *proxy_ctx_prepared)
 {
     /* Start: start the QUIC process with cert and key files */
     int ret = 0;
@@ -72,6 +70,8 @@ int quic_server(const char* server_name,
     memset(&loop_cb_ctx, 0, sizeof(server_loop_cb_t));
     loop_cb_ctx.just_once = just_once;
 
+
+
     /* Setup the server context */
     if (ret == 0) {
         current_time = picoquic_current_time();
@@ -84,12 +84,12 @@ int quic_server(const char* server_name,
             ret = picoquic_config_set_option(config, picoquic_option_Token_File_Name, token_store_filename);
         }
         if (ret == 0) {
-            if(mb_pool_proxy == NULL){
+            if(proxy_ctx_prepared == NULL){
                 qserver = picoquic_create_and_configure(config, picoquic_demo_server_callback, &picoquic_file_param, current_time, NULL);
             }
             //proxy mode here
             else{
-                proxy_ctx_t* proxy_ctx = proxy_create_ctx(proxy_portid,proxy_queueid,mb_pool_proxy,eth_client_proxy_addr);
+                proxy_ctx_t* proxy_ctx = proxy_ctx_prepared;
                 qserver = picoquic_create_and_configure(config, proxy_callback, proxy_ctx, current_time, NULL);
             }
             

@@ -17,4 +17,3 @@
 8a:03.6 Ethernet controller: Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
 8a:03.7 Ethernet controller: Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
 8a:04.0 Ethernet controller: Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
-8a:04.1 Ethernet controller: Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]

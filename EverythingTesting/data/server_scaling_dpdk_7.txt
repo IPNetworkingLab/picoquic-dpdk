@@ -1,0 +1,15 @@
+Received 10000000025 bytes in 8.055363 seconds, 9931.271899 Mbps.
+Received 10000000025 bytes in 15.696767 seconds, 5096.590922 Mbps.
+Received 10000000025 bytes in 15.702752 seconds, 5094.648390 Mbps.
+Received 10000000025 bytes in 15.725446 seconds, 5087.296106 Mbps.
+Received 10000000025 bytes in 16.069940 seconds, 4978.238886 Mbps.
+Received 10000000025 bytes in 16.069359 seconds, 4978.418878 Mbps.
+Received 10000000025 bytes in 16.106962 seconds, 4966.796358 Mbps.
+Received 10000000025 bytes in 16.107439 seconds, 4966.649273 Mbps.
+Received 10000000025 bytes in 16.124442 seconds, 4961.412010 Mbps.
+Received 10000000025 bytes in 17.308643 seconds, 4621.968354 Mbps.
+Received 10000000025 bytes in 17.328758 seconds, 4616.603233 Mbps.
+Received 10000000025 bytes in 22.505911 seconds, 3554.621726 Mbps.
+Received 10000000025 bytes in 23.155775 seconds, 3454.861701 Mbps.
+Received 10000000025 bytes in 23.159642 seconds, 3454.284837 Mbps.
+Received 10000000025 bytes in 179.393139 seconds, 445.947937 Mbps.

@@ -5,6 +5,7 @@ static const char* default_server_name = "::";
 static const char* ticket_store_filename = "demo_ticket_store.bin";
 static const char* token_store_filename = "demo_token_store.bin";
 
+
 int siduck_callback(picoquic_cnx_t* cnx,
     uint64_t stream_id, uint8_t* bytes, size_t length,
     picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx);
@@ -229,10 +230,7 @@ int quic_client(const char *ip_address_text, int server_port,
                 struct rte_ether_addr *mac_dst,
                 struct rte_mempool *mb_pool,
                 struct rte_eth_dev_tx_buffer *tx_buffer,
-                int proxy_portid,
-                int proxy_queuid,
-                struct rte_mempool *mb_pool_proxy,
-                struct rte_ether_addr *eth_client_proxy_addr)
+                proxy_ctx_t *proxy_ctx_prepared)
 {
     /* Start: start the QUIC process with cert and key files */
     int ret = 0;
@@ -249,7 +247,7 @@ int quic_client(const char *ip_address_text, int server_port,
     int is_quicperf = 0;
     quicperf_ctx_t* quicperf_ctx = NULL;
     int is_proxy = 0;
-    proxy_ctx_t* proxy_ctx = NULL;
+    proxy_ctx_t *proxy_ctx = proxy_ctx_prepared;
 
     client_loop_cb_t loop_cb;
     const char* sni = config->sni;
@@ -258,7 +256,7 @@ int quic_client(const char *ip_address_text, int server_port,
         //hardcoded value   
         (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_family = AF_INET;
         (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_port = htons(server_port);
-        (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_addr.s_addr = inet_addr("10.100.0.2");
+        (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_addr.s_addr = inet_addr(SERVER_ADDR);
     }
     else{
         if (ret == 0) {
@@ -324,7 +322,6 @@ int quic_client(const char *ip_address_text, int server_port,
         if(config->alpn != NULL && strcmp(config->alpn, "proxy")==0){
             /* Set a proxy client */
             is_proxy = 1;
-            proxy_ctx = proxy_create_ctx(proxy_portid,proxy_queuid,mb_pool_proxy,eth_client_proxy_addr);
             if (proxy_ctx == NULL) {
                 fprintf(stdout, "Could not get ready to proxy\n");
                 return -1;
@@ -448,9 +445,9 @@ int quic_client(const char *ip_address_text, int server_port,
                 //     (int)cnx_client->max_stream_id_bidir_remote,
                 //     (int)cnx_client->remote_parameters.initial_max_stream_id_bidir);
             }
-            if(is_proxy){
-                picoquic_mark_datagram_ready(cnx_client,1);
-            }
+            // if(is_proxy){
+                
+            // }
             if (ret == 0 && !is_siduck && !is_quicperf && !is_proxy) {
                 if (picoquic_is_0rtt_available(cnx_client) && (config->proposed_version & 0x0a0a0a0a) != 0x0a0a0a0a) {
                     loop_cb.zero_rtt_available = 1;
@@ -479,9 +476,6 @@ int quic_client(const char *ip_address_text, int server_port,
         loop_cb.socket_buffer_size = config->socket_buffer_size;
         loop_cb.handshake_test = handshake_test;
 
-        if (is_proxy){
-            loop_cb.siduck_ctx = proxy_ctx;
-        }
         if (is_siduck) {
             loop_cb.siduck_ctx = siduck_ctx;
         }

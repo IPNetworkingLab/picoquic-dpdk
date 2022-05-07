@@ -83,20 +83,9 @@
 #define RTE_TEST_TX_DESC_DEFAULT 1024
 #define MAX_NB_OF_PORTS_AND_LCORES 32
 
-#define PICOQUIC_SAMPLE_ALPN "picoquic_sample"
-#define PICOQUIC_SAMPLE_SNI "test.example.com"
+#define PICOQUIC_SAMPLE_SERVER_QLOG_DIR "."
 
-#define PICOQUIC_SAMPLE_NO_ERROR 0
-#define PICOQUIC_SAMPLE_INTERNAL_ERROR 0x101
-#define PICOQUIC_SAMPLE_NAME_TOO_LONG_ERROR 0x102
-#define PICOQUIC_SAMPLE_NO_SUCH_FILE_ERROR 0x103
-#define PICOQUIC_SAMPLE_FILE_READ_ERROR 0x104
-#define PICOQUIC_SAMPLE_FILE_CANCEL_ERROR 0x105
-
-#define PICOQUIC_SAMPLE_CLIENT_TICKET_STORE "sample_ticket_store.bin";
-#define PICOQUIC_SAMPLE_CLIENT_TOKEN_STORE "sample_token_store.bin";
-#define PICOQUIC_SAMPLE_CLIENT_QLOG_DIR ".";
-#define PICOQUIC_SAMPLE_SERVER_QLOG_DIR ".";
+#define SERVER_ADDR "10.100.0.2"
 
 //client
 
@@ -133,16 +122,13 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
 
 int quic_client(const char *ip_address_text, int server_port,
                 picoquic_quic_config_t *config, int force_migration,
-                int nb_packets_before_key_update, char const *client_scenario_text, int handshake_test, int request_test, int dpdk, int batching_size, unsigned portid,
+                int nb_packets_before_key_update, char const *client_scenario_text, int handshake_test, int request_test,int dpdk, int batching_size, unsigned portid,
                 unsigned queueid,
                 struct sockaddr_storage *addr_from,
                 struct rte_ether_addr *mac_dst,
                 struct rte_mempool *mb_pool,
                 struct rte_eth_dev_tx_buffer *tx_buffer,
-                int proxy_portid,
-                int proxy_queuid,
-                struct rte_mempool *mb_pool_proxy,
-                struct rte_ether_addr *eth_client_proxy_addr);
+                proxy_ctx_t *proxy_ctx_prepared);
             
 //server
 typedef struct st_server_loop_cb_t {
@@ -165,9 +151,6 @@ int quic_server(const char* server_name,
                         struct rte_ether_addr *mac_dst,
                         struct rte_mempool *mb_pool,
                         struct rte_eth_dev_tx_buffer *tx_buffer,
-                        int proxy_portid,
-                        int proxy_queueid,
-                        struct rte_mempool *mb_pool_proxy,
-                        struct rte_ether_addr *eth_client_proxy_addr);
+                        proxy_ctx_t *proxy_ctx_prepared);
 
 

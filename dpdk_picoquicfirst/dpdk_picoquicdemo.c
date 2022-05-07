@@ -69,7 +69,6 @@ static const char *default_server_name = "::";
 #include "democlient.h"
 #include "demoserver.h"
 #include "siduck.h"
-#include "proxy.h"
 #include "quicperf.h"
 #include "picoquic_unified_log.h"
 #include "picoquic_logger.h"
@@ -77,6 +76,8 @@ static const char *default_server_name = "::";
 #include "performance_log.h"
 #include "picoquic_config.h"
 #include "picoquic_lb.h"
+#include "dpdk_picoquicdemo.h"
+
 
 // dpdk
 #include <rte_common.h>
@@ -136,7 +137,7 @@ uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 int is_proxy = 0;
 
 // proxy clients/server mac
-struct rte_ether_addr eth_client_proxy_addr;
+struct rte_ether_addr client_addr;
 
 // global variables for threads
 char *server_name;
@@ -255,12 +256,6 @@ int init_port_client(uint16_t portid)
         .rxmode = {
             .split_hdr_size = 0,
         },
-        .rx_adv_conf = {
-            .rss_conf = {
-                .rss_key = NULL,
-                .rss_hf = ETH_RSS_IP,
-            },
-        },
         .txmode = {
             .mq_mode = ETH_MQ_TX_NONE,
         },
@@ -314,7 +309,6 @@ int init_port_server(uint16_t nb_of_queues)
 
     static struct rte_eth_conf local_port_conf = {
         .rxmode = {
-            .split_hdr_size = 0,
             .mq_mode = ETH_MQ_RX_RSS,
         },
         .rx_adv_conf = {
@@ -428,7 +422,13 @@ client_job(void *arg)
     if (is_proxy)
     {
         unsigned main_port = 0;
-        unsigned udp_port = 1;
+        unsigned proxy_port = 1;
+        proxy_ctx_t proxy_ctx;
+        proxy_ctx.portid = proxy_port;
+        proxy_ctx.queueid = 0;
+        proxy_ctx.mb_pool= mb_pools[main_port];
+        proxy_ctx.client_addr = &client_addr;
+
         quic_client(server_name,
                     server_port,
                     &config,
@@ -436,8 +436,7 @@ client_job(void *arg)
                     nb_packets_before_update,
                     client_scenario, handshake_test, request_test,
                     dpdk,
-                    MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[main_port], tx_buffers[main_port],
-                    udp_port, 0, mb_pools[main_port], &eth_client_proxy_addr);
+                    MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[main_port], tx_buffers[main_port],&proxy_ctx);
     }
     else
     {
@@ -460,8 +459,7 @@ client_job(void *arg)
                                 nb_packets_before_update,
                                 client_scenario, handshake_test, request_test,
                                 dpdk,
-                                MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
-                                0, 0, NULL, NULL);
+                                MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],NULL);
                     counter++;
                     gettimeofday(&current_time, NULL);
                 }
@@ -480,8 +478,7 @@ client_job(void *arg)
                             nb_packets_before_update,
                             client_scenario, handshake_test, request_test,
                             dpdk,
-                            MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],
-                            0, 0, NULL, NULL);
+                            MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[portid], tx_buffers[portid],NULL);
                 sleep(2);
             }
         }
@@ -496,17 +493,23 @@ server_job(void *arg)
     struct sockaddr_storage addr_from;
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr("198.18.0.2");
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(SERVER_ADDR);
 
     if(is_proxy){
+      
         unsigned main_port = 0;
-        unsigned udp_port = 1;
+        unsigned proxy_port = 1;
+        proxy_ctx_t proxy_ctx;
+        proxy_ctx.portid = proxy_port;
+        proxy_ctx.queueid = 0;
+        proxy_ctx.mb_pool= mb_pools[main_port];
+        proxy_ctx.client_addr = &client_addr;
+
         quic_server(server_name,
                 &config,
                 just_once,
                 dpdk,
-                MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[main_port], tx_buffers[queueid],
-                udp_port, 0, mb_pools[main_port], &eth_client_proxy_addr);
+                MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[main_port], tx_buffers[queueid],&proxy_ctx);
     
 
     }
@@ -515,8 +518,7 @@ server_job(void *arg)
                 &config,
                 just_once,
                 dpdk,
-                MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[portid], tx_buffers[queueid],
-                0, 0, NULL, NULL);
+                MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[portid], tx_buffers[queueid],NULL);
     }
 }
 
@@ -655,7 +657,7 @@ int main(int argc, char **argv)
                 just_once = 1;
                 break;
             case '2':
-                if (str_to_mac(optarg, &eth_client_proxy_addr) != 0)
+                if (str_to_mac(optarg, &client_addr) != 0)
                 {
                     return -1;
                 }
@@ -764,7 +766,6 @@ int main(int argc, char **argv)
             unsigned index_lcore = 0;
             RTE_LCORE_FOREACH_WORKER(lcore_id)
             {
-
                 rte_eal_remote_launch(server_job, index_lcore, lcore_id);
                 index_lcore++;
             }
@@ -787,7 +788,7 @@ int main(int argc, char **argv)
             }
             else
             {
-                ret = quic_server(server_name, &config, just_once, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL,0,0,NULL,NULL);
+                ret = quic_server(server_name, &config, just_once, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL,NULL);
             }
         }
 
@@ -868,7 +869,7 @@ int main(int argc, char **argv)
                         while ((current_time.tv_sec - start_time.tv_sec) < 20)
                         {
                             ret = quic_client(server_name, server_port, &config,
-                                            force_migration, nb_packets_before_update, client_scenario, handshake_test, request_test, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
+                                            force_migration, nb_packets_before_update, client_scenario, handshake_test, request_test, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL,NULL);
                             counter++;
                             gettimeofday(&current_time, NULL);
                         }
@@ -883,7 +884,7 @@ int main(int argc, char **argv)
                     for (int i = 0; i < nb_of_repetition; i++)
                     {
                         ret = quic_client(server_name, server_port, &config,
-                                          force_migration, nb_packets_before_update, client_scenario, handshake_test, request_test, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL);
+                                          force_migration, nb_packets_before_update, client_scenario, handshake_test, request_test, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL,NULL);
                         sleep(2);
                     }
                 }

@@ -4,6 +4,7 @@ from subprocess import Popen, PIPE
 
 import json
 import shlex
+import time
 
 def retrieve_cards():
     cards = open('cards.txt', 'r')
@@ -24,7 +25,7 @@ serverName = 'server'
 clientName = 'client1'
 process_name = 'dpdk_picoquicdemo'
 dpdk1Client = 'dpdk -l 0-1 -a 0000:8a:00.1 -- -A 50:6b:4b:f3:7c:71'
-dpdk8Client = 'dpdk -l 0-16 {} -- -A 50:6b:4b:f3:7c:71'.format(retrieve_cards())
+dpdk8Client = 'dpdk -l 0-15 {} -- -A 50:6b:4b:f3:7c:71'.format(retrieve_cards())
 dpdk1Server = 'dpdk -l 0-1 -a 0000:51:00.1 --'
 nodpdk = 'nodpdk'
 
@@ -78,18 +79,19 @@ def test_generic(argsClient,argsServer,isComparison):
 def test_server_scaling():
     
     clientArgs = {"eal" : dpdk8Client,
-                  "args": "-D -N 10",
-                  "output_file":"handshake_dpdk.txt",
+                  "args": "-D ",
+                  "output_file":"server_scaling_dpdk.txt",
                   "ip_and_port" : "10.100.0.2 5600",
                   "request" : "/10000000000",
                   "keyword" : "Mbps"}   
     serverArgs = {"eal" : dpdk1Server,
                   "args" : "",
                   "port" : "-p 5600"}
-    for i in range(1,17):
+    for i in range(3,16):
         serverArgs["eal"] = 'dpdk -l 0-{} -a 0000:51:00.1 --'.format(i)
-        clientArgs["output_file"] = "handshake_dpdk.txt" + "_{}".format(str(i))
+        clientArgs["output_file"] = "server_scaling_dpdk_{}.txt".format(str(i))
         test_generic(clientArgs,serverArgs,False)
+        time.sleep(10)
     
     
 def test_throughput():

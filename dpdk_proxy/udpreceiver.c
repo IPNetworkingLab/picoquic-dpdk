@@ -125,6 +125,9 @@ lcore_hello(__rte_unused void *arg)
 
     printf("mac : %s\n",macStr);
 	int counter = 0;
+	struct timeval start_time;
+    struct timeval current_time;
+	gettimeofday(&start_time, NULL);
 	while (true)
 	{
 		ret = rte_eth_rx_burst(0, 0, pkts_burst, MAX_PKT_BURST);
@@ -142,7 +145,16 @@ lcore_hello(__rte_unused void *arg)
 			unsigned char *payload = (unsigned char *)(udp + 1);
 			counter++;
 			rte_pktmbuf_free(pkts_burst[j]);
+			printf("hello\n");
 
+		}
+		if(counter > 20000000){
+			counter = 0;
+			gettimeofday(&current_time, NULL);
+			double elapsed = 0.0;
+			elapsed = (current_time.tv_sec - start_time.tv_sec) + (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
+			printf("elapsed time : %f\n",elapsed);
+			gettimeofday(&start_time, NULL);
 		}
 	}
 	return 0;

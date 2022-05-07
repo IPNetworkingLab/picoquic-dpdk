@@ -314,16 +314,19 @@ lcore_hello(__rte_unused void *arg)
 
         rte_ether_addr_copy(&eth_addr, &eth_hdr->src_addr);
         rte_ether_addr_copy(&eth_addr_peer, &eth_hdr->dst_addr);
-    
-        setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, 5);
+        int size = 1000;
+        char udp_payload[size];
+        memset(udp_payload,48,size);
+        int actual_size = 10;
+        setup_pkt_udp_ip_headers(&ip_hdr, &rte_udp_hdr, actual_size);
         copy_buf_to_pkt(eth_hdr, sizeof(struct rte_ether_hdr), m, offset);
         offset += sizeof(struct rte_ether_hdr);
         copy_buf_to_pkt(&ip_hdr, sizeof(struct rte_ipv4_hdr), m, offset);
         offset += sizeof(struct rte_ipv4_hdr);
         copy_buf_to_pkt(&rte_udp_hdr, sizeof(struct rte_udp_hdr), m, offset);
         offset += sizeof(struct rte_udp_hdr);
-        copy_buf_to_pkt("test!", 6, m, offset);
-        offset += 5;
+        copy_buf_to_pkt(udp_payload, actual_size, m, offset);
+        offset += actual_size;
         // inchallah ca marche
         m->data_len = offset;
         m->pkt_len = offset;

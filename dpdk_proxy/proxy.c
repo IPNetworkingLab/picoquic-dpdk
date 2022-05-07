@@ -185,19 +185,19 @@ uint8_t *receive_packet(proxy_ctx_t ctx){
 
 
 
-proxy_ctx_t* proxy_create_ctx(int portid,int queueid, struct rte_mempool *mb_pool,struct rte_ether_addr *eth_client_proxy_addr)
-{
-    proxy_ctx_t* ctx = (proxy_ctx_t*)malloc(sizeof(proxy_ctx_t));
+// proxy_ctx_t* proxy_create_ctx(proxy_struct_t *proxy_struct)
+// {
+//     proxy_ctx_t* ctx = (proxy_ctx_t*)malloc(sizeof(proxy_ctx_t));
 
-    if (ctx != NULL) {
-        memset(ctx, 0, sizeof(proxy_ctx_t));
-        ctx->portid = portid;
-        ctx-> queueid = queueid;
-        ctx-> mb_pool = mb_pool;
-        ctx-> client_addr = eth_client_proxy_addr;
-    }
-    return ctx;
-}
+//     if (ctx != NULL) {
+//         memset(ctx, 0, sizeof(proxy_ctx_t));
+//         ctx->portid = proxy_struct->portid;
+//         ctx-> queueid = proxy_struct->queueid;
+//         ctx-> mb_pool = proxy_struct->mb_pool;
+//         ctx-> client_addr = proxy_struct->eth_client_proxy_addr;
+//     }
+//     return ctx;
+// }
 
 /*
  * proxy call back.
@@ -236,8 +236,9 @@ int proxy_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_almost_ready:
             break;
         case picoquic_callback_ready:
+
             if (cnx->client_mode) {
-                rcv_encapsulate_send(cnx,ctx);
+                picoquic_mark_datagram_ready(cnx,1);
             }
             else{
                 printf("server\n");
