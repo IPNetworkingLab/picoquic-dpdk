@@ -402,6 +402,7 @@ client_job(void *arg)
 {
     unsigned *tab = (unsigned *)arg;
     unsigned portid = *((unsigned *)arg);
+    printf("port_id : %u\n",portid);
     unsigned queueid = 0;
     unsigned lcore_id = rte_lcore_id();
 
@@ -421,8 +422,8 @@ client_job(void *arg)
 
     if (is_proxy)
     {
-        unsigned main_port = 0;
-        unsigned proxy_port = 1;
+        unsigned main_port = 1;
+        unsigned proxy_port = 0;
         proxy_ctx_t proxy_ctx;
         proxy_ctx.portid = proxy_port;
         proxy_ctx.queueid = 0;
@@ -436,7 +437,7 @@ client_job(void *arg)
                     nb_packets_before_update,
                     client_scenario, handshake_test, request_test,
                     dpdk,
-                    MAX_PKT_BURST, portid, queueid, &addr_from, &eth_addr, mb_pools[main_port], tx_buffers[main_port],&proxy_ctx);
+                    MAX_PKT_BURST, main_port, queueid, &addr_from, &eth_addr, mb_pools[main_port], tx_buffers[main_port],&proxy_ctx);
     }
     else
     {
