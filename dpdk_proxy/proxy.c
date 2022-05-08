@@ -110,15 +110,21 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
     if(pkt_recv > 0){
         for (int j = 0; j < pkt_recv; j++)
 		{
+            printf("received packet\n");
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[j], struct rte_ether_hdr *);
             if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)){
                 int ret = 0;
                 struct rte_ipv4_hdr *ip_hdr;
-                struct rte_udp_hdr *udp_hdr;
                 ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[j], char *) + sizeof(struct rte_ether_hdr));
-                udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
-                uint16_t dgram_length = htons(udp_hdr->dgram_len);
-                length = sizeof(struct rte_ipv4_hdr)+ dgram_length;
+
+                struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
+															 sizeof(struct rte_ipv4_hdr));
+                unsigned char *payload = (unsigned char *)(udp + 1);
+                length = htons(ip_hdr->total_length);
+                //printf("length : %d\n",length);
+                //printf("payload : %s\n",payload);
+
+                
                 ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
                 rte_pktmbuf_free(pkts_burst[j]);
             }
@@ -126,13 +132,12 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
         
     }
     else{
-        sleep(0.5);
-        return picoquic_queue_datagram_frame(cnx, 5, "test");
+        ret = picoquic_queue_datagram_frame(cnx, 5, "test");
     }
     return 0; 
 }
 
-int send_received_dgram(proxy_ctx_t *ctx, uint8_t *udp_packet) {
+int send_received_dgram(proxy_ctx_t *ctx, uint8_t *ip_packet) {
 
     struct rte_mbuf *m;
     struct rte_ether_hdr *eth_hdr;
@@ -165,12 +170,16 @@ int send_received_dgram(proxy_ctx_t *ctx, uint8_t *udp_packet) {
                                                                     ctx->client_addr->addr_bytes[5]);
 
     // printf("mac : %s\n",macStr);
-    ip_hdr = (struct rte_ipv4_hdr *) udp_packet;
-    udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
-    uint16_t dgram_length = htons(udp_hdr->dgram_len);
-    length = dgram_length + udp_dgram_offset;
+    ip_hdr = (struct rte_ipv4_hdr *) ip_packet;
+    length = htons(ip_hdr->total_length);
+    //printf("length : %d\n",length);
+    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
+															 sizeof(struct rte_ipv4_hdr));
+	unsigned char *payload = (unsigned char *)(udp + 1);
+    //printf("payload : %s\n",payload);
+    
 
-    copy_buf_to_pkt(udp_packet, length, m, sizeof(struct rte_ether_hdr));
+    copy_buf_to_pkt(ip_packet, length, m, sizeof(struct rte_ether_hdr));
     
     m->data_len = length+sizeof(struct rte_ether_hdr);
     m->pkt_len = length+sizeof(struct rte_ether_hdr);
@@ -189,7 +198,7 @@ uint8_t *receive_packet(proxy_ctx_t ctx){
 // {
 //     proxy_ctx_t* ctx = (proxy_ctx_t*)malloc(sizeof(proxy_ctx_t));
 
-//     if (ctx != NULL) {
+//     if (ctx != NULL) {* Process the datagram, which contains an address and a QUIC packet */
 //         memset(ctx, 0, sizeof(proxy_ctx_t));
 //         ctx->portid = proxy_struct->portid;
 //         ctx-> queueid = proxy_struct->queueid;
@@ -236,20 +245,12 @@ int proxy_callback(picoquic_cnx_t* cnx,
         case picoquic_callback_almost_ready:
             break;
         case picoquic_callback_ready:
-
-            if (cnx->client_mode) {
-                picoquic_mark_datagram_ready(cnx,1);
-            }
-            else{
-                printf("server\n");
-            }
+            picoquic_mark_datagram_ready(cnx,1);
             break;
         case picoquic_callback_datagram:
-            if(!strcmp(bytes,"test")==0){
+            if(strcmp(bytes,"test") != 0){
                 send_received_dgram(ctx,bytes);
             }
-            
-            /* Process the datagram, which contains an address and a QUIC packet */
             
             break;
         case picoquic_callback_datagram_acked:
