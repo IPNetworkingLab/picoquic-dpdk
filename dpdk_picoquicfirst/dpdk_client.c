@@ -400,7 +400,7 @@ int quic_client(const char *ip_address_text, int server_port,
             }
             else if (is_proxy){
                 picoquic_set_callback(cnx_client, proxy_callback, proxy_ctx);
-                cnx_client->local_parameters.max_datagram_frame_size = 1600;
+                cnx_client->local_parameters.max_datagram_frame_size = 1536;
             }
             else if (is_quicperf) {
                 picoquic_set_callback(cnx_client, quicperf_callback, quicperf_ctx);

@@ -1269,10 +1269,10 @@ void picoquic_reinsert_by_wake_time(picoquic_quic_t* quic, picoquic_cnx_t* cnx, 
 picoquic_cnx_t* picoquic_get_earliest_cnx_to_wake(picoquic_quic_t* quic, uint64_t max_wake_time)
 {
     picoquic_cnx_t* cnx = (picoquic_cnx_t *)picoquic_wake_list_node_value(picosplay_first(&quic->cnx_wake_tree));
-    if (cnx != NULL && max_wake_time != 0 && cnx->next_wake_time > max_wake_time)
-    {
-        cnx = NULL;
-    }
+    // if (cnx != NULL && max_wake_time != 0 && cnx->next_wake_time > max_wake_time)
+    // {
+    //     cnx = NULL;
+    // }
 
     return cnx;
 }

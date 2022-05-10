@@ -110,7 +110,6 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
     if(pkt_recv > 0){
         for (int j = 0; j < pkt_recv; j++)
 		{
-            printf("received packet\n");
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[j], struct rte_ether_hdr *);
             if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)){
                 int ret = 0;
@@ -121,18 +120,19 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
 															 sizeof(struct rte_ipv4_hdr));
                 unsigned char *payload = (unsigned char *)(udp + 1);
                 length = htons(ip_hdr->total_length);
-                //printf("length : %d\n",length);
-                //printf("payload : %s\n",payload);
-
+                if(cnx->client_mode){
+                    //printf("length : %d\n",length);
+                }
                 
+                //printf("payload : %s\n",payload);
                 ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
+                if(cnx->client_mode){
+                    //printf("ret : %d\n",ret);
+                }
                 rte_pktmbuf_free(pkts_burst[j]);
             }
 		}
         
-    }
-    else{
-        ret = picoquic_queue_datagram_frame(cnx, 5, "test");
     }
     return 0; 
 }
@@ -228,16 +228,18 @@ int proxy_callback(picoquic_cnx_t* cnx,
            printf("Unexpected callback, code %d, length = %zu", fin_or_event, length);
            break;
         case picoquic_callback_prepare_datagram:
+            //printf("callb\n");
+
             rcv_encapsulate_send(cnx,ctx);
             break;
         case picoquic_callback_stateless_reset:
         case picoquic_callback_close: /* Received connection close */
         case picoquic_callback_application_close: /* Received application close */
             printf("app closed\n");
-            if (ctx != NULL) {
-                free(ctx);
-                ctx = NULL;
-            }
+            // if (ctx != NULL) {
+            //     free(ctx);
+            //     ctx = NULL;
+            // }
             picoquic_set_callback(cnx, NULL, NULL);
             break;
         case picoquic_callback_version_negotiation:
@@ -248,10 +250,7 @@ int proxy_callback(picoquic_cnx_t* cnx,
             picoquic_mark_datagram_ready(cnx,1);
             break;
         case picoquic_callback_datagram:
-            if(strcmp(bytes,"test") != 0){
-                send_received_dgram(ctx,bytes);
-            }
-            
+            send_received_dgram(ctx,bytes);
             break;
         case picoquic_callback_datagram_acked:
             // printf("acked datagram\n");
