@@ -75,6 +75,8 @@
 #include <rte_power.h>
 #include <rte_eal.h>
 #include <rte_spinlock.h>
+#include <rte_version.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -158,8 +160,13 @@ int send_received_dgram(proxy_ctx_t *ctx, uint8_t *ip_packet) {
     }
     eth_hdr = (struct rte_ether_hdr *)(rte_pktmbuf_mtod(m, char *));
     eth_hdr -> ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+    rte_ether_addr_copy(&eth_addr, &eth_hdr->s_addr);
+    rte_ether_addr_copy(ctx->client_addr, &eth_hdr->d_addr);
+#else
     rte_ether_addr_copy(&eth_addr, &eth_hdr->src_addr);
     rte_ether_addr_copy(ctx->client_addr, &eth_hdr->dst_addr);
+#endif
 
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x", ctx->client_addr->addr_bytes[0], 

@@ -51,6 +51,7 @@
 #include <rte_arp.h>
 #include <rte_spinlock.h>
 #include <rte_devargs.h>
+#include <rte_version.h>
 
 #define MAX_PKT_BURST 32
 #define MEMPOOL_CACHE_SIZE 256
@@ -311,9 +312,13 @@ lcore_hello(__rte_unused void *arg)
         eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
         eth_hdr -> ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+        rte_ether_addr_copy(&eth_addr, &eth_hdr->s_addr);
+        rte_ether_addr_copy(&eth_addr_peer, &eth_hdr->d_addr);
+#else
         rte_ether_addr_copy(&eth_addr, &eth_hdr->src_addr);
         rte_ether_addr_copy(&eth_addr_peer, &eth_hdr->dst_addr);
+#endif
         int size = 1000;
         char udp_payload[] = "test";
         int actual_size = 5;
