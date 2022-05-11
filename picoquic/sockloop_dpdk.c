@@ -122,6 +122,7 @@
 #include <rte_power.h>
 #include <rte_eal.h>
 #include <rte_spinlock.h>
+#include <rte_version.h>
 
 // DPDK
 #define _DPDK
@@ -386,8 +387,11 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                     if (mac_dst == NULL)
                     {
-
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                        add_mac_ip_pair(src_addr, (*eth_hdr).s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+#else
                         add_mac_ip_pair(src_addr, (*eth_hdr).src_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+#endif
                         
                     }
                    
@@ -459,18 +463,31 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
                         struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
+
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                        rte_ether_addr_copy(&eth_addr, &eth_ptr->s_addr);
+#else
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
-                       
+#endif
 
                         if (mac_dst != NULL)
                         {
+
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                            rte_ether_addr_copy(mac_dst, &eth_ptr->d_addr);
+#else
                             rte_ether_addr_copy(mac_dst, &eth_ptr->dst_addr);
+#endif
                             
                         }
                         else
                         {
                             struct rte_ether_addr mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                            rte_ether_addr_copy(&mac_addr, &eth_ptr->d_addr);
+#else
                             rte_ether_addr_copy(&mac_addr, &eth_ptr->dst_addr);
+#endif
                             
                         }
 
