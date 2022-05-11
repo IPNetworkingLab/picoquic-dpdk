@@ -1,0 +1,1 @@
+sudo ip netns exec nsSERVER /home/nikita/memoire/dpdk_picoquic/dpdk_proxy/tcp_server
