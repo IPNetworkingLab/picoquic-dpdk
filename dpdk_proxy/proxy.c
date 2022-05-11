@@ -120,16 +120,13 @@ int rcv_encapsulate_send(picoquic_cnx_t* cnx,proxy_ctx_t * ctx) {
 															 sizeof(struct rte_ipv4_hdr));
                 unsigned char *payload = (unsigned char *)(udp + 1);
                 length = htons(ip_hdr->total_length);
-                if(cnx->client_mode){
-                    //printf("length : %d\n",length);
-                }
-                
-                //printf("payload : %s\n",payload);
                 ret = picoquic_queue_datagram_frame(cnx, length, ip_hdr);
-                if(cnx->client_mode){
-                    //printf("ret : %d\n",ret);
-                }
                 rte_pktmbuf_free(pkts_burst[j]);
+                if(length > 1300){
+                    printf("error\n");
+                }
+                //printf("payload : %s\n",payload);
+                
             }
 		}
         
@@ -215,6 +212,7 @@ int proxy_callback(picoquic_cnx_t* cnx,
     uint64_t stream_id, uint8_t* bytes, size_t length,
     picoquic_call_back_event_t fin_or_event, void* callback_ctx, void* v_stream_ctx)
 {
+    //printf("length : %d\n",length);
     int ret = 0;
     proxy_ctx_t * ctx = (proxy_ctx_t*)callback_ctx;
     if (ret == 0) {
@@ -250,6 +248,9 @@ int proxy_callback(picoquic_cnx_t* cnx,
             picoquic_mark_datagram_ready(cnx,1);
             break;
         case picoquic_callback_datagram:
+            if(!cnx->client_mode){
+                //printf("length : %lu\n",length);
+            }
             send_received_dgram(ctx,bytes);
             break;
         case picoquic_callback_datagram_acked:
