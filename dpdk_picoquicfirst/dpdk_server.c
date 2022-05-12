@@ -136,7 +136,8 @@ int quic_server(const char* server_name,
             ret = picoquic_packet_loop_dpdk(qserver, config->server_port, 0, config->dest_if,
                 config->socket_buffer_size, config->do_not_use_gso, server_loop_cb, &loop_cb_ctx,
                 &demo_config->is_running,
-                portid, demo_config->queueid, batching_size, *addr_from, NULL, mb_pool, tx_buffer);
+                portid, demo_config->queueid, batching_size, *addr_from,
+                NULL, NULL, mb_pool, tx_buffer);
         }
         else{
             ret = picoquic_packet_loop(qserver, config->server_port, 0, config->dest_if,

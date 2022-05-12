@@ -87,6 +87,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                               unsigned queueid,
                               int batching_size,
                               struct sockaddr_storage my_addr,
+                              struct rte_ether_addr *my_mac,
                               struct rte_ether_addr *mac_dst,
                               struct rte_mempool *mb_pool,
                               struct rte_eth_dev_tx_buffer *tx_buffer);

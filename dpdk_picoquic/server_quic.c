@@ -463,7 +463,8 @@ int picoquic_sample_server(int server_port,
         int running = 1;
         ret = picoquic_packet_loop_dpdk(quic, server_port, 0, 0, 0, 0, NULL, NULL,
         &running,
-        queueid, portid, addr_from,NULL,mb_pool, tx_buffer);
+        queueid, portid, addr_from,
+        NULL, NULL,mb_pool, tx_buffer);
     }
 
     /* And finish. */
