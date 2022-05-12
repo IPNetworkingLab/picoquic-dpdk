@@ -264,6 +264,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                               int do_not_use_gso,
                               picoquic_packet_loop_cb_fn loop_callback,
                               void *loop_callback_ctx,
+                              int *is_running,
                               unsigned portid,
                               unsigned queueid,
                               int batching_size,
@@ -350,7 +351,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     bool need_to_alloc = true;
     bool should_i_print = true;
     bool should_i_print2 = true;
-    while (ret == 0)
+    while (ret == 0 && *is_running)
     {
         int64_t delta_t = 0;
         unsigned char received_ecn;

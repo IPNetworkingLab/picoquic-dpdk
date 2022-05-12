@@ -38,6 +38,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <signal.h>
 
 #ifndef __USE_XOPEN2K
 #define __USE_XOPEN2K
@@ -314,7 +315,7 @@ int init_port_server(uint16_t nb_of_queues)
         .rx_adv_conf = {
             .rss_conf = {
                 .rss_key = NULL,
-                .rss_hf = ETH_RSS_IP,
+                .rss_hf = ETH_RSS_IP | ETH_RSS_TCP | ETH_RSS_UDP,
             },
         },
         .txmode = {
@@ -327,9 +328,11 @@ int init_port_server(uint16_t nb_of_queues)
                  "Error during getting device (port %u) info: %s\n",
                  0, strerror(-ret));
 
+    // We do not use reference counting in buffers, so we can enable FAST_FREE
     if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
         local_port_conf.txmode.offloads |=
             DEV_TX_OFFLOAD_MBUF_FAST_FREE;
+
     ret = rte_eth_dev_configure(portid, nb_of_queues, nb_of_queues, &local_port_conf);
     if (ret != 0)
     {
@@ -374,6 +377,7 @@ int init_port_server(uint16_t nb_of_queues)
             printf("failed to init queue\n");
             return 0;
         }
+
         // init rx queue
         rxq_conf = dev_info.default_rxconf;
         rxq_conf.offloads = local_port_conf.rxmode.offloads;
@@ -490,14 +494,13 @@ static int
 server_job(void *arg)
 {
     unsigned portid = 0;
-    unsigned queueid = (unsigned)arg;
+    demo_config_t* demo_config = (demo_config_t*)arg;
     struct sockaddr_storage addr_from;
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(SERVER_ADDR);
 
     if(is_proxy){
-      
         unsigned main_port = 0;
         unsigned proxy_port = 1;
         proxy_ctx_t proxy_ctx;
@@ -508,18 +511,20 @@ server_job(void *arg)
 
         quic_server(server_name,
                 &config,
+                demo_config,
                 just_once,
                 dpdk,
-                MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[main_port], tx_buffers[queueid],&proxy_ctx);
+                MAX_PKT_BURST, portid, &addr_from, NULL, mb_pools[main_port], tx_buffers[demo_config->queueid],&proxy_ctx);
     
 
     }
     else{
         quic_server(server_name,
                 &config,
+                demo_config,
                 just_once,
                 dpdk,
-                MAX_PKT_BURST, portid, queueid, &addr_from, NULL, mb_pools[portid], tx_buffers[queueid],NULL);
+                MAX_PKT_BURST, portid, &addr_from, NULL, mb_pools[portid], tx_buffers[demo_config->queueid],NULL);
     }
 }
 
@@ -590,6 +595,18 @@ int str_to_mac(char *mac_txt, struct rte_ether_addr *mac_addr)
     {
         printf("invalid mac address : %s\n", mac_txt);
         return -1;
+    }
+}
+
+demo_config_t demo_configs[MAX_NB_OF_PORTS_AND_LCORES];
+
+void sig_handler(int signum) {
+    unsigned lcore_id;
+    printf("SIG received, terminating server...");
+
+    RTE_LCORE_FOREACH_WORKER(lcore_id)
+    {
+        demo_configs[lcore_id].is_running = false;
     }
 }
 
@@ -723,6 +740,8 @@ int main(int argc, char **argv)
     }
     if (is_client == 0)
     {
+        signal(SIGINT,sig_handler); // Register signal handler
+
         if (config.server_port == 0)
         {
             config.server_port = server_port;
@@ -749,6 +768,16 @@ int main(int argc, char **argv)
 
         unsigned portids[MAX_NB_OF_PORTS_AND_LCORES];
         int index_port = 0;
+
+        //We assign one queue per core
+        RTE_LCORE_FOREACH_WORKER(lcore_id)
+        {
+            demo_configs[lcore_id].is_running = 1;
+            demo_configs[lcore_id].queueid = index_lcore;
+
+            index_lcore++;
+        }
+
         if (is_proxy)
         {
             RTE_ETH_FOREACH_DEV(portid)
@@ -767,8 +796,7 @@ int main(int argc, char **argv)
             unsigned index_lcore = 0;
             RTE_LCORE_FOREACH_WORKER(lcore_id)
             {
-                rte_eal_remote_launch(server_job, index_lcore, lcore_id);
-                index_lcore++;
+                rte_eal_remote_launch(server_job, &demo_configs[lcore_id], lcore_id);
             }
         }
         else
@@ -783,13 +811,15 @@ int main(int argc, char **argv)
                 }
                 RTE_LCORE_FOREACH_WORKER(lcore_id)
                 {
-                    rte_eal_remote_launch(server_job, index_lcore, lcore_id);
-                    index_lcore++;
+                    printf("Launch %d\n", lcore_id);
+                    rte_eal_remote_launch(server_job, &demo_configs[lcore_id], lcore_id);
                 }
             }
             else
             {
-                ret = quic_server(server_name, &config, just_once, dpdk, MAX_PKT_BURST, 0, 0, NULL, NULL, NULL, NULL,NULL);
+                ret = quic_server(server_name, &config,
+                &demo_configs[0],
+                just_once, dpdk, MAX_PKT_BURST, 0, NULL, NULL, NULL, NULL,NULL);
             }
         }
 
