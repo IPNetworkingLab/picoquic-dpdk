@@ -130,11 +130,18 @@ int quic_client(const char *ip_address_text, int server_port,
                 struct rte_eth_dev_tx_buffer *tx_buffer,
                 proxy_ctx_t *proxy_ctx_prepared);
             
+typedef struct st_demo_config_t
+{
+    int is_running;
+    unsigned queueid;
+} demo_config_t;
+
 //server
 typedef struct st_server_loop_cb_t {
     int just_once;
     int first_connection_seen;
     int connection_done;
+    demo_config_t* demo_config;
 } server_loop_cb_t;
 
 static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
@@ -142,11 +149,11 @@ static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb
 
 int quic_server(const char* server_name, 
                         picoquic_quic_config_t * config, 
+                        demo_config_t* demo_config,
                         int just_once,
                         int dpdk,
                         int batching_size, 
                         unsigned portid,
-                        unsigned queueid,
                         struct sockaddr_storage *addr_from,
                         struct rte_ether_addr *mac_dst,
                         struct rte_mempool *mb_pool,
