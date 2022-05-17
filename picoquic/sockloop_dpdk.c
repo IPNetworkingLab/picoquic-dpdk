@@ -269,7 +269,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                               unsigned queueid,
                               int batching_size,
                               struct sockaddr_storage my_addr,
-                              struct rte_ether_addr *mac_dst,
+                              struct rte_ether_addr *my_mac,
+                              struct rte_ether_addr *peer_mac,
                               struct rte_mempool *mb_pool,
                               struct rte_eth_dev_tx_buffer *tx_buffer)
 {
@@ -341,6 +342,22 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
 
+
+    if (my_mac == NULL) {
+        printf("Unknown port MAC address. Using default device MAC address...\n");
+        my_mac = rte_malloc(NULL, sizeof(struct rte_ether_addr), 16);
+        if (!my_mac) {
+            printf("Could not allocate memory !");
+            return -ENOMEM;
+        }
+        if (rte_eth_macaddr_get(portid, my_mac) != 0) {
+            printf("Could not find MAC address for port %d\n", portid);
+            free(my_mac);
+            my_mac = 0;
+        }
+
+    }
+
     send_msg_ptr = &send_msg_size;
     send_buffer = malloc(send_buffer_size);
     if (send_buffer == NULL)
@@ -369,65 +386,100 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
         {
             uint64_t loop_time = current_time;
             uint16_t len;
+
             for (int i = 0; i < pkts_recv; i++)
             {
+                struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 //receiv_counter++;
                 //printf("received packets ethernet : %u\n",portid);
 
                 /* access ethernet header of rcv'd pkt */
-                struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
                 if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
                 {
                     ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
-                    udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
-                    src_addr = ip_hdr->src_addr;
-                    dst_addr = ip_hdr->dst_addr;
-                    src_port = udp_hdr->src_port;
-                    dst_port = udp_hdr->dst_port;
+                    if (ip_hdr->next_proto_id == IPPROTO_UDP) {
+                        udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
-                    if (mac_dst == NULL)
-                    {
-#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                        src_addr = ip_hdr->src_addr;
+                        dst_addr = ip_hdr->dst_addr;
+                        src_port = udp_hdr->src_port;
+                        dst_port = udp_hdr->dst_port;
+
+    #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
                         add_mac_ip_pair(src_addr, (*eth_hdr).s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
-#else
+    #else
                         add_mac_ip_pair(src_addr, (*eth_hdr).src_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
-#endif
-                        
-                    }
-                   
-                    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
-                    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = src_addr;
+    #endif
 
-                    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_to)).sin_port = dst_port;
-                    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = dst_addr;
+                        (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
+                        (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
+                        (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = src_addr;
 
-                    unsigned char *payload = (unsigned char *)(udp_hdr + 1);
-                    rte_be16_t length = udp_hdr->dgram_len;
-                    size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
-                    (void)picoquic_incoming_packet_ex(quic, payload,
-                                                      payload_length, (struct sockaddr *)&addr_from,
-                                                      (struct sockaddr *)&addr_to, if_index_to, received_ecn,
-                                                      &last_cnx, current_time);
+                        (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
+                        (*(struct sockaddr_in *)(&addr_to)).sin_port = dst_port;
+                        (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = dst_addr;
 
-                    if (loop_callback != NULL)
-                    {
-                        size_t b_recvd = (size_t)payload_length;
-                        ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd); 
-                    }
-                    rte_pktmbuf_free(pkts_burst[i]);
-                    if (ret == 0)
-                    {
+                        unsigned char *payload = (unsigned char *)(udp_hdr + 1);
+                        rte_be16_t length = udp_hdr->dgram_len;
+                        size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
+                        (void)picoquic_incoming_packet_ex(quic, payload,
+                                                        payload_length, (struct sockaddr *)&addr_from,
+                                                        (struct sockaddr *)&addr_to, if_index_to, received_ecn,
+                                                        &last_cnx, current_time);
+
+                        if (loop_callback != NULL)
+                        {
+                            size_t b_recvd = (size_t)payload_length;
+                            ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+                        }
+                        rte_pktmbuf_free(pkts_burst[i]);
+                        if (ret == 0)
+                        {
+                            continue;
+                        }
+                    } if (ip_hdr->next_proto_id == IPPROTO_ICMP) {
+                        printf("ICMP packet received : ignored\n");
+                        rte_pktmbuf_free(pkts_burst[i]);
+                        continue;
+                    } else {
+                        printf("Unknown IP protocol : %x\n", ip_hdr->next_proto_id );
+                        rte_pktmbuf_free(pkts_burst[i]);
                         continue;
                     }
+                } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+                    struct rte_arp_hdr *arp_hdr;
+                    printf("ARP packet received\n");
+                    arp_hdr = (struct rte_arp_hdr *)((char *)(eth_hdr + 1) + 0);
+                    uint32_t bond_ip = (*(struct sockaddr_in *)(&my_addr)).sin_addr.s_addr;
+                    printf("ARP IP %x %x", bond_ip, arp_hdr->arp_data.arp_tip);
+                    if (arp_hdr->arp_data.arp_tip == bond_ip) {
+                        if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
+                            printf("ARP request received, sending reply\n");
+
+                            // The packet is created in place : we rewrite the packet received and send it back to avoid memory allocation
+                            arp_hdr->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
+                            /* Switch src and dst data and set bonding MAC */
+                            rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+                            rte_ether_addr_copy(my_mac, &eth_hdr->s_addr);
+                            rte_ether_addr_copy(&arp_hdr->arp_data.arp_sha,
+                                    &arp_hdr->arp_data.arp_tha);
+                            arp_hdr->arp_data.arp_tip = arp_hdr->arp_data.arp_sip;
+                            rte_ether_addr_copy(my_mac, &arp_hdr->arp_data.arp_sha);
+                            arp_hdr->arp_data.arp_sip = bond_ip;
+
+                            rte_eth_tx_burst(portid, queueid, &pkts_burst[i], 1);
+                        }
+                    }
+                    continue;
                 }
                 else
                 {
+                    printf("Unknown ethernet protocol %x\n", eth_hdr->ether_type);
                     rte_pktmbuf_free(pkts_burst[i]);
                 }
-            }
+            } //For all packets received
+
             if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
                 size_t bytes_sent = 0;
@@ -471,23 +523,20 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
 #endif
 
-                        if (mac_dst != NULL)
-                        {
-
+                        if (peer_mac != NULL) {
 #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
-                            rte_ether_addr_copy(mac_dst, &eth_ptr->d_addr);
+                            rte_ether_addr_copy(peer_mac, &eth_ptr->d_addr);
 #else
-                            rte_ether_addr_copy(mac_dst, &eth_ptr->dst_addr);
+                            rte_ether_addr_copy(peer_mac, &eth_ptr->dst_addr);
 #endif
-                            
                         }
                         else
                         {
-                            struct rte_ether_addr mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+                            struct rte_ether_addr peer_mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
 #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
-                            rte_ether_addr_copy(&mac_addr, &eth_ptr->d_addr);
+                            rte_ether_addr_copy(&peer_mac_addr, &eth_ptr->d_addr);
 #else
-                            rte_ether_addr_copy(&mac_addr, &eth_ptr->dst_addr);
+                            rte_ether_addr_copy(&peer_mac_addr, &eth_ptr->dst_addr);
 #endif
                             
                         }

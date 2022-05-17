@@ -634,7 +634,7 @@ int picoquic_sample_client(char const *server_name,
     int running = 1;
     ret = picoquic_packet_loop_dpdk(quic, 0, server_address.ss_family, 0, 0, 0,
     sample_client_loop_cb, &client_ctx, &running
-    0, portid, addr_from, mac_dst, mb_pool, tx_buffer);
+    0, portid, addr_from, 0, mac_dst, mb_pool, tx_buffer);
 
     /* Done. At this stage, we could print out statistics, etc. */
     sample_client_report(&client_ctx);
