@@ -770,12 +770,15 @@ int main(int argc, char **argv)
         int index_port = 0;
 
         //We assign one queue per core
-        RTE_LCORE_FOREACH_WORKER(lcore_id)
-        {
-            demo_configs[lcore_id].is_running = 1;
-            demo_configs[lcore_id].queueid = index_lcore;
+        if(dpdk){
+            
+            RTE_LCORE_FOREACH_WORKER(lcore_id)
+            {
+                demo_configs[lcore_id].is_running = 1;
+                demo_configs[lcore_id].queueid = index_lcore;
 
-            index_lcore++;
+                index_lcore++;
+            }
         }
 
         if (is_proxy)
