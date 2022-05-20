@@ -460,8 +460,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                             // The packet is created in place : we rewrite the packet received and send it back to avoid memory allocation
                             arp_hdr->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
                             /* Switch src and dst data and set bonding MAC */
-                            rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
-                            rte_ether_addr_copy(my_mac, &eth_hdr->s_addr);
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                                rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+                                rte_ether_addr_copy(my_mac, &eth_hdr->s_addr);
+#else
+                                rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
+                                rte_ether_addr_copy(my_mac, &eth_hdr->src_addr);
+#endif
                             rte_ether_addr_copy(&arp_hdr->arp_data.arp_sha,
                                     &arp_hdr->arp_data.arp_tha);
                             arp_hdr->arp_data.arp_tip = arp_hdr->arp_data.arp_sip;

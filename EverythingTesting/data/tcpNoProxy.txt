@@ -1,0 +1,15 @@
+[  5]   0.00-1.00   sec  3.80 GBytes  32.7 Gbits/sec                  
+[  5]   1.00-2.00   sec  3.81 GBytes  32.8 Gbits/sec                  
+[  5]   2.00-3.00   sec  3.83 GBytes  32.9 Gbits/sec                  
+[  5]   3.00-4.00   sec  3.90 GBytes  33.5 Gbits/sec                  
+[  5]   4.00-5.00   sec  4.06 GBytes  34.9 Gbits/sec                  
+[  5]   5.00-6.00   sec  3.98 GBytes  34.2 Gbits/sec                  
+[  5]   6.00-7.00   sec  3.82 GBytes  32.8 Gbits/sec                  
+[  5]   7.00-8.00   sec  3.84 GBytes  33.0 Gbits/sec                  
+[  5]   8.00-9.00   sec  3.84 GBytes  33.0 Gbits/sec                  
+[  5]   9.00-10.00  sec  3.85 GBytes  33.1 Gbits/sec                  
+[  5]  10.00-11.00  sec  3.83 GBytes  32.9 Gbits/sec                  
+[  5]  11.00-12.00  sec  3.82 GBytes  32.8 Gbits/sec                  
+[  5]  12.00-13.00  sec  3.84 GBytes  33.0 Gbits/sec                  
+[  5]  13.00-14.00  sec  3.82 GBytes  32.8 Gbits/sec                  
+[  5]  14.00-15.00  sec  3.82 GBytes  32.8 Gbits/sec 
