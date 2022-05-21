@@ -153,7 +153,7 @@ int nb_of_repetition = 1;
 // default values
 int MAX_PKT_BURST = 32;
 // currently best value is 1 here, not sure why yet
-int MAX_PKT_BURST_TX = 32;
+int MAX_PKT_BURST_TX = 1;
 int dpdk = 0;
 int handshake_test = 0;
 int request_test = 0;
@@ -399,7 +399,6 @@ int init_port_server(uint16_t nb_of_queues)
         char_i = queueid + '0';
         index_of_X = strlen(tx_buffer_name) - 1;
         tx_buffer_name[index_of_X] = char_i;
-        printf("burst size = %d\n", MAX_PKT_BURST);
         tx_buffers[queueid] = rte_zmalloc_socket(tx_buffer_name,
                                                  RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0,
                                                  rte_eth_dev_socket_id(0));
