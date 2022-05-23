@@ -307,7 +307,6 @@ int picoquic_packet_loop(picoquic_quic_t* quic,
             ret = -1;
         }
         else {
-          
             uint64_t loop_time = current_time;
 
             if (bytes_recv > 0) {

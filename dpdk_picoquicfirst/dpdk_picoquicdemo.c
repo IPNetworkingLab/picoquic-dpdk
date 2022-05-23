@@ -184,13 +184,14 @@ void usage()
     fprintf(stderr, "PicoQUIC demo client and server\n");
     fprintf(stderr, "Usage: picoquicdemo <options> [server_name [port [scenario]]] \n");
     fprintf(stderr, "  For the client mode, specify server_name and port.\n");
-    fprintf(stderr, "  For the server mode, use -p to specify the port.\n");
+    fprintf(stderr, "  For the server mode, use -p to specify the port and -d to specify a binding address.\n");
     picoquic_config_usage();
     fprintf(stderr, "Picoquic demo options:\n");
     fprintf(stderr, "  -f migration_mode     Force client to migrate to start migration:\n");
     fprintf(stderr, "                        -f 1  test NAT rebinding,\n");
     fprintf(stderr, "                        -f 2  test CNXID renewal,\n");
     fprintf(stderr, "                        -f 3  test migration to new address.\n");
+    fprintf(stderr, "  -d bind               Set the server's address.\n");
     fprintf(stderr, "  -u nb                 trigger key update after receiving <nb> packets on client\n");
     fprintf(stderr, "  -1                    Once: close the server after processing 1 connection.\n");
 
@@ -510,10 +511,11 @@ server_job(void *arg)
 {
     unsigned portid = 0;
     demo_config_t* demo_config = (demo_config_t*)arg;
-    struct sockaddr_storage addr_from;
-    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(SERVER_ADDR);
+    struct sockaddr_storage addr_from = demo_config->bind;
+    /*(*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;*/
+    //(*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
+    /*
+    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(SERVER_ADDR);*/
 
     if(is_proxy){
         unsigned main_port = 0;
@@ -617,7 +619,7 @@ demo_config_t demo_configs[MAX_NB_OF_PORTS_AND_LCORES];
 
 void sig_handler(int signum) {
     unsigned lcore_id;
-    printf("SIG received, terminating server...");
+    printf("SIG received, terminating server...\n");
 
     RTE_LCORE_FOREACH_WORKER(lcore_id)
     {
@@ -631,6 +633,11 @@ int main(int argc, char **argv)
     int opt;
     char default_server_cert_file[512];
     char default_server_key_file[512];
+    struct sockaddr_storage bind;
+    (*(struct sockaddr_in *)(&bind)).sin_family = AF_INET;
+    (*(struct sockaddr_in *)(&bind)).sin_addr.s_addr = inet_addr("0.0.0.0");
+
+
     int is_client = 0;
     int ret;
     unsigned portid;
@@ -638,7 +645,7 @@ int main(int argc, char **argv)
     unsigned args[2];
     server_name = default_server_name;
 
-    if (strcmp(argv[1], "dpdk") == 0)
+    if (strcmp(argv[1], "--dpdk") == 0)
     {
         dpdk = 1;
     }
@@ -658,7 +665,7 @@ int main(int argc, char **argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:A:N:@:2:3H1", 15);
+    memcpy(option_string, "u:f:A:N:@:2:d:3H1", 15);
     ret = picoquic_config_option_letters(option_string + 15, sizeof(option_string) - 15, NULL);
 
     if (ret == 0)
@@ -689,6 +696,18 @@ int main(int argc, char **argv)
             case '1':
                 just_once = 1;
                 break;
+            case 'd':
+                 ret = inet_pton(AF_INET, optarg, &((*(struct sockaddr_in *)(&bind)).sin_addr.s_addr ));
+                 if (ret != 0) {
+                    printf("Not an IPV4\n");
+                    ret = inet_pton(AF_INET6, optarg, &((*(struct sockaddr_in6 *)(&bind)).sin6_addr ));
+                 }
+                if (ret != 0) {
+                            fprintf(stderr, "Invalid IPv4 or IPv6 address: %s\n", optarg);
+                    usage();
+                }
+                printf("Addr is %x\n", (*(struct sockaddr_in *)(&bind)).sin_addr.s_addr );
+                 break;
             case '2':
                 if (str_to_mac(optarg, &client_addr) != 0)
                 {
@@ -793,6 +812,7 @@ int main(int argc, char **argv)
             {
                 demo_configs[lcore_id].is_running = 1;
                 demo_configs[lcore_id].queueid = index_lcore;
+                demo_configs[lcore_id].bind = bind;
 
                 index_lcore++;
             }
@@ -839,7 +859,8 @@ int main(int argc, char **argv)
             {
                 ret = quic_server(server_name, &config,
                 &demo_configs[0],
-                just_once, dpdk, MAX_PKT_BURST, 0, NULL, NULL, NULL, NULL,NULL);
+                just_once, dpdk, MAX_PKT_BURST, 0,
+                NULL, NULL, NULL, NULL,NULL);
             }
         }
 

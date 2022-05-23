@@ -19,6 +19,7 @@ static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb
             fprintf(stdout, "Waiting for packets.\n");
             break;
         case picoquic_packet_loop_after_receive:
+            cb_ctx->nb_pkts++;
             break;
         case picoquic_packet_loop_after_send:
             break;
@@ -68,8 +69,6 @@ int quic_server(const char* server_name,
     picoquic_file_param.web_folder = config->www_dir;
     memset(&loop_cb_ctx, 0, sizeof(server_loop_cb_t));
     loop_cb_ctx.just_once = just_once;
-
-
 
     /* Setup the server context */
     if (ret == 0) {
