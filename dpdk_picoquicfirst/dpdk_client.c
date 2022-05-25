@@ -256,7 +256,7 @@ int quic_client(const char *ip_address_text, int server_port,
         //hardcoded value   
         (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_family = AF_INET;
         (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_port = htons(server_port);
-        (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_addr.s_addr = inet_addr(SERVER_ADDR);
+        (*(struct sockaddr_in *)(&loop_cb.server_address)).sin_addr.s_addr = inet_addr(ip_address_text);
     }
     else{
         if (ret == 0) {

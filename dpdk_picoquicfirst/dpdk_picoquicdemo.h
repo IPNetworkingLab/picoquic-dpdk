@@ -85,8 +85,6 @@
 
 #define PICOQUIC_SAMPLE_SERVER_QLOG_DIR "."
 
-#define SERVER_ADDR "10.100.0.2"
-
 //client
 
 typedef struct st_client_loop_cb_t {
@@ -134,6 +132,7 @@ typedef struct st_demo_config_t
 {
     int is_running;
     unsigned queueid;
+    struct sockaddr_storage bind;
 } demo_config_t;
 
 //server
@@ -141,6 +140,7 @@ typedef struct st_server_loop_cb_t {
     int just_once;
     int first_connection_seen;
     int connection_done;
+    int nb_pkts;
     demo_config_t* demo_config;
 } server_loop_cb_t;
 

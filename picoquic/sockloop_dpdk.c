@@ -233,6 +233,19 @@ struct rte_ether_addr find_mac_from_ip(uint32_t ip_addr, uint32_t *ip_addresses,
     }
 }
 
+struct rte_ether_addr find_mac_from_ip6(struct in6_addr ip_addr, struct in6_addr *ip6_addresses, struct rte_ether_addr *mac6_addresses, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        if (memcmp(&ip6_addresses[i], &ip_addr, sizeof(struct in6_addr)) == 0)
+        {
+            //printf("Found %x\n", ip_addr);
+            return mac6_addresses[i];
+        }
+    }
+    printf("Could not find IP %x\n", ip_addr);
+}
+
 int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *ip_addresses, struct rte_ether_addr *mac_addresses, int length)
 {
     // printf("ip_addr : %u\n",ip_addr);
@@ -254,6 +267,136 @@ int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *
         }
     }
     return -1;
+}
+
+int ip6_is_zero(struct in6_addr ip_addr) {
+    return (ip_addr.__in6_u.__u6_addr32[0] == 0 &&
+        ip_addr.__in6_u.__u6_addr32[1] == 0 &&
+        ip_addr.__in6_u.__u6_addr32[2] == 0 &&
+        ip_addr.__in6_u.__u6_addr32[3] == 0);
+}
+
+int add_mac_ip6_pair(struct in6_addr ip_addr, struct rte_ether_addr mac_addr, struct in6_addr *ip6_addresses, struct rte_ether_addr *mac6_addresses, int length)
+{
+    // printf("ip_addr : %u\n",ip_addr);
+    for (int i = 0; i < length; i++)
+    {
+        if (memcmp(&ip6_addresses[i], &ip_addr, 16) == 0 )
+        {
+            // printf("i : %d\n",i);
+            return 0;
+        }
+        if (ip6_is_zero(ip6_addresses[i]))
+        {
+            // printf("ip : %u\n",ip_addr);
+            // printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
+            ip6_addresses[i] = ip_addr;
+            mac6_addresses[i] = mac_addr;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* define structure of Neighborhood Solicitation Message */
+struct nd_sol {
+    uint8_t type;
+    uint8_t code;
+    uint16_t checksum;
+    uint32_t reserved;
+    uint8_t nd_tpa[16];
+    uint8_t option_type;   /*option type: 1 (source link-layer add) */
+    uint8_t option_length; /*option length: 1 (in units of 8 octets) */
+    uint8_t nd_sha[6];    /*source link-layer address */
+};
+
+/* define structure of Neighborhood Advertisement Message -reply to multicast neighborhood solitation message */
+struct nd_adv {
+    uint8_t type;
+    uint8_t code;
+    uint16_t checksum;
+    uint8_t flags; /* bit 1: sender_is_router
+                      bit 2: solicited
+		      bit 3: override
+		      all other bits should be zero */
+    uint8_t reserved[3];
+    uint8_t nd_tpa[16];
+    uint8_t option_type;    /* option type: 2 (target link-layer add) */
+    uint8_t option_length;  /* option length: 1 (in units of 8 octets) */
+    uint8_t nd_tha[6];     /* source link-layer address */
+};
+
+uint16_t
+in6_fast_cksum(const struct in6_addr *saddr,
+               const struct in6_addr *daddr,
+               uint16_t len,
+               uint8_t proto,
+               uint16_t ori_csum,
+               const unsigned char *addr,
+               uint16_t len2)
+{
+	uint16_t ulen;
+	uint16_t uproto;
+	uint16_t answer = 0;
+	uint32_t csum =0;
+	uint32_t carry;
+        const uint32_t *saddr32 = (const uint32_t *)&saddr->s6_addr[0];
+        const uint32_t *daddr32 = (const uint32_t *)&daddr->s6_addr[0];
+
+	//get the sum of source and destination address
+	for (int i=0; i<4; i++) {
+
+	  csum += ntohl(saddr32[i]);
+	  carry = (csum < ntohl(saddr32[i]));
+	  csum += carry;
+	}
+
+	for (int i=0; i<4; i++) {
+
+	   csum += ntohl(daddr32[i]);
+	   carry = (csum < ntohl(daddr32[i]));
+	   csum += carry;
+	}
+
+	//get the sum of other fields:  packet length, protocol
+	ulen = ntohs(len);
+	csum += ulen;
+
+	uproto = proto;
+	csum += uproto;
+
+	//get the sum of the ICMP6 package
+	uint16_t nleft = ntohs(len2);
+	const uint16_t *w = (const uint16_t *)addr;
+	while (nleft > 1)  {
+	    uint16_t w2=*w++;
+	    csum += ntohs(w2);
+	    nleft -=2;
+	 }
+
+	 //mop up an odd byte, if necessary
+	  if (nleft == 1) {
+	    *(unsigned char *)(&answer) = *(const unsigned char *)w ;
+	    csum += ntohs(answer);
+	  }
+	  csum -= ntohs(ori_csum); //get rid of the effect of ori_csum in the calculation
+
+	  // fold >=32-bit csum to 16-bits
+	  while (csum>>16) {
+	    csum = (csum & 0xffff) + (csum >> 16);
+	  }
+
+	  answer = ~csum;          // truncate to 16 bits
+	  return answer;
+}
+
+#define ICMPV6_SOLICITATED 0x80
+#define ICMPV6_OVERRIDE 0x40
+
+void
+drop_callback(struct rte_mbuf **pkts, uint16_t unsent,
+		void *userdata) {
+    printf("PACKET DROPPED!\n");
 }
 
 int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
@@ -278,8 +421,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     // printf("queueid loop: %u\n",queueid);
     uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
-    struct rte_ether_addr eth_addr;
-    int MAX_PKT_BURST = batching_size;
+
+    const int MAX_PKT_BURST = batching_size;
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
     struct lcore_queue_conf *qconf;
     int ret;
@@ -287,26 +430,23 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     struct rte_eth_txconf txq_conf;
     struct rte_eth_dev_info dev_info;
     void *tmp;
-    ret = rte_eth_macaddr_get(portid, &eth_addr);
+
     struct sockaddr_in *sin = (struct sockaddr_in *)&my_addr;
     unsigned char *ip = (unsigned char *)&sin->sin_addr.s_addr; 
 
    //===================DPDK==========================//
     uint64_t current_time = picoquic_get_quic_time(quic);
-    int64_t delay_max = 10000000;
     struct sockaddr_storage addr_from;
     struct sockaddr_storage addr_to;
 
     // handling packets
-    struct rte_ipv4_hdr *ip_hdr;
-    struct rte_udp_hdr *udp_hdr;
     struct rte_mbuf *m;
     int udp_payload_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr);
+    int udp6_payload_offset = sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv6_hdr) + sizeof(struct rte_udp_hdr);
     // addresses
-    rte_be32_t src_addr;
-    rte_be32_t dst_addr;
     rte_be16_t src_port;
     rte_be16_t dst_port;
+
 
     int if_index_to;
     uint8_t buffer[1536];
@@ -325,8 +465,6 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     uint16_t next_port = 0;    /* Data for the migration test */
     picoquic_cnx_t *last_cnx = NULL;
     int loop_immediate = 0;
-    picoquic_packet_loop_options_t options = { 0 };
-
     int pkts_recv;
     // debugging
     FILE *fptr_send;
@@ -338,11 +476,23 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     struct rte_ether_addr mac_addresses[IP_MAC_ARRAYS_LENGTH];
     memset(ip_addresses,0,sizeof(ip_addresses));
     memset(mac_addresses,0,sizeof(mac_addresses));
-    
+    struct in6_addr ip6_addresses[IP_MAC_ARRAYS_LENGTH];
+    struct rte_ether_addr mac6_addresses[IP_MAC_ARRAYS_LENGTH];
+    memset(ip6_addresses,0,sizeof(ip6_addresses));
+    memset(mac6_addresses,0,sizeof(mac6_addresses));
 #ifdef _WINDOWS
     WSADATA wsaData = {0};
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
+
+
+
+    ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST);
+    if (ret != 0) {
+        return ret;
+    }
+    rte_eth_tx_buffer_set_err_callback(tx_buffer, drop_callback, 0);
+
 
 
     if (my_mac == NULL) {
@@ -373,229 +523,369 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     while (ret == 0 && *is_running)
     {
         int64_t delta_t = 0;
-        unsigned char received_ecn;
-
+        unsigned char received_ecn = 0;
+        
         if_index_to = 0;
-
-        if (!loop_immediate) {
-            delta_t = picoquic_get_next_wake_delay(quic, current_time, delay_max);
-            if (options.do_time_check) {
-                packet_loop_time_check_arg_t time_check_arg;
-                time_check_arg.current_time = current_time;
-                time_check_arg.delta_t = delta_t;
-                ret = loop_callback(quic, picoquic_packet_loop_time_check, loop_callback_ctx, &time_check_arg);
-                if (time_check_arg.delta_t < delta_t) {
-                    delta_t = time_check_arg.delta_t;
-                }
-            }
-        }
-        loop_immediate = 0;
-
         pkts_recv = rte_eth_rx_burst(portid, queueid, pkts_burst, MAX_PKT_BURST);
 
         current_time = picoquic_current_time();
 
-        uint64_t loop_time = current_time;
-        uint16_t len;
-
-        for (int i = 0; i < pkts_recv; i++)
+        if (pkts_recv < 0)
         {
-            struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
-            // receiv_counter++;
-            // printf("received packets ethernet : %u\n",portid);
+            printf("ERRROR : Could not receive packets !\n");
+            ret = -1;
+        }
+        else
+        {
+            uint64_t loop_time = current_time;
+            uint16_t len;
 
-            /* access ethernet header of rcv'd pkt */
-            if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
+            for (int i = 0; i < pkts_recv; i++)
             {
-                ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
+                struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
+                //receiv_counter++;
+                //printf("received packets ethernet : %u\n",portid);
 
-                if (ip_hdr->next_proto_id == IPPROTO_UDP)
+                /* access ethernet header of rcv'd pkt */
+                if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))
                 {
-                    udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
+                    struct rte_ipv4_hdr *ip_hdr;
+                    struct rte_udp_hdr *udp_hdr;
+                    rte_be32_t src_addr;
+                    rte_be32_t dst_addr;
+                    ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
 
-                    src_addr = ip_hdr->src_addr;
-                    dst_addr = ip_hdr->dst_addr;
-                    src_port = udp_hdr->src_port;
-                    dst_port = udp_hdr->dst_port;
+                    if (ip_hdr->next_proto_id == IPPROTO_UDP) {
+                        udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
-#if RTE_VERSION < RTE_VERSION_NUM(21, 11, 0, 0)
-                    add_mac_ip_pair(src_addr, (*eth_hdr).s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
-#else
-                    add_mac_ip_pair(src_addr, (*eth_hdr).src_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
-#endif
+                        if ((ip_hdr->type_of_service & 0b11) == 0b11) {
+                            received_ecn = 1;
+                        }
+                        src_addr = ip_hdr->src_addr;
+                        dst_addr = ip_hdr->dst_addr;
+                        src_port = udp_hdr->src_port;
+                        dst_port = udp_hdr->dst_port;
 
-                    (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
-                    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = src_addr;
+    #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                        add_mac_ip_pair(src_addr, (*eth_hdr).s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+    #else
+                        add_mac_ip_pair(src_addr, (*eth_hdr).src_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+    #endif
 
-                    (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
-                    (*(struct sockaddr_in *)(&addr_to)).sin_port = dst_port;
-                    (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = dst_addr;
+                        (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
+                        (*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
+                        (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = src_addr;
 
-                    unsigned char *payload = (unsigned char *)(udp_hdr + 1);
-                    rte_be16_t length = udp_hdr->dgram_len;
-                    size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
-                    (void)picoquic_incoming_packet_ex(quic, payload,
-                                                      payload_length, (struct sockaddr *)&addr_from,
-                                                      (struct sockaddr *)&addr_to, if_index_to, received_ecn,
-                                                      &last_cnx, current_time);
+                        (*(struct sockaddr_in *)(&addr_to)).sin_family = AF_INET;
+                        (*(struct sockaddr_in *)(&addr_to)).sin_port = dst_port;
+                        (*(struct sockaddr_in *)(&addr_to)).sin_addr.s_addr = dst_addr;
 
-                    if (loop_callback != NULL)
-                    {
-                        size_t b_recvd = (size_t)payload_length;
-                        ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
-                    }
-                    rte_pktmbuf_free(pkts_burst[i]);
-                    if (ret == 0)
-                    {
+                        unsigned char *payload = (unsigned char *)(udp_hdr + 1);
+                        rte_be16_t length = udp_hdr->dgram_len;
+                        size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
+                        (void)picoquic_incoming_packet_ex(quic, payload,
+                                                        payload_length, (struct sockaddr *)&addr_from,
+                                                        (struct sockaddr *)&addr_to, if_index_to, received_ecn,
+                                                        &last_cnx, current_time);
+
+                        if (loop_callback != NULL)
+                        {
+                            size_t b_recvd = (size_t)payload_length;
+                            ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+                        }
+                        rte_pktmbuf_free(pkts_burst[i]);
+                        if (ret == 0)
+                        {
+                            continue;
+                        }
+                    } if (ip_hdr->next_proto_id == IPPROTO_ICMP) {
+                        printf("ICMP packet received : ignored\n");
+                        rte_pktmbuf_free(pkts_burst[i]);
+                        continue;
+                    } else {
+                        printf("Unknown IP protocol : %x\n", ip_hdr->next_proto_id );
+                        rte_pktmbuf_free(pkts_burst[i]);
                         continue;
                     }
-                }
-                if (ip_hdr->next_proto_id == IPPROTO_ICMP)
-                {
-                    printf("ICMP packet received : ignored\n");
-                    rte_pktmbuf_free(pkts_burst[i]);
+                } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+                    struct rte_arp_hdr *arp_hdr;
+                    printf("ARP packet received\n");
+                    arp_hdr = (struct rte_arp_hdr *)((char *)(eth_hdr + 1) + 0);
+                    uint32_t bond_ip = (*(struct sockaddr_in *)(&my_addr)).sin_addr.s_addr;
+                    printf("ARP IP (mine) %x (asked) %x\n", bond_ip, arp_hdr->arp_data.arp_tip);
+                    if (arp_hdr->arp_data.arp_tip == bond_ip) {
+                        if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
+                            printf("ARP request received, sending reply\n");
+
+                            // The packet is created in place : we rewrite the packet received and send it back to avoid memory allocation
+                            arp_hdr->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
+                            /* Switch src and dst data and set bonding MAC */
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                                rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+                                rte_ether_addr_copy(my_mac, &eth_hdr->s_addr);
+#else
+                                rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
+                                rte_ether_addr_copy(my_mac, &eth_hdr->src_addr);
+#endif
+                            rte_ether_addr_copy(&arp_hdr->arp_data.arp_sha,
+                                    &arp_hdr->arp_data.arp_tha);
+                            arp_hdr->arp_data.arp_tip = arp_hdr->arp_data.arp_sip;
+                            rte_ether_addr_copy(my_mac, &arp_hdr->arp_data.arp_sha);
+                            arp_hdr->arp_data.arp_sip = bond_ip;
+
+                            rte_eth_tx_burst(portid, queueid, &pkts_burst[i], 1);
+                        }
+                    }
                     continue;
+                } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6)) {
+                    struct rte_ipv6_hdr *ip6_hdr;
+                    struct rte_udp_hdr *udp_hdr;
+                    struct in6_addr src_addr;
+                    struct in6_addr dst_addr;
+                    ip6_hdr = (struct rte_ipv6_hdr *)(rte_pktmbuf_mtod(pkts_burst[i], char *) + sizeof(struct rte_ether_hdr));
+
+                    if (ip6_hdr->proto == IPPROTO_UDP) {
+                        udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip6_hdr + sizeof(struct rte_ipv6_hdr));
+
+                        src_addr = *((struct in6_addr*)&ip6_hdr->src_addr);
+                        dst_addr = *((struct in6_addr*)&ip6_hdr->dst_addr);
+                        src_port = udp_hdr->src_port;
+                        dst_port = udp_hdr->dst_port;
+
+                        if ((ip6_hdr->vtc_flow & RTE_IPV6_HDR_ECN_MASK) == RTE_IPV6_HDR_ECN_CE) {
+
+                            received_ecn = 1;
+                        }
+
+                        //printf("Adding %x-> %x:..:%x\n", src_addr,  eth_hdr->s_addr.addr_bytes[0], eth_hdr->s_addr.addr_bytes[5]);
+    #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                        add_mac_ip6_pair(src_addr, eth_hdr->s_addr, ip6_addresses, mac6_addresses, IP_MAC_ARRAYS_LENGTH);
+    #else
+                        add_mac_ip6_pair(src_addr, (*eth_hdr).src_addr, ip6_addresses, mac6_addresses, IP_MAC_ARRAYS_LENGTH);
+    #endif
+
+                        (*(struct sockaddr_in6 *)(&addr_from)).sin6_family = AF_INET6;
+                        (*(struct sockaddr_in6 *)(&addr_from)).sin6_port = src_port;
+                        (*(struct sockaddr_in6 *)(&addr_from)).sin6_addr = src_addr;
+
+                        (*(struct sockaddr_in6 *)(&addr_to)).sin6_family = AF_INET6;
+                        (*(struct sockaddr_in6 *)(&addr_to)).sin6_port = dst_port;
+                        (*(struct sockaddr_in6 *)(&addr_to)).sin6_addr = dst_addr;
+
+                        unsigned char *payload = (unsigned char *)(udp_hdr + 1);
+                        rte_be16_t length = udp_hdr->dgram_len;
+                        size_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
+                        (void)picoquic_incoming_packet_ex(quic, payload,
+                                                        payload_length, (struct sockaddr *)&addr_from,
+                                                        (struct sockaddr *)&addr_to, if_index_to, received_ecn,
+                                                        &last_cnx, current_time);
+
+                        if (loop_callback != NULL)
+                        {
+                            size_t b_recvd = (size_t)payload_length;
+                            ret = loop_callback(quic, picoquic_packet_loop_after_receive, loop_callback_ctx, &b_recvd);
+                        }
+                        rte_pktmbuf_free(pkts_burst[i]);
+                        if (ret == 0)
+                        {
+                            continue;
+                        }
+                    } else if (ip6_hdr->proto == IPPROTO_ICMPV6) {
+                        struct rte_icmp_hdr* icmp_hdr = (struct rte_icmp_hdr *)((unsigned char *)ip6_hdr + sizeof(struct rte_ipv6_hdr));
+                        printf("ICMP proto %d %d\n", icmp_hdr->icmp_type, icmp_hdr->icmp_code);
+                        if (icmp_hdr->icmp_type == 135) {
+                            struct nd_sol* ea = (struct nd_sol*)icmp_hdr;
+                            struct nd_adv* ad = (struct nd_adv*)icmp_hdr;
+                            /* Switch src and dst data and set bonding MAC */
+                            rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+                            rte_ether_addr_copy(my_mac, &eth_hdr->s_addr);
+
+                            //rte_ether_addr_copy(&ea->nd_sha, );
+                            //ea-> = arp_hdr->arp_data.arp_sip;
+                            rte_ether_addr_copy(my_mac, ea->nd_sha);
+                            icmp_hdr->icmp_type = 136;
+                            struct in6_addr tpa,src;
+                            tpa = *((struct in6_addr*)&ea->nd_tpa);
+
+                            src = *((struct in6_addr*)&ip6_hdr->src_addr);
+                            *((struct in6_addr*)&ip6_hdr->src_addr) = tpa;
+                            *((struct in6_addr*)&ip6_hdr->dst_addr) = src;
+
+                            ad->flags = ICMPV6_SOLICITATED | ICMPV6_OVERRIDE;
+
+                            ad->reserved[0] = 0;
+                            ad->reserved[1] = 0;
+                            ad->reserved[2] = 0;
+                            ad->checksum = 0;
+                            ad->option_type = 2;
+                            ad->checksum = htons(in6_fast_cksum(&ip6_hdr->src_addr, &ip6_hdr->dst_addr, ip6_hdr->payload_len, ip6_hdr->proto, 0, (unsigned char *)(ip6_hdr+1), htons(sizeof(struct nd_adv))));
+
+                            //ea->nd_tpa = ea->nd_tpa;
+                            //ea->nd_tpa = bond_ip;
+
+                            rte_eth_tx_burst(portid, queueid, &pkts_burst[i], 1);
+                        }
+                    } else {
+                        printf("Unknown IPv6 protocol %x\n", ip6_hdr->proto);
+                    }
                 }
                 else
                 {
-                    printf("Unknown IP protocol : %x\n", ip_hdr->next_proto_id);
+                    printf("Unknown ethernet protocol %x\n", eth_hdr->ether_type);
                     rte_pktmbuf_free(pkts_burst[i]);
-                    continue;
                 }
-            }
-            else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))
+            } //For all packets received
+
+            if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
-                struct rte_arp_hdr *arp_hdr;
-                printf("ARP packet received\n");
-                arp_hdr = (struct rte_arp_hdr *)((char *)(eth_hdr + 1) + 0);
-                uint32_t bond_ip = (*(struct sockaddr_in *)(&my_addr)).sin_addr.s_addr;
-                printf("ARP IP %x %x", bond_ip, arp_hdr->arp_data.arp_tip);
-                if (arp_hdr->arp_data.arp_tip == bond_ip)
+                assert(ret == 0);
+                size_t bytes_sent = 0;
+                int pkt_created = 0;
+                int max_tx = tx_buffer->size - tx_buffer->length;
+                //printf("Max %d\n", max_tx);
+                while (ret == 0 && pkt_created < max_tx)
                 {
-                    if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST))
+                    int if_index = dest_if;
+                    send_length = 0;
+                    struct sockaddr_storage peer_addr;
+                    struct sockaddr_storage local_addr;
+                    if (need_to_alloc)
                     {
-                        printf("ARP request received, sending reply\n");
-
-                        // The packet is created in place : we rewrite the packet received and send it back to avoid memory allocation
-                        arp_hdr->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
-                        /* Switch src and dst data and set bonding MAC */
-#if RTE_VERSION < RTE_VERSION_NUM(21, 11, 0, 0)
-                        rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
-                        rte_ether_addr_copy(my_mac, &eth_hdr->s_addr);
-#else
-                        rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
-                        rte_ether_addr_copy(my_mac, &eth_hdr->src_addr);
-#endif
-                        rte_ether_addr_copy(&arp_hdr->arp_data.arp_sha,
-                                            &arp_hdr->arp_data.arp_tha);
-                        arp_hdr->arp_data.arp_tip = arp_hdr->arp_data.arp_sip;
-                        rte_ether_addr_copy(my_mac, &arp_hdr->arp_data.arp_sha);
-                        arp_hdr->arp_data.arp_sip = bond_ip;
-
-                        rte_eth_tx_burst(portid, queueid, &pkts_burst[i], 1);
+                        m = rte_pktmbuf_alloc(mb_pool);
+                        if (m == NULL)
+                        {
+                            printf("fail to init pktmbuf\n");
+                            rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
+                            return 0;
+                        }
+                        need_to_alloc = false;
                     }
-                }
-                continue;
-            }
-            else
-            {
-                printf("Unknown ethernet protocol %x\n", eth_hdr->ether_type);
-                rte_pktmbuf_free(pkts_burst[i]);
-            }
-        } // For all packets received
+                    
+                    uint8_t *payload_ptr = rte_pktmbuf_mtod_offset(m, char *, (size_t)udp_payload_offset);
 
-        if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
-        {
-            size_t bytes_sent = 0;
-
-            while (ret == 0)
-            {
-                int if_index = dest_if;
-                send_length = 0;
-                struct sockaddr_storage peer_addr;
-                struct sockaddr_storage local_addr;
-                if (need_to_alloc)
-                {
-                    m = rte_pktmbuf_alloc(mb_pool);
-                    if (m == NULL)
+                    ret = picoquic_prepare_next_packet_ex(quic, loop_time,
+                                                          payload_ptr, send_buffer_size, &send_length,
+                                                          &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
+                                                          send_msg_ptr);
+                    if (ret == 0 && send_length > 0)
                     {
-                        printf("fail to init pktmbuf\n");
-                        rte_exit(EXIT_FAILURE, "%s\n", rte_strerror(rte_errno));
-                        return 0;
-                    }
-                    need_to_alloc = false;
-                }
+                        pkt_created++;
+                        bytes_sent += send_length;
+                        int offset = 0;
 
-                uint8_t *payload_ptr = rte_pktmbuf_mtod_offset(m, char *, (size_t)udp_payload_offset);
+                        struct rte_udp_hdr udp_hdr_struct;
+                        struct rte_ether_hdr eth_hdr_struct;
 
-                ret = picoquic_prepare_next_packet_ex(quic, loop_time,
-                                                      payload_ptr, send_buffer_size, &send_length,
-                                                      &peer_addr, &local_addr, &if_index, &log_cid, &last_cnx,
-                                                      send_msg_ptr);
-                if (ret == 0 && send_length > 0)
-                {
-                    bytes_sent += send_length;
-                    int offset = 0;
-                    struct rte_ipv4_hdr ip_hdr_struct;
-                    struct rte_udp_hdr udp_hdr_struct;
-                    struct rte_ether_hdr eth_hdr_struct;
-                    struct rte_ether_hdr *eth_ptr = &eth_hdr_struct;
 
-#if RTE_VERSION < RTE_VERSION_NUM(21, 11, 0, 0)
-                    rte_ether_addr_copy(&eth_addr, &eth_ptr->s_addr);
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                        rte_ether_addr_copy(&my_mac, &eth_hdr_struct.s_addr);
 #else
-                    rte_ether_addr_copy(&eth_addr, &eth_ptr->src_addr);
+                        rte_ether_addr_copy(&my_mac, &eth_hdr_struct.src_addr);
 #endif
 
-                    if (peer_mac != NULL)
-                    {
-#if RTE_VERSION < RTE_VERSION_NUM(21, 11, 0, 0)
-                        rte_ether_addr_copy(peer_mac, &eth_ptr->d_addr);
+                        if (peer_mac != NULL) {
+                            //printf("Have peer addr %x\n",peer_mac);
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                            rte_ether_addr_copy(peer_mac, &eth_hdr_struct.d_addr);
 #else
-                        rte_ether_addr_copy(peer_mac, &eth_ptr->dst_addr);
+                            rte_ether_addr_copy(peer_mac, &eth_hdr_struct.dst_addr);
 #endif
+                        }
+                        else
+                        {
+                            if (peer_addr.ss_family == AF_INET) {
+                                struct rte_ether_addr peer_mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
+    #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                                rte_ether_addr_copy(&peer_mac_addr, &eth_hdr_struct.d_addr);
+    #else
+                                rte_ether_addr_copy(&peer_mac_addr, &eth_hdr_struct.dst_addr);
+    #endif
+                                //printf("Have peer addr v4 %x\n", peer_mac_addr);
+                            } else {
+                                struct rte_ether_addr peer_mac_addr = find_mac_from_ip6((*(struct sockaddr_in6 *)(&peer_addr)).sin6_addr, ip6_addresses, mac6_addresses, IP_MAC_ARRAYS_LENGTH);
+    #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
+                                rte_ether_addr_copy(&peer_mac_addr, &eth_hdr_struct.d_addr);
+    #else
+                                rte_ether_addr_copy(&peer_mac_addr, &eth_hdr_struct.dst_addr);
+
+    #endif
+                                //printf("Have peer addr v6 %x\n", peer_mac_addr);
+                            }
+                            
+                        }
+
+                        if (peer_addr.ss_family == AF_INET6) {
+
+                            struct rte_ipv6_hdr ip_hdr_struct;
+                            rte_pktmbuf_prepend(m, udp6_payload_offset - udp_payload_offset);
+
+                            //(*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
+                            //printf("Local addr port %d", (*(struct sockaddr_in *)(&local_addr)).sin_port);
+                            setup_pkt_udp_ip6_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, local_addr, peer_addr);
+                            (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
+                            copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
+                            offset += sizeof(struct rte_ether_hdr);
+                            struct rte_ipv6_hdr* ip_hdr = rte_pktmbuf_mtod_offset(m, char *, offset);
+                            copy_buf_to_pkt(&ip_hdr_struct, sizeof(struct rte_ipv6_hdr), m, offset);
+                            offset += sizeof(struct rte_ipv6_hdr);
+                            struct rte_udp_hdr* udp_hdr = rte_pktmbuf_mtod_offset(m, char *, offset);
+                            copy_buf_to_pkt(&udp_hdr_struct, sizeof(struct rte_udp_hdr), m, offset);
+                            offset += sizeof(struct rte_udp_hdr);
+
+                            /*
+                            * Compute UDP header checksum.
+                            */
+                            udp_hdr->dgram_cksum = htons(in6_fast_cksum(&ip_hdr->src_addr, &ip_hdr->dst_addr, ip_hdr->payload_len, ip_hdr->proto, udp_hdr_struct.dgram_cksum, (unsigned char *)(ip_hdr + 1), ip_hdr->payload_len));
+                        } else {
+                            struct rte_ipv4_hdr ip_hdr_struct;
+
+                            //(*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
+                            //printf("Local addr port %d", (*(struct sockaddr_in *)(&local_addr)).sin_port);
+                            setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, local_addr, peer_addr);
+                            (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+                            copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
+                            offset += sizeof(struct rte_ether_hdr);
+                            copy_buf_to_pkt(&ip_hdr_struct, sizeof(struct rte_ipv4_hdr), m, offset);
+                            offset += sizeof(struct rte_ipv4_hdr);
+                            copy_buf_to_pkt(&udp_hdr_struct, sizeof(struct rte_udp_hdr), m, offset);
+                            offset += sizeof(struct rte_udp_hdr);
+                        }
+
+                        offset += send_length;
+                       
+
+                        m->data_len = offset;
+                        m->pkt_len = offset;
+                        send_counter += rte_eth_tx_buffer(portid, queueid, tx_buffer, m);
+                       
+                        //send_counter += sent;
+                        need_to_alloc=true;
+                    } else {
+                        break;
                     }
-                    else
-                    {
-                        struct rte_ether_addr peer_mac_addr = find_mac_from_ip((*(struct sockaddr_in *)(&peer_addr)).sin_addr.s_addr, ip_addresses, mac_addresses, IP_MAC_ARRAYS_LENGTH);
-#if RTE_VERSION < RTE_VERSION_NUM(21, 11, 0, 0)
-                        rte_ether_addr_copy(&peer_mac_addr, &eth_ptr->d_addr);
-#else
-                        rte_ether_addr_copy(&peer_mac_addr, &eth_ptr->dst_addr);
-#endif
-                    }
-
-                    setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, my_addr, peer_addr);
-                    (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-                    copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
-                    offset += sizeof(struct rte_ether_hdr);
-                    copy_buf_to_pkt(&ip_hdr_struct, sizeof(struct rte_ipv4_hdr), m, offset);
-                    offset += sizeof(struct rte_ipv4_hdr);
-                    copy_buf_to_pkt(&udp_hdr_struct, sizeof(struct rte_udp_hdr), m, offset);
-                    offset += sizeof(struct rte_udp_hdr);
-
-                    offset += send_length;
-
-                    m->data_len = offset;
-                    m->pkt_len = offset;
-                    int sent = rte_eth_tx_buffer(portid, queueid, tx_buffer, m);
-
-                    send_counter += sent;
-                    need_to_alloc = true;
                 }
+                if (pkt_created || max_tx < 8) {
+                        int sent = rte_eth_tx_buffer_flush(portid, queueid, tx_buffer);
+                        if (sent < pkt_created)
+                            received_ecn = 1;
+                        else
+                            received_ecn = 0;
+                        pkt_created -= sent;
+                        send_counter += sent;
+                } /*else if (pkt_created == 0 && pkts_recv == 0) {
+                    current_time = picoquic_current_time();
+                    delta_t = picoquic_get_next_wake_delay(quic, current_time, 1000000);
+                    usleep(delta_t / 1000);
+                }
+*/
 
-                else
+                if (ret == 0 && loop_callback != NULL)
                 {
-                    int sent = rte_eth_tx_buffer_flush(portid, queueid, tx_buffer);
-                    send_counter += sent;
-                    break;
+                    ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
                 }
-            }
 
-            if (ret == 0 && loop_callback != NULL)
-            {
-                ret = loop_callback(quic, picoquic_packet_loop_after_send, loop_callback_ctx, &bytes_sent);
+            } else {
+                printf("Err %d\n", ret);
             }
         }
     }
