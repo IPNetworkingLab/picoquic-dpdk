@@ -124,7 +124,8 @@ lcore_hello(__rte_unused void *arg)
                                                                     eth_addr.addr_bytes[5]);
 
     printf("mac : %s\n",macStr);
-	int counter = 0;
+	int packet_counter = 0;
+	uint64_t goodput = 0;
 	struct timeval start_time;
     struct timeval current_time;
 	gettimeofday(&start_time, NULL);
@@ -140,24 +141,30 @@ lcore_hello(__rte_unused void *arg)
 			
 			ip_hdr = (struct rte_ipv4_hdr *)(rte_pktmbuf_mtod(pkts_burst[j], char *) + sizeof(struct rte_ether_hdr));
 
-			struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
+			struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr +
 															 sizeof(struct rte_ipv4_hdr));
-			unsigned char *payload = (unsigned char *)(udp + 1);
-			counter++;
-			printf("length : %d\n",htons(ip_hdr->total_length));
-			printf("payload : %s\n",payload);
+			unsigned char *payload = (unsigned char *)(udp_hdr + 1);
+			rte_be16_t length = udp_hdr->dgram_len;
+            uint64_t payload_length = htons(length) - sizeof(struct rte_udp_hdr);
+			goodput += payload_length;
+			packet_counter++;
+
+			// printf("payload : %s\n",payload);
 			rte_pktmbuf_free(pkts_burst[j]);
 			
 
 		}
-		if(counter > 20000000){
-			counter = 0;
-			gettimeofday(&current_time, NULL);
-			double elapsed = 0.0;
-			elapsed = (current_time.tv_sec - start_time.tv_sec) + (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
-			printf("elapsed time : %f\n",elapsed);
+		gettimeofday(&current_time, NULL);
+		double elapsed = 0.0;
+		elapsed = (current_time.tv_sec - start_time.tv_sec) + (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
+		if(elapsed > 2){
+			printf("goodput : %lf\n", ((goodput*8)/1000000)/elapsed);
+			printf("number of packets : %lu\n",packet_counter);
+			goodput = 0;
+			packet_counter = 0;
 			gettimeofday(&start_time, NULL);
 		}
+		
 	}
 	return 0;
 }
