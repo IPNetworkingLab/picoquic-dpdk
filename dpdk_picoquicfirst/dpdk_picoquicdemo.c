@@ -637,7 +637,7 @@ int main(int argc, char **argv)
     (*(struct sockaddr_in *)(&bind)).sin_family = AF_INET;
     (*(struct sockaddr_in *)(&bind)).sin_addr.s_addr = inet_addr("0.0.0.0");
 
-
+    int isIpv4 = 1;
     int is_client = 0;
     int ret;
     unsigned portid;
@@ -665,8 +665,8 @@ int main(int argc, char **argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:A:N:@:2:d:3H1", 15);
-    ret = picoquic_config_option_letters(option_string + 15, sizeof(option_string) - 15, NULL);
+    memcpy(option_string, "u:f:A:N:@:2:d:3H1", 17);
+    ret = picoquic_config_option_letters(option_string + 17, sizeof(option_string) - 17, NULL);
 
     if (ret == 0)
     {
@@ -697,17 +697,27 @@ int main(int argc, char **argv)
                 just_once = 1;
                 break;
             case 'd':
-                 ret = inet_pton(AF_INET, optarg, &((*(struct sockaddr_in *)(&bind)).sin_addr.s_addr ));
-                 if (ret != 0) {
+                isIpv4 = 1;
+                ret = inet_pton(AF_INET, optarg, &((*(struct sockaddr_in *)(&bind)).sin_addr.s_addr ));
+                if (ret != 1) {
+                    isIpv4 = 0;
                     printf("Not an IPV4\n");
                     ret = inet_pton(AF_INET6, optarg, &((*(struct sockaddr_in6 *)(&bind)).sin6_addr ));
-                 }
-                if (ret != 0) {
+                }
+                if (ret != 1) {
                             fprintf(stderr, "Invalid IPv4 or IPv6 address: %s\n", optarg);
                     usage();
                 }
-                printf("Addr is %x\n", (*(struct sockaddr_in *)(&bind)).sin_addr.s_addr );
-                 break;
+                if(isIpv4){
+                    printf("Addr is %s\n", inet_ntoa((*(struct sockaddr_in *)(&bind)).sin_addr));
+
+                }
+                else{
+                    printf("Addr is %x\n", (*(struct sockaddr_in *)(&bind)).sin_addr.s_addr );
+                }
+                
+                break;
+
             case '2':
                 if (str_to_mac(optarg, &client_addr) != 0)
                 {

@@ -260,7 +260,7 @@ int add_mac_ip_pair(uint32_t ip_addr, struct rte_ether_addr mac_addr, uint32_t *
         if (ip_addresses[i] == 0)
         {
             // printf("ip : %u\n",ip_addr);
-            // printf("mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
+            // printf("received_mac : %x:%x:%x:%x:%x:%x\n", mac_addr.addr_bytes[0], mac_addr.addr_bytes[1], mac_addr.addr_bytes[2], mac_addr.addr_bytes[3], mac_addr.addr_bytes[4], mac_addr.addr_bytes[5]);
             ip_addresses[i] = ip_addr;
             mac_addresses[i] = mac_addr;
             return 0;
@@ -507,6 +507,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
             free(my_mac);
             my_mac = 0;
         }
+        // printf("my_mac : %x:%x:%x:%x:%x:%x\n", 
+        // my_mac-> addr_bytes[0], 
+        // my_mac->addr_bytes[1], 
+        // my_mac->addr_bytes[2], 
+        // my_mac->addr_bytes[3], 
+        // my_mac->addr_bytes[4], 
+        // my_mac->addr_bytes[5]);
 
     }
 
@@ -697,9 +704,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                             struct nd_sol* ea = (struct nd_sol*)icmp_hdr;
                             struct nd_adv* ad = (struct nd_adv*)icmp_hdr;
                             /* Switch src and dst data and set bonding MAC */
+#if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
                             rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
                             rte_ether_addr_copy(my_mac, &eth_hdr->s_addr);
-
+#else
+                            rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
+                            rte_ether_addr_copy(my_mac, &eth_hdr->src_addr);
+#endif
                             //rte_ether_addr_copy(&ea->nd_sha, );
                             //ea-> = arp_hdr->arp_data.arp_sip;
                             rte_ether_addr_copy(my_mac, ea->nd_sha);
@@ -734,7 +745,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                     printf("Unknown ethernet protocol %x\n", eth_hdr->ether_type);
                     rte_pktmbuf_free(pkts_burst[i]);
                 }
-            } //For all packets received
+            }
 
             if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION)
             {
@@ -776,13 +787,19 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                         struct rte_udp_hdr udp_hdr_struct;
                         struct rte_ether_hdr eth_hdr_struct;
 
-
+                        // printf("my_mac2 : %x:%x:%x:%x:%x:%x\n", 
+                        // my_mac-> addr_bytes[0], 
+                        // my_mac->addr_bytes[1], 
+                        // my_mac->addr_bytes[2], 
+                        // my_mac->addr_bytes[3], 
+                        // my_mac->addr_bytes[4], 
+                        // my_mac->addr_bytes[5]);
 #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
-                        rte_ether_addr_copy(&my_mac, &eth_hdr_struct.s_addr);
+                        rte_ether_addr_copy(my_mac, &eth_hdr_struct.s_addr);
 #else
-                        rte_ether_addr_copy(&my_mac, &eth_hdr_struct.src_addr);
+                        rte_ether_addr_copy(my_mac, &eth_hdr_struct.src_addr);
 #endif
-
+                        
                         if (peer_mac != NULL) {
                             //printf("Have peer addr %x\n",peer_mac);
 #if RTE_VERSION < RTE_VERSION_NUM(21,11,0,0)
@@ -821,7 +838,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                             //(*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
                             //printf("Local addr port %d", (*(struct sockaddr_in *)(&local_addr)).sin_port);
-                            setup_pkt_udp_ip6_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, local_addr, peer_addr);
+                            setup_pkt_udp_ip6_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, my_addr, peer_addr);
                             (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV6);
                             copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
                             offset += sizeof(struct rte_ether_hdr);
@@ -841,7 +858,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                             //(*(struct sockaddr_in *)(&addr_from)).sin_port = src_port;
                             //printf("Local addr port %d", (*(struct sockaddr_in *)(&local_addr)).sin_port);
-                            setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, local_addr, peer_addr);
+                            setup_pkt_udp_ip_headers(&ip_hdr_struct, &udp_hdr_struct, send_length, my_addr, peer_addr);
                             (&eth_hdr_struct)->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
                             copy_buf_to_pkt(&eth_hdr_struct, sizeof(struct rte_ether_hdr), m, offset);
                             offset += sizeof(struct rte_ether_hdr);
