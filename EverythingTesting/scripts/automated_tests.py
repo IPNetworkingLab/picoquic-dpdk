@@ -53,6 +53,7 @@ def run_server(args):
 
 def test_generic(argsClient,argsServer,isComparison):
     run_server(argsServer)
+    time.sleep(5)
     client_process = run_client(argsClient)
     client_process.wait()
     pid = get_pid_process(serverName,process_name)
@@ -69,6 +70,7 @@ def test_generic(argsClient,argsServer,isComparison):
         argsServerNoDpdk["eal"] = nodpdk
         
         run_server(argsServerNoDpdk)
+        time.sleep(5)
         client_process = run_client(argsClientNoDpdk)
         client_process.wait()
         pid = get_pid_process(serverName,process_name)
@@ -156,7 +158,7 @@ def test_batching():
             time.sleep(5)
         time.sleep(10)
 
-def test_congestion():
+def test_congestion_dpdk():
     for CC in ["reno", "cubic", "bbr", "fast"]:
         for it in range(5):
             clientArgsDpdk = {"eal" : dpdk1Client,
@@ -172,12 +174,44 @@ def test_congestion():
             test_generic(clientArgsDpdk,serverArgsDpdk,False)
             time.sleep(5)
         time.sleep(10)
+        
+def test_congestion_nodpdk():
+    clientArgsDpdk = {"eal" : nodpdk,
+                        "args": "-D",
+                        "output_file":"CC_nodpdk.txt",
+                        "ip_and_port" : "10.100.0.2 5600",
+                        "request" : "/2000000",
+                        "keyword" : "Mbps"}
+            
+    serverArgsDpdk = {"eal" : nodpdk,
+                        "args" : " ",
+                        "port" : "-p 5600"}
+    test_generic(clientArgsDpdk,serverArgsDpdk,False)
+    
+def test_batching_noCC_noPacing():
+    for i in [4,8,16,32,64,128]:
+        for it in range(5):
+            clientArgsDpdk = {"eal" : dpdk1Client,
+                        "args": "-D -* {} -@ {}".format(str(i),str(i)),
+                        "output_file":"throughput_noCC_noPacing_{}_dpdk.txt".format(str(i)),
+                        "ip_and_port" : "10.100.0.2 5600",
+                        "request" : "/20000000000",
+                        "keyword" : "Mbps"}
+            
+            serverArgsDpdk = {"eal" : dpdk1Server,
+                        "args" : "-* {} -@ {}".format(str(i),str(i)),
+                        "port" : "-p 5600"}
+            test_generic(clientArgsDpdk,serverArgsDpdk,False)
+            time.sleep(5)
+        time.sleep(10)
 
 if __name__ == "__main__":
     #test_handshake()
     #test_server_scaling()
     #test_batching()
-    test_congestion()
+    test_congestion_dpdk()
+    #test_congestion_nodpdk()
+    #test_batching_noCC_noPacing()
         
     
 
