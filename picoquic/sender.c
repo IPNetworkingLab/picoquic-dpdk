@@ -25,6 +25,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define PACING_ON 0
+#define CC_ON 0 
+
 /*
  * Sending logic.
  *
@@ -3860,8 +3863,11 @@ int picoquic_prepare_packet_ready(picoquic_cnx_t* cnx, picoquic_path_t* path_x, 
         } else if (cnx->cnx_state != picoquic_state_disconnected && path_x->challenge_verified != 0) {
             /* There are no frames yet that would be exempt from pacing control, but if there
              * was they should be sent here. */
-
+#if PACING_ON
             if (picoquic_is_sending_authorized_by_pacing(cnx, path_x, current_time, next_wake_time)) {
+#else
+            if(true){
+#endif
                 /* Send here the frames that are not exempt from the pacing control,
                  * but are exempt for congestion control */
                 if (picoquic_is_ack_needed(cnx, current_time, next_wake_time, pc, !is_nominal_ack_path)) {
@@ -3910,7 +3916,7 @@ int picoquic_prepare_packet_ready(picoquic_cnx_t* cnx, picoquic_path_t* path_x, 
 
                 /* Compute the length before entering the CC block */
                 length = bytes_next - bytes;
-
+#if CC_ON
                 if (path_x->cwin < path_x->bytes_in_transit) {
                     cnx->cwin_blocked = 1;
                     if (cnx->congestion_alg != NULL) {
@@ -3919,6 +3925,11 @@ int picoquic_prepare_packet_ready(picoquic_cnx_t* cnx, picoquic_path_t* path_x, 
                             0, 0, 0, 0, current_time);
                     }
                 }
+#else
+                if(false){
+
+                }
+#endif
                 else {
                     /* Send here the frames that are subject to both congestion and pacing control.
                      * this includes the PMTU probes.

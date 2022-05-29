@@ -24,9 +24,9 @@ def retrieve_cards():
 serverName = 'server'
 clientName = 'client1'
 process_name = 'dpdk_picoquicdemo'
-dpdk1Client = 'dpdk -l 0-1 -a 0000:8a:00.1 -- -A 50:6b:4b:f3:7c:71'
-dpdk8Client = 'dpdk -l 0-15 {} -- -A 50:6b:4b:f3:7c:71'.format(retrieve_cards())
-dpdk1Server = 'dpdk -l 0-1 -a 0000:51:00.1 --'
+dpdk1Client = '--dpdk -l 0-1 -a 0000:8a:00.1 -- -A 50:6b:4b:f3:7c:71'
+dpdk8Client = '--dpdk -l 0-15 {} -- -A 50:6b:4b:f3:7c:71'.format(retrieve_cards())
+dpdk1Server = '--dpdk -l 0-1 -a 0000:51:00.1 --'
 nodpdk = 'nodpdk'
 
 
@@ -75,7 +75,7 @@ def test_generic(argsClient,argsServer,isComparison):
         intPid = int(pid)
         killing_process = kill_process(serverName,str(intPid))
         killing_process.wait()
-
+    print("FINISHED")
 def test_server_scaling():
     
     clientArgs = {"eal" : dpdk8Client,
@@ -139,12 +139,45 @@ def test_request():
     serverArgsNoDpdk["eal"] = nodpdk
     test_generic(clientArgsDpdk,serverArgsDpdk,True)
     
-    
+def test_batching():
+    for i in [1,2,4,8,16,32,64]:
+        for it in range(5):
+            clientArgsDpdk = {"eal" : dpdk1Client,
+                        "args": "-D -* {}".format(str(i)),
+                        "output_file":"throughput_{}_dpdk.txt".format(str(i)),
+                        "ip_and_port" : "10.100.0.2 5600",
+                        "request" : "/10000000000",
+                        "keyword" : "Mbps"}
+            
+            serverArgsDpdk = {"eal" : dpdk1Server,
+                        "args" : "-* {}".format(str(i)),
+                        "port" : "-p 5600"}
+            test_generic(clientArgsDpdk,serverArgsDpdk,False)
+            time.sleep(5)
+        time.sleep(10)
+
+def test_congestion():
+    for CC in ["reno", "cubic", "bbr", "fast"]:
+        for it in range(5):
+            clientArgsDpdk = {"eal" : dpdk1Client,
+                        "args": "-D -G {} -* 1".format(CC),
+                        "output_file":"CC_{}_dpdk.txt".format(CC),
+                        "ip_and_port" : "10.100.0.2 5600",
+                        "request" : "/2000000",
+                        "keyword" : "Mbps"}
+            
+            serverArgsDpdk = {"eal" : dpdk1Server,
+                        "args" : "-G {} -* 1".format(CC),
+                        "port" : "-p 5600"}
+            test_generic(clientArgsDpdk,serverArgsDpdk,False)
+            time.sleep(5)
+        time.sleep(10)
 
 if __name__ == "__main__":
     #test_handshake()
-    test_server_scaling()
-    
+    #test_server_scaling()
+    #test_batching()
+    test_congestion()
         
     
 

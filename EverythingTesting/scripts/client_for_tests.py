@@ -7,7 +7,7 @@ output_file_prefix = "/home/nikita/memoire/dpdk_picoquic/EverythingTesting/data/
 cwd = "/home/nikita/memoire/dpdk_picoquic"
 args=json.loads(sys.argv[1])
 
-cmd = 'sudo {execName} {eal} {args} {ip_and_port} {request} | grep {keyword} >> {output_file}'.format(
+cmd = 'sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH {execName} {eal} {args} {ip_and_port} {request} | grep {keyword} >> {output_file}'.format(
                                                             execName=execName,
                                                             args=args['args'],
                                                             eal=args['eal'],

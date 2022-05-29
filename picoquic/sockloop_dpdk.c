@@ -410,7 +410,8 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                               int *is_running,
                               unsigned portid,
                               unsigned queueid,
-                              int batching_size,
+                              int batching_size_rx,
+                              int batching_size_tx,
                               struct sockaddr_storage my_addr,
                               struct rte_ether_addr *my_mac,
                               struct rte_ether_addr *peer_mac,
@@ -422,8 +423,14 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
     uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
     uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
-    const int MAX_PKT_BURST = batching_size;
-    struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
+    const int MAX_PKT_BURST_RX = batching_size_rx;
+    const int MAX_PKT_BURST_TX = batching_size_tx;
+
+    printf("MAX_PKT_BURST_RX : %d\n", MAX_PKT_BURST_RX);
+    printf("MAX_PKT_BURST_TX : %d\n", MAX_PKT_BURST_TX);
+
+
+    struct rte_mbuf *pkts_burst[MAX_PKT_BURST_RX];
     struct lcore_queue_conf *qconf;
     int ret;
     struct rte_eth_rxconf rxq_conf;
@@ -487,7 +494,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
 
 
-    ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST);
+    ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST_TX);
     if (ret != 0) {
         return ret;
     }
@@ -533,13 +540,13 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
         unsigned char received_ecn = 0;
 
         if_index_to = 0;
-        pkts_recv = rte_eth_rx_burst(portid, queueid, pkts_burst, MAX_PKT_BURST);
+        pkts_recv = rte_eth_rx_burst(portid, queueid, pkts_burst, MAX_PKT_BURST_RX);
 
         current_time = picoquic_current_time();
 
         uint64_t loop_time = current_time;
         uint16_t len;
-
+        int packet_received = false;
         for (int i = 0; i < pkts_recv; i++)
         {
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts_burst[i], struct rte_ether_hdr *);
@@ -557,6 +564,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                 if (ip_hdr->next_proto_id == IPPROTO_UDP)
                 {
+                    //packet_received = true; 
                     udp_hdr = (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr));
 
                     if ((ip_hdr->type_of_service & 0b11) == 0b11)
@@ -645,6 +653,9 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
 
                         rte_eth_tx_burst(portid, queueid, &pkts_burst[i], 1);
                     }
+                }
+                else{
+                    rte_pktmbuf_free(pkts_burst[i]);
                 }
                 continue;
             }
@@ -750,6 +761,7 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                 else
                 {
                     printf("Unknown IPv6 protocol %x\n", ip6_hdr->proto);
+                    rte_pktmbuf_free(pkts_burst[i]);
                 }
             }
             else
@@ -757,6 +769,9 @@ int picoquic_packet_loop_dpdk(picoquic_quic_t *quic,
                 printf("Unknown ethernet protocol %x\n", eth_hdr->ether_type);
                 rte_pktmbuf_free(pkts_burst[i]);
             }
+        }
+        if(packet_received){
+            continue;
         }
 
         if (ret != PICOQUIC_NO_ERROR_SIMULATE_NAT && ret != PICOQUIC_NO_ERROR_SIMULATE_MIGRATION && ret != PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP)
