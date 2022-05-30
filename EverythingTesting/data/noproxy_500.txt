@@ -1,0 +1,16 @@
+goodput : 65570.967215 number of packets : 32785604 elapsed : 2.000001
+goodput : 65555.467222 number of packets : 32777920 elapsed : 2.000001
+goodput : 65484.967258 number of packets : 32742560 elapsed : 2.000001
+goodput : 64927.967536 number of packets : 32464028 elapsed : 2.000001
+goodput : 65079.967460 number of packets : 32540216 elapsed : 2.000001
+goodput : 64750.467625 number of packets : 32375332 elapsed : 2.000001
+goodput : 64676.967662 number of packets : 32338527 elapsed : 2.000001
+goodput : 64430.467785 number of packets : 32215357 elapsed : 2.000001
+goodput : 64263.467868 number of packets : 32131904 elapsed : 2.000001
+goodput : 64107.467946 number of packets : 32053956 elapsed : 2.000001
+goodput : 65035.467482 number of packets : 32517835 elapsed : 2.000001
+goodput : 65207.967396 number of packets : 32604021 elapsed : 2.000001
+goodput : 64675.967662 number of packets : 32338059 elapsed : 2.000001
+goodput : 64560.967720 number of packets : 32280573 elapsed : 2.000001
+goodput : 64659.967670 number of packets : 32330140 elapsed : 2.000001
+goodput : 64932.467534 number of packets : 32466464 elapsed : 2.000001

@@ -1,5 +1,19 @@
-elapsed time : 9.462511
-elapsed time : 9.455463
-elapsed time : 9.456063
-elapsed time : 9.460268
-elapsed time : 9.455500
+goodput : 820.999590 number of packets : 2053331 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053333 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053323 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053341 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053340 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053328 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053327 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053349 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053327 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053334 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053339 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053343 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053342 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053336 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053339 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053341 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053345 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053332 elapsed : 2.000001
+goodput : 820.999590 number of packets : 2053325 elapsed : 2.000001
