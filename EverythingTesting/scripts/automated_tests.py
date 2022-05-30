@@ -191,6 +191,23 @@ def test_congestion_dpdk():
             time.sleep(5)
         time.sleep(10)
         
+def test_congestion_big_dpdk():
+    for CC in ["reno", "cubic", "bbr", "fast"]:
+        for it in range(5):
+            clientArgsDpdk = {"eal" : dpdk1Client,
+                        "args": "-D -G {} -* 32".format(CC),
+                        "output_file":"CC_big_{}_dpdk.txt".format(CC),
+                        "ip_and_port" : "10.100.0.2 5600",
+                        "request" : "/10000000000",
+                        "keyword" : "Mbps"}
+            
+            serverArgsDpdk = {"eal" : dpdk1Server,
+                        "args" : "-G {} -* 32".format(CC),
+                        "port" : "-p 5600"}
+            test_generic(clientArgsDpdk,serverArgsDpdk,False)
+            time.sleep(5)
+        time.sleep(10)
+        
 def test_congestion_nodpdk():
     clientArgsDpdk = {"eal" : nodpdk,
                         "args": "-D",
@@ -224,10 +241,11 @@ def test_batching_noCC_noPacing():
 if __name__ == "__main__":
     #test_handshake()
     #test_server_scaling()
-    test_batching2()
+    #test_batching2()
     #test_congestion_dpdk()
     #test_congestion_nodpdk()
     #test_batching_noCC_noPacing()
+    test_congestion_big_dpdk()
         
     
 
