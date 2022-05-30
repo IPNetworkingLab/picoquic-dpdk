@@ -70,7 +70,6 @@ def test_generic(argsClient,argsServer,isComparison):
         argsServerNoDpdk["eal"] = nodpdk
         
         run_server(argsServerNoDpdk)
-        time.sleep(5)
         client_process = run_client(argsClientNoDpdk)
         client_process.wait()
         pid = get_pid_process(serverName,process_name)
@@ -142,11 +141,28 @@ def test_request():
     test_generic(clientArgsDpdk,serverArgsDpdk,True)
     
 def test_batching():
+    for i in [4,8,16,32,64]:
+        for it in range(5):
+            clientArgsDpdk = {"eal" : dpdk1Client,
+                        "args": "-D -* {} -@ {}".format(str(i),str(i)),
+                        "output_file":"throughput_{}_dpdk.txt".format(str(i)),
+                        "ip_and_port" : "10.100.0.2 5600",
+                        "request" : "/10000000000",
+                        "keyword" : "Mbps"}
+            
+            serverArgsDpdk = {"eal" : dpdk1Server,
+                        "args" : "-* {}".format(str(i)),
+                        "port" : "-p 5600"}
+            test_generic(clientArgsDpdk,serverArgsDpdk,False)
+            time.sleep(5)
+        time.sleep(10)
+        
+def test_batching2():
     for i in [1,2,4,8,16,32,64]:
         for it in range(5):
             clientArgsDpdk = {"eal" : dpdk1Client,
                         "args": "-D -* {}".format(str(i)),
-                        "output_file":"throughput_{}_dpdk.txt".format(str(i)),
+                        "output_file":"throughput32_{}_dpdk.txt".format(str(i)),
                         "ip_and_port" : "10.100.0.2 5600",
                         "request" : "/10000000000",
                         "keyword" : "Mbps"}
@@ -208,8 +224,8 @@ def test_batching_noCC_noPacing():
 if __name__ == "__main__":
     #test_handshake()
     #test_server_scaling()
-    #test_batching()
-    test_congestion_dpdk()
+    test_batching2()
+    #test_congestion_dpdk()
     #test_congestion_nodpdk()
     #test_batching_noCC_noPacing()
         

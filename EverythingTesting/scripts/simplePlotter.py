@@ -101,11 +101,28 @@ def noproxy_pkt_size_plot():
         item = ItemToPlot("payload_size : {}".format(str(i)),get_full_data,("../data/noproxy_{}.txt".format(str(i)),3))
         items.append(item)
     comparison_plot_box(items, "Packet size impact without proxy","time elpased (s)","../plots/noproxy_pkt_size.png")
+    
+def batching_no_CC_plot():
+    items = []
+    for batching in [4,8,16,32,64,128]:
+        item = ItemToPlot("{}".format(str(batching)),get_full_data,("../data/throughput_noCC_noPacing_{}_dpdk.txt".format(str(batching)),throughput_index))
+        items.append(item)
+    comparison_plot_box(items, "Batching size impact on throughput","Throughput (Mbps)","../plots/batching_impact_noCC.png")
+
+def batching_plot():
+    items = []
+    for batching in [4,8,16,32,64]:
+        item = ItemToPlot("{}".format(str(batching)),get_full_data,("../data/throughput_{}_dpdk.txt".format(str(batching)),throughput_index))
+        items.append(item)
+    comparison_plot_box(items, "Batching size impact on throughput","Throughput (Mbps)","../plots/batching_impact_withCC.png")
+    
 if __name__ == "__main__":
     #handshake_comparison_plot()
     #throughput_comparison_plot_box()
     #server_scaling_plot()
-    noproxy_pkt_size_plot()
+    #noproxy_pkt_size_plot()
+    batching_no_CC_plot()
+    batching_plot()
     
     
    

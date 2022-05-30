@@ -3,3 +3,12 @@ Received 20000000025 bytes in 12.046725 seconds, 13281.618050 Mbps.
 Received 20000000025 bytes in 12.270241 seconds, 13039.678699 Mbps.
 Received 20000000025 bytes in 12.539425 seconds, 12759.755746 Mbps.
 Received 20000000025 bytes in 12.059900 seconds, 13267.108367 Mbps.
+Received 20000000025 bytes in 12.233961 seconds, 13078.348067 Mbps.
+Received 20000000025 bytes in 12.241469 seconds, 13070.326788 Mbps.
+Received 20000000025 bytes in 12.227599 seconds, 13085.152711 Mbps.
+Received 20000000025 bytes in 12.222565 seconds, 13090.541977 Mbps.
+Received 20000000025 bytes in 12.241486 seconds, 13070.308637 Mbps.
+Received 20000000025 bytes in 12.254755 seconds, 13056.156586 Mbps.
+Received 20000000025 bytes in 12.239321 seconds, 13072.620630 Mbps.
+Received 20000000025 bytes in 12.234654 seconds, 13077.607278 Mbps.
+Received 20000000025 bytes in 12.252333 seconds, 13058.737483 Mbps.

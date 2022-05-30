@@ -1,5 +1,5 @@
-Received 2000021 bytes in 1.262010 seconds, 12.678321 Mbps.
-Received 2000021 bytes in 1.261914 seconds, 12.679286 Mbps.
-Received 2000021 bytes in 1.261554 seconds, 12.682904 Mbps.
-Received 2000021 bytes in 1.261464 seconds, 12.683809 Mbps.
-Received 2000021 bytes in 1.262353 seconds, 12.674876 Mbps.
+Received 2000021 bytes in 0.011103 seconds, 1441.067099 Mbps.
+Received 2000021 bytes in 0.011347 seconds, 1410.079140 Mbps.
+Received 2000021 bytes in 0.011322 seconds, 1413.192722 Mbps.
+Received 2000021 bytes in 0.011173 seconds, 1432.038665 Mbps.
+Received 2000021 bytes in 0.011305 seconds, 1415.317824 Mbps.
