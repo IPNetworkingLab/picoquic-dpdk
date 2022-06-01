@@ -488,15 +488,14 @@ int quic_client(const char *ip_address_text, int server_port,
         ret = picoquic_packet_loop_win(qclient, 0, loop_cb.server_address.ss_family, 0, 
             config->socket_buffer_size, client_loop_cb, &loop_cb);
 #else
-        if(dpdk){
+        if (dpdk){
             int running = 1;
             ret = picoquic_packet_loop_dpdk(qclient, 0, loop_cb.server_address.ss_family, 0,
             config->socket_buffer_size, config->do_not_use_gso, client_loop_cb, &loop_cb,
             &running,
-            portid, queueid, batching_size,*addr_from,
+            portid, queueid, batching_size, batching_size, *addr_from,
             NULL, mac_dst, mb_pool, tx_buffer);
-        }
-        else{
+        } else {
             ret = picoquic_packet_loop(qclient, 0, loop_cb.server_address.ss_family, 0,
             config->socket_buffer_size, config->do_not_use_gso, client_loop_cb, &loop_cb);
         }
