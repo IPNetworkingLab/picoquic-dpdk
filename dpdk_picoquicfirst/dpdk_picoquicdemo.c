@@ -58,6 +58,8 @@
 
 #endif
 
+#define MAX_BIND 128
+
 static const int default_server_port = 4443;
 static const char *default_server_name = "::";
 
@@ -103,6 +105,7 @@ static const char *default_server_name = "::";
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
 #include <rte_ether.h>
+#include <rte_flow.h>
 
 #define MEMPOOL_CACHE_SIZE 256
 #define RTE_TEST_RX_DESC_DEFAULT 1024
@@ -191,7 +194,8 @@ void usage()
     fprintf(stderr, "                        -f 1  test NAT rebinding,\n");
     fprintf(stderr, "                        -f 2  test CNXID renewal,\n");
     fprintf(stderr, "                        -f 3  test migration to new address.\n");
-    fprintf(stderr, "  -d bind               Set the server's address.\n");
+    fprintf(stderr, "  -d bind               Set the server's address. Can be repeated multiple times to set multiple addresses.\n");
+    fprintf(stderr, "  -r                    (dpdk only) Affinitize bound address to queues using rte_flow.\n");
     fprintf(stderr, "  -u nb                 trigger key update after receiving <nb> packets on client\n");
     fprintf(stderr, "  -1                    Once: close the server after processing 1 connection.\n");
 
@@ -300,6 +304,82 @@ int dpdk_init_port_client(uint16_t portid)
     {
         printf("failed to init queue\n");
         return 0;
+    }
+}
+
+int dpdk_init_flow_rules(uint16_t nb_of_queues, struct sockaddr_storage* bind, int bind_nr) {
+    int portid = 0;
+    int ret = 0;
+    for (int queueid = 0; queueid < nb_of_queues; queueid++) {
+        if (true) {
+            struct rte_flow_attr attr = {0};
+            struct rte_flow_item pattern[3] = {0};
+            struct rte_flow_action actions[2] = {0};
+            struct rte_flow_item_eth eth = {0};
+
+            bzero(&eth,sizeof(struct rte_flow_item_eth));
+
+
+            struct rte_flow *flow;
+            struct rte_flow_error error;
+            struct rte_flow_action_queue queue = {0};
+
+            attr.ingress = 1;
+            attr.group = 0;
+
+            /* setting the eth to pass all packets */
+            pattern[0].type = RTE_FLOW_ITEM_TYPE_ETH;
+            pattern[0].spec = &eth;
+
+            const int p = 0;
+            /* set the dst ipv4 packet to the required value */
+            struct sockaddr* addr = &bind[queueid % bind_nr];
+            if (addr->sa_family == AF_INET) {
+                printf("v4 addr");
+                struct rte_flow_item_ipv4 ipv4 = {0};
+                struct rte_flow_item_ipv4 ipv4_mask = {0};
+                ipv4.hdr.dst_addr = htonl(((struct sockaddr_in*)addr)->sin_addr.s_addr);
+                pattern[p].type = RTE_FLOW_ITEM_TYPE_IPV4;
+                pattern[p].spec = &ipv4;
+                pattern[p].mask = &ipv4_mask;
+            } else {
+                printf("v6addr ", addr);
+                struct rte_flow_item_ipv6 ipv6 = {0};
+                bzero(&ipv6,sizeof(struct rte_flow_item_ipv6));
+                struct rte_flow_item_ipv6 ipv6_mask = {0};
+                bzero(&ipv6_mask,sizeof(struct rte_flow_item_ipv6));
+                for (int i = 0; i < 16; i++) {
+                    ipv6.hdr.dst_addr[i] = ((struct sockaddr_in6*)addr)->sin6_addr.__in6_u.__u6_addr8[i];
+                    printf("%x",ipv6.hdr.dst_addr[i]);
+                    ipv6_mask.hdr.dst_addr[i] = 0xff;
+                }
+                printf("\n");
+                pattern[p].type = RTE_FLOW_ITEM_TYPE_IPV6;
+                pattern[p].spec = &ipv6;
+                pattern[p].mask = &ipv6_mask;
+                pattern[p].last = 0;
+            }
+
+            /* end the pattern array */
+            pattern[1].type = RTE_FLOW_ITEM_TYPE_END;
+
+            /* create the drop action */
+            actions[0].type = RTE_FLOW_ACTION_TYPE_QUEUE;
+            actions[0].conf = &queue;
+            queue.index = queueid;
+            actions[1].type = RTE_FLOW_ACTION_TYPE_END;
+
+            /* validate and create the flow rule */
+            if (!(ret = rte_flow_validate(portid, &attr, pattern, actions, &error))) {
+                flow = rte_flow_create(portid, &attr, pattern, actions, &error);
+                if (!flow)
+                    printf("Could not create flow rule : %d (%s)!\n", ret, error.message);
+                else
+                    printf("Rule for queue %d installed!\n", queueid);
+            } else {
+                printf("Could not valide flow rule : %d (%s)!\n", ret, error.message);
+            }
+        }
     }
 }
 
@@ -423,7 +503,7 @@ client_job(void *arg)
     struct sockaddr_storage addr_from;
 
     (*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
+    (*(struct sockaddr_in *)(&addr_from)).sin_port = htons(2155);
     (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = rte_cpu_to_be_32(ip);
 
     // proxy_mode
@@ -618,9 +698,10 @@ int main(int argc, char **argv)
     int opt;
     char default_server_cert_file[512];
     char default_server_key_file[512];
-    struct sockaddr_storage bind;
-    (*(struct sockaddr_in *)(&bind)).sin_family = AF_INET;
-    (*(struct sockaddr_in *)(&bind)).sin_addr.s_addr = inet_addr("0.0.0.0");
+    struct sockaddr_storage bind[MAX_BIND];
+    int bind_n = 0;
+    (*(struct sockaddr_in *)(&bind[0])).sin_family = AF_INET;
+    (*(struct sockaddr_in *)(&bind[0])).sin_addr.s_addr = inet_addr("0.0.0.0");
 
     int isIpv4 = 1;
     int is_client = 0;
@@ -628,6 +709,7 @@ int main(int argc, char **argv)
     unsigned portid;
     unsigned lcore_id;
     unsigned args[2];
+    int flow = 0;
     server_name = default_server_name;
 
     if (strcmp(argv[1], "--dpdk") == 0)
@@ -650,8 +732,9 @@ int main(int argc, char **argv)
     (void)WSA_START(MAKEWORD(2, 2), &wsaData);
 #endif
     picoquic_config_init(&config);
-    memcpy(option_string, "u:f:A:N:@:2:d:3H1", 17);
-    ret = picoquic_config_option_letters(option_string + 17, sizeof(option_string) - 17, NULL);
+
+    memcpy(option_string, "u:f:A:N:@:2:d:3H1r", 18);
+    ret = picoquic_config_option_letters(option_string + 18, sizeof(option_string) - 18, NULL);
 
     if (ret == 0)
     {
@@ -675,6 +758,9 @@ int main(int argc, char **argv)
                     usage();
                 }
                 break;
+            case 'r':
+                flow = 1;
+                break;
             case 'H':
                 handshake_test = 1;
                 break;
@@ -682,27 +768,22 @@ int main(int argc, char **argv)
                 just_once = 1;
                 break;
             case 'd':
-                isIpv4 = 1;
-                ret = inet_pton(AF_INET, optarg, &((*(struct sockaddr_in *)(&bind)).sin_addr.s_addr ));
-                if (ret != 1) {
-                    isIpv4 = 0;
-                    printf("Not an IPV4\n");
-                    ret = inet_pton(AF_INET6, optarg, &((*(struct sockaddr_in6 *)(&bind)).sin6_addr ));
-                }
+                 ret = inet_pton(AF_INET, optarg, &((*(struct sockaddr_in *)(&bind[bind_n])).sin_addr.s_addr ));
+                 if (ret != 1) {
+                    ret = inet_pton(AF_INET6, optarg, &((*(struct sockaddr_in6 *)(&bind[bind_n])).sin6_addr ));
+                    if (ret == 1) {
+                        bind[bind_n].ss_family = AF_INET6;
+                    }
+                 } else {
+                     bind[bind_n].ss_family = AF_INET;
+                 }
                 if (ret != 1) {
                             fprintf(stderr, "Invalid IPv4 or IPv6 address: %s\n", optarg);
                     usage();
-                }
-                if(isIpv4){
-                    printf("Addr is %s\n", inet_ntoa((*(struct sockaddr_in *)(&bind)).sin_addr));
+                } else
+                    bind_n++;
 
-                }
-                else{
-                    printf("Addr is %x\n", (*(struct sockaddr_in *)(&bind)).sin_addr.s_addr );
-                }
-                
-                break;
-
+                 break;
             case '2':
                 if (str_to_mac(optarg, &client_addr) != 0)
                 {
@@ -738,6 +819,7 @@ int main(int argc, char **argv)
             }
         }
     }
+
     /* Simplified style params */
     if (optind < argc)
     {
@@ -767,6 +849,10 @@ int main(int argc, char **argv)
     {
         is_proxy = 1;
     }
+
+    if (bind_n == 0)
+        bind_n = 1;
+
     if (is_client == 0)
     {
         if(dpdk){
@@ -807,7 +893,7 @@ int main(int argc, char **argv)
             {
                 demo_configs[lcore_id].is_running = 1;
                 demo_configs[lcore_id].queueid = index_lcore;
-                demo_configs[lcore_id].bind = bind;
+                demo_configs[lcore_id].bind = bind[index_lcore % bind_n];
 
                 index_lcore++;
             }
@@ -838,12 +924,16 @@ int main(int argc, char **argv)
         {
             if (dpdk)
             {
-                init_port_server(get_nb_core());
+                dpdk_init_port_server(get_nb_core());
                 ret = rte_eth_dev_start(0);
                 if (ret != 0)
                 {
                     printf("failed to start device\n");
                 }
+
+                if (flow)
+                    dpdk_init_flow_rules(get_nb_core(), bind, bind_n);
+
                 RTE_LCORE_FOREACH_WORKER(lcore_id)
                 {
                     printf("Launch %d\n", lcore_id);
