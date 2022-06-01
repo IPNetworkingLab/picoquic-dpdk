@@ -260,12 +260,7 @@ lcore_hello(__rte_unused void *arg)
         printf("failed to init queue\n");
         return 0;
     }
-    ret = rte_eth_tx_buffer_init(tx_buffer, MAX_PKT_BURST);
-    if (ret != 0)
-    {
-        printf("error in buffer_init\n");
-        return 0;
-    }
+
     // init rx queue
     rxq_conf = dev_info.default_rxconf;
     rxq_conf.offloads = local_port_conf.rxmode.offloads;

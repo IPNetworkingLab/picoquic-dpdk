@@ -211,7 +211,7 @@ void usage()
     exit(1);
 }
 
-int init_mbuf_txbuffer(uint16_t portid, int index)
+int dpdk_init_mbuf_txbuffer(uint16_t portid, int index)
 {
 
     char mbuf_pool_name[20] = "mbuf_pool_X";
@@ -247,17 +247,11 @@ int init_mbuf_txbuffer(uint16_t portid, int index)
         printf("fail to init buffer\n");
         return 0;
     }
-    ret = rte_eth_tx_buffer_init(tx_buffers[index], MAX_PKT_BURST_TX);
-    if (ret != 0)
-    {
-        printf("error in buffer_init\n");
-        return 0;
-    }
 
 }
 
 // client is scaling on the number of ports
-int init_port_client(uint16_t portid)
+int dpdk_init_port_client(uint16_t portid)
 {
     int ret = 0;
     int queueid = 0;
@@ -310,7 +304,7 @@ int init_port_client(uint16_t portid)
 }
 
 // client is scaling on the number of cores
-int init_port_server(uint16_t nb_of_queues)
+int dpdk_init_port_server(uint16_t nb_of_queues)
 {
     int ret = 0;
     int portid = 0;
@@ -406,12 +400,6 @@ int init_port_server(uint16_t nb_of_queues)
         if (tx_buffers[queueid] == NULL)
         {
             printf("fail to init buffer\n");
-            return 0;
-        }
-        ret = rte_eth_tx_buffer_init(tx_buffers[queueid], MAX_PKT_BURST_TX);
-        if (ret != 0)
-        {
-            printf("error in buffer_init\n");
             return 0;
         }
     }
@@ -512,10 +500,7 @@ server_job(void *arg)
     unsigned portid = 0;
     demo_config_t* demo_config = (demo_config_t*)arg;
     struct sockaddr_storage addr_from = demo_config->bind;
-    /*(*(struct sockaddr_in *)(&addr_from)).sin_family = AF_INET;*/
-    //(*(struct sockaddr_in *)(&addr_from)).sin_port = htons(55);
-    /*
-    (*(struct sockaddr_in *)(&addr_from)).sin_addr.s_addr = inet_addr(SERVER_ADDR);*/
+
 
     if(is_proxy){
         unsigned main_port = 0;
@@ -833,8 +818,8 @@ int main(int argc, char **argv)
             RTE_ETH_FOREACH_DEV(portid)
             {
                 portids[index_port] = portid;
-                init_port_client(portid);
-                init_mbuf_txbuffer(portid, index_port);
+                dpdk_init_port_client(portid);
+                dpdk_init_mbuf_txbuffer(portid, index_port);
                 ret = rte_eth_dev_start(portid);
                 if (ret != 0)
                 {
@@ -870,7 +855,7 @@ int main(int argc, char **argv)
                 ret = quic_server(server_name, &config,
                 &demo_configs[0],
                 just_once, dpdk, MAX_PKT_BURST, 0,
-                NULL, NULL, NULL, NULL,NULL);
+                NULL, NULL, NULL, NULL, NULL);
             }
         }
 
@@ -887,8 +872,8 @@ int main(int argc, char **argv)
             RTE_ETH_FOREACH_DEV(portid)
             {
                 portids[index_port] = portid;
-                init_port_client(portid);
-                init_mbuf_txbuffer(portid, index_port);
+                dpdk_init_port_client(portid);
+                dpdk_init_mbuf_txbuffer(portid, index_port);
                 ret = rte_eth_dev_start(portid);
                 if (ret != 0)
                 {
@@ -914,8 +899,8 @@ int main(int argc, char **argv)
                 RTE_ETH_FOREACH_DEV(portid)
                 {
                     portids[index_port] = portid;
-                    init_port_client(portid);
-                    init_mbuf_txbuffer(portid, index_port);
+                    dpdk_init_port_client(portid);
+                    dpdk_init_mbuf_txbuffer(portid, index_port);
                     ret = rte_eth_dev_start(portid);
                     if (ret != 0)
                     {
